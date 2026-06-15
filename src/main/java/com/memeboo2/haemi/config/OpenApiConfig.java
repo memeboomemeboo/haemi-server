@@ -47,7 +47,10 @@ public class OpenApiConfig {
                 .tags(List.of(
                         new Tag().name("M1-Album").description("F1-03 가족 공동 기억 앨범 / F1-06 연관 이미지 타임라인"),
                         new Tag().name("M1-Photo").description("F1-01 사진 개별 저장 / F1-02 일괄 동기화 / F1-04 메모 & 회상 태깅"),
-                        new Tag().name("M1-Reminiscence").description("F1-05 AI 회상 콘텐츠 자동 생성")
+                        new Tag().name("M1-Reminiscence").description("F1-05 AI 회상 콘텐츠 자동 생성"),
+                        new Tag().name("M2-Post").description("F2-01 가족 추억글 작성·수정·삭제 / F2-02 어르신 답변 / F2-03 AI 시 초안"),
+                        new Tag().name("M2-Feed").description("F2-04 추억글 피드 조회 (최신·인기·기간 정렬)"),
+                        new Tag().name("M2-Ranking").description("F2-05 가족 인기 랭킹 & 뱃지 시스템")
                 ))
                 .components(new Components());
     }

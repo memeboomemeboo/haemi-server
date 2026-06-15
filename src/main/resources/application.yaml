@@ -41,3 +41,5 @@ haemi:
     min-photos-for-ai: 5
   ai:
     rotation-days: 7
+  notification:
+    elder-daily-limit: 5
