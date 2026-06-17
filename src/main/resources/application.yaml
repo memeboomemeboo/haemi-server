@@ -43,3 +43,7 @@ haemi:
     rotation-days: 7
   notification:
     elder-daily-limit: 5
+  jwt:
+    secret: haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!
+    access-token-validity: PT30M
+    refresh-token-validity: P14D
