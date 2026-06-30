@@ -1,3 +1,49 @@
 spring:
   application:
     name: haemi
+  datasource:
+    url: jdbc:h2:mem:haemi;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+  api-docs:
+    path: /v3/api-docs
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+haemi:
+  storage:
+    upload-path: ${java.io.tmpdir}/haemi/photos
+  album:
+    max-group-members: 10
+    max-photos-per-upload: 30
+    max-photo-size-mb: 20
+    min-photos-for-ai: 5
+  ai:
+    rotation-days: 7
+  notification:
+    elder-daily-limit: 5
+  jwt:
+    secret: haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!
+    access-token-validity: PT30M
+    refresh-token-validity: P14D
