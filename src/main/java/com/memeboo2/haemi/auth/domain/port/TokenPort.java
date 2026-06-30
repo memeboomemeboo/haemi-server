@@ -21,6 +21,12 @@ public interface TokenPort {
 
     boolean isValid(String token);
 
+    /** Access Token 여부 (refresh token은 type=refresh 클레임 보유) */
+    boolean isAccessToken(String token);
+
+    /** Access Token을 블랙리스트에 추가하여 즉시 무효화 */
+    void blacklistAccessToken(String token);
+
     /** Refresh Token을 SHA-256 해시하여 반환 */
     String hashToken(String token);
 }

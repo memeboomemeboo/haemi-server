@@ -28,12 +28,13 @@ public class AuthApplicationService {
     // ─────────── 회원가입 ───────────
 
     public MemberResult signUp(SignUpCommand cmd) {
-        if (memberRepository.existsByEmail(cmd.email())) {
-            throw new DuplicateEmailException(cmd.email());
+        String normalizedEmail = cmd.email().trim().toLowerCase();
+        if (memberRepository.existsByEmail(normalizedEmail)) {
+            throw new DuplicateEmailException(normalizedEmail);
         }
 
         String encoded = passwordEncoder.encode(cmd.password());
-        Member member = Member.create(cmd.email(), encoded, cmd.name(), cmd.role());
+        Member member = Member.create(normalizedEmail, encoded, cmd.name(), cmd.role());
         member = memberRepository.save(member);
 
         return MemberResult.from(member);
@@ -42,7 +43,8 @@ public class AuthApplicationService {
     // ─────────── 로그인 ───────────
 
     public TokenResult login(LoginCommand cmd) {
-        Member member = memberRepository.findByEmail(cmd.email())
+        String normalizedEmail = cmd.email().trim().toLowerCase();
+        Member member = memberRepository.findByEmail(normalizedEmail)
                 .orElseThrow(InvalidCredentialsException::new);
 
         if (!member.isActive()) {
@@ -65,8 +67,7 @@ public class AuthApplicationService {
                 throw new TotpRequiredException("2FA 인증 코드가 올바르지 않습니다.");
             }
         } else if (member.requiresTotp()) {
-            // 기관 관리자인데 2FA 미설정 → 로그인은 허용하되 설정 안내
-            // (최초 로그인 후 2FA 설정 유도)
+            throw new TotpRequiredException("기관 관리자는 2FA 설정이 필요합니다. 로그인 후 2FA를 먼저 설정해주세요.");
         }
 
         // 토큰 발급
@@ -123,7 +124,8 @@ public class AuthApplicationService {
 
     // ─────────── 로그아웃 ───────────
 
-    public void logout(UUID memberId) {
+    public void logout(UUID memberId, String accessToken) {
+        tokenPort.blacklistAccessToken(accessToken);
         memberRepository.findById(memberId).ifPresent(member -> {
             member.clearRefreshToken();
             memberRepository.save(member);
@@ -132,7 +134,7 @@ public class AuthApplicationService {
 
     // ─────────── 비밀번호 변경 ───────────
 
-    public void changePassword(ChangePasswordCommand cmd) {
+    public void changePassword(ChangePasswordCommand cmd, String accessToken) {
         Member member = memberRepository.findById(cmd.memberId())
                 .orElseThrow(() -> new MemberNotFoundException(cmd.memberId().toString()));
 
@@ -140,8 +142,9 @@ public class AuthApplicationService {
             throw new InvalidCredentialsException();
         }
 
+        tokenPort.blacklistAccessToken(accessToken);
         member.changePassword(passwordEncoder.encode(cmd.newPassword()));
-        member.clearRefreshToken(); // 모든 세션 만료
+        member.clearRefreshToken();
         memberRepository.save(member);
     }
 

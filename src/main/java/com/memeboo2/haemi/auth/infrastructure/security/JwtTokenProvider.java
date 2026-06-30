@@ -15,7 +15,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Date;
 import java.util.HexFormat;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -24,6 +26,7 @@ public class JwtTokenProvider implements TokenPort {
     private final SecretKey secretKey;
     private final long accessTokenValidityMs;
     private final long refreshTokenValidityMs;
+    private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
 
     public JwtTokenProvider(
             @Value("${haemi.jwt.secret}") String secret,
@@ -81,6 +84,9 @@ public class JwtTokenProvider implements TokenPort {
 
     @Override
     public boolean isValid(String token) {
+        if (blacklistedTokens.contains(token)) {
+            return false;
+        }
         try {
             parseClaims(token);
             return true;
@@ -88,6 +94,16 @@ public class JwtTokenProvider implements TokenPort {
             log.debug("JWT 검증 실패: {}", e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public boolean isAccessToken(String token) {
+        return parseClaims(token).get("type") == null;
+    }
+
+    @Override
+    public void blacklistAccessToken(String token) {
+        blacklistedTokens.add(token);
     }
 
     @Override

@@ -11,10 +11,12 @@ import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Auth", description = "회원가입 · 로그인 · 토큰 관리 · 2FA · 프로필")
@@ -97,10 +99,12 @@ public class AuthController {
 
     // ─────────── 로그아웃 ───────────
 
-    @Operation(summary = "로그아웃", description = "서버의 리프레시 토큰을 폐기합니다.")
+    @Operation(summary = "로그아웃", description = "액세스 토큰을 즉시 무효화하고 리프레시 토큰을 폐기합니다.")
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@AuthenticationPrincipal AuthenticatedMember member) {
-        authService.logout(member.memberId());
+    public ApiResponse<Void> logout(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            HttpServletRequest request) {
+        authService.logout(member.memberId(), resolveToken(request));
         return ApiResponse.ok(null, "로그아웃되었습니다.");
     }
 
@@ -110,10 +114,12 @@ public class AuthController {
     @PatchMapping("/password")
     public ApiResponse<Void> changePassword(
             @AuthenticationPrincipal AuthenticatedMember member,
-            @RequestBody @Valid ChangePasswordRequest request) {
-        authService.changePassword(new ChangePasswordCommand(
-                member.memberId(), request.currentPassword(), request.newPassword()
-        ));
+            @RequestBody @Valid ChangePasswordRequest request,
+            HttpServletRequest httpRequest) {
+        authService.changePassword(
+                new ChangePasswordCommand(member.memberId(), request.currentPassword(), request.newPassword()),
+                resolveToken(httpRequest)
+        );
         return ApiResponse.ok(null, "비밀번호가 변경되었습니다. 다시 로그인해주세요.");
     }
 
@@ -157,6 +163,14 @@ public class AuthController {
                 request.secret()
         );
         return ApiResponse.ok(null, "2FA가 활성화되었습니다.");
+    }
+
+    private String resolveToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
     }
 
     @Operation(summary = "2FA TOTP 비활성화")
