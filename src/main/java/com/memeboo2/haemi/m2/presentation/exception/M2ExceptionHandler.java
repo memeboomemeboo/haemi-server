@@ -3,6 +3,8 @@ package com.memeboo2.haemi.m2.presentation.exception;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m2.domain.model.post.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @Slf4j
 @RestControllerAdvice(basePackages = "com.memeboo2.haemi.m2")
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class M2ExceptionHandler {
 
     @ExceptionHandler(MemoryPostNotFoundException.class)
