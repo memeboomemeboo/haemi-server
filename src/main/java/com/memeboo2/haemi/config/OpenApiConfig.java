@@ -1,6 +1,8 @@
 package com.memeboo2.haemi.config;
 
 import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
@@ -44,7 +46,9 @@ public class OpenApiConfig {
                         new Server().url("http://localhost:8080").description("로컬 개발 서버"),
                         new Server().url("https://api.haemi.kr").description("운영 서버")
                 ))
+                .addSecurityItem(new SecurityRequirement().addList("Bearer Token"))
                 .tags(List.of(
+                        new Tag().name("Auth").description("회원가입 · 로그인 · 토큰 관리 · 2FA · 프로필"),
                         new Tag().name("M1-Album").description("F1-03 가족 공동 기억 앨범 / F1-06 연관 이미지 타임라인"),
                         new Tag().name("M1-Photo").description("F1-01 사진 개별 저장 / F1-02 일괄 동기화 / F1-04 메모 & 회상 태깅"),
                         new Tag().name("M1-Reminiscence").description("F1-05 AI 회상 콘텐츠 자동 생성"),
@@ -55,6 +59,11 @@ public class OpenApiConfig {
                         new Tag().name("M4-Dashboard").description("F4-01 인지 리포트 / F4-02 조기 알림 / F4-03 기관 관리자 포털"),
                         new Tag().name("M5-Care").description("F5-01 손주 목소리 알람 / F5-02 하루 10분 산책 유도")
                 ))
-                .components(new Components());
+                .components(new Components()
+                        .addSecuritySchemes("Bearer Token", new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .description("JWT 액세스 토큰. 로그인 후 발급받은 accessToken을 입력하세요.")));
     }
 }
