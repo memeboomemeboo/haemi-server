@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -47,11 +50,36 @@ public class CognitiveReport {
     @Column(name = "memory_post_count", nullable = false)
     private int memoryPostCount;
 
+    @Column(name = "reminiscence_participation_count", nullable = false)
+    private int reminiscenceParticipationCount;
+
+    @Column(name = "most_reacted_photo_type")
+    private String mostReactedPhotoType;
+
+    @Column(name = "accuracy_change_from_previous", nullable = false)
+    private double accuracyChangeFromPrevious;
+
+    @Column(name = "response_time_change_from_previous", nullable = false)
+    private double responseTimeChangeFromPrevious;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "cognitive_report_accuracy_trend",
+            joinColumns = @JoinColumn(name = "report_id"))
+    @OrderColumn(name = "trend_order")
+    private List<ReportTrendPoint> accuracyTrend = new ArrayList<>();
+
     @Column(name = "change_summary", length = 1000)
     private String changeSummary;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_method", nullable = false)
+    private ReportDeliveryMethod deliveryMethod;
+
     @Column(name = "pdf_key")
     private String pdfKey;
+
+    @Column(name = "viewed_at")
+    private LocalDateTime viewedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -60,7 +88,13 @@ public class CognitiveReport {
                                          LocalDate periodStart, LocalDate periodEnd,
                                          int participationCount, double averageAccuracyRate,
                                          double averageResponseSeconds, int memoryPostCount,
-                                         String changeSummary, String pdfKey) {
+                                         int reminiscenceParticipationCount,
+                                         String mostReactedPhotoType,
+                                         double accuracyChangeFromPrevious,
+                                         double responseTimeChangeFromPrevious,
+                                         List<ReportTrendPoint> accuracyTrend,
+                                         String changeSummary,
+                                         ReportDeliveryMethod deliveryMethod) {
         CognitiveReport report = new CognitiveReport();
         report.id = UUID.randomUUID();
         report.elderId = elderId;
@@ -72,9 +106,31 @@ public class CognitiveReport {
         report.averageAccuracyRate = averageAccuracyRate;
         report.averageResponseSeconds = averageResponseSeconds;
         report.memoryPostCount = memoryPostCount;
+        report.reminiscenceParticipationCount = reminiscenceParticipationCount;
+        report.mostReactedPhotoType = mostReactedPhotoType;
+        report.accuracyChangeFromPrevious = accuracyChangeFromPrevious;
+        report.responseTimeChangeFromPrevious = responseTimeChangeFromPrevious;
+        report.accuracyTrend = new ArrayList<>(accuracyTrend);
         report.changeSummary = changeSummary;
-        report.pdfKey = pdfKey;
+        report.deliveryMethod = deliveryMethod;
         report.createdAt = LocalDateTime.now();
         return report;
+    }
+
+    public void assignPdfKey(String pdfKey) {
+        if (pdfKey == null || pdfKey.isBlank()) {
+            throw new IllegalArgumentException("PDF 경로는 비어 있을 수 없습니다.");
+        }
+        this.pdfKey = pdfKey;
+    }
+
+    public void markViewed(LocalDateTime viewedAt) {
+        if (this.viewedAt == null) {
+            this.viewedAt = viewedAt;
+        }
+    }
+
+    public List<ReportTrendPoint> getAccuracyTrend() {
+        return Collections.unmodifiableList(accuracyTrend);
     }
 }

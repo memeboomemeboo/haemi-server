@@ -27,6 +27,8 @@ public record TrainingSessionResult(
         GrandchildChanceStatus lastChanceStatus,
         String lastChanceQuestionId,
         LocalDateTime lastChanceRequestedAt,
+        String grandchildChanceGuideMessage,
+        boolean questionPassAvailable,
         boolean chanceUnusedCompletionBadgeAwarded,
         LocalDateTime startedAt,
         LocalDateTime completedAt
@@ -101,9 +103,18 @@ public record TrainingSessionResult(
                 session.getLastChanceStatus(),
                 session.getLastChanceQuestionId(),
                 session.getLastChanceRequestedAt(),
+                grandchildChanceGuideMessage(session),
+                session.isLastGrandchildChanceExpired(),
                 session.isChanceUnusedCompletionBadgeAwarded(),
                 session.getStartedAt(),
                 session.getCompletedAt()
         );
+    }
+
+    private static String grandchildChanceGuideMessage(CognitiveTrainingSession session) {
+        if (session.isLastGrandchildChanceExpired()) {
+            return "가족이 바쁜가봐요, 조금 더 생각해볼까요?";
+        }
+        return null;
     }
 }

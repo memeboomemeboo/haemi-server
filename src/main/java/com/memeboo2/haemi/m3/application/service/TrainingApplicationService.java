@@ -50,6 +50,9 @@ public class TrainingApplicationService {
             if (existing.getStatus() == TrainingSessionStatus.COMPLETED) {
                 throw new DailySessionAlreadyCompletedException(command.elderId());
             }
+            if (existing.refreshGrandchildChanceStatus(LocalDateTime.now())) {
+                sessionRepository.save(existing);
+            }
             return toResult(existing);
         }
 
@@ -73,11 +76,14 @@ public class TrainingApplicationService {
     }
 
     // F3-01: 당일 이어서 풀기 조회
-    @Transactional(readOnly = true)
+    @Transactional
     public TrainingSessionResult getTodaySession(GetTodayTrainingSessionQuery query) {
         CognitiveTrainingSession session = sessionRepository
                 .findByElderIdAndSessionDate(query.elderId(), LocalDate.now())
                 .orElseThrow(() -> new TrainingSessionNotFoundException(query.elderId()));
+        if (session.refreshGrandchildChanceStatus(LocalDateTime.now())) {
+            sessionRepository.save(session);
+        }
         return toResult(session);
     }
 
@@ -112,7 +118,23 @@ public class TrainingApplicationService {
     @Transactional
     public TrainingSessionResult provideHint(ProvideHintCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        Album album = albumRepository.findById(AlbumId.of(session.getAlbumId()))
+                .orElseThrow(() -> new AlbumNotFoundException(session.getAlbumId().toString()));
+        if (!album.isMember(command.responderMemberId())) {
+            throw new GrandchildChanceResponderNotMemberException();
+        }
         session.applyHint(command.responderName(), command.hintText());
+        sessionRepository.save(session);
+        return toResult(session);
+    }
+
+    @Transactional
+    public TrainingSessionResult passQuestion(PassTrainingQuestionCommand command) {
+        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        session.passCurrentQuestion();
+        if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
+            adjustDifficulty(session);
+        }
         sessionRepository.save(session);
         return toResult(session);
     }
