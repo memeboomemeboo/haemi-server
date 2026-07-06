@@ -24,7 +24,7 @@ jobs:
         run: ./gradlew clean build -x test
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -37,20 +37,30 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \
             -t ${{ secrets.DOCKER_IMAGE }}:${IMAGE_TAG} \
+            -t ${{ secrets.DOCKER_IMAGE }}:latest \
             --push \
             .
 
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
           script: |
             set -eu
-            export DOCKER_IMAGE=${{ secrets.DOCKER_IMAGE }}
-            export IMAGE_TAG=${{ github.sha }}
-            bash /home/ubuntu/app/deploy/deploy-bluegreen.sh
+            cd ~/haemi
+
+            if grep -q '^IMAGE_TAG=' .env; then
+              sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env
+            else
+              echo 'IMAGE_TAG=${{ github.sha }}' >> .env
+            fi
+
+            docker compose pull app
+            docker compose up -d
+            docker image prune -f
