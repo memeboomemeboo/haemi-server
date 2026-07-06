@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface JpaTrainingSessionRepository extends JpaRepository<CognitiveTrainingSession, UUID> {
     Optional<CognitiveTrainingSession> findByElderIdAndSessionDate(String elderId, LocalDate sessionDate);
+    Optional<CognitiveTrainingSession> findFirstByElderIdAndAlbumIdAndStatusOrderBySessionDateDesc(
+            String elderId, UUID albumId, TrainingSessionStatus status);
     List<CognitiveTrainingSession> findByAlbumIdAndSessionDateBetweenAndStatus(
             UUID albumId, LocalDate from, LocalDate to, TrainingSessionStatus status);
 }

@@ -12,5 +12,6 @@ public interface TrainingSessionRepository {
     CognitiveTrainingSession save(CognitiveTrainingSession session);
     Optional<CognitiveTrainingSession> findById(TrainingSessionId id);
     Optional<CognitiveTrainingSession> findByElderIdAndSessionDate(String elderId, LocalDate sessionDate);
+    Optional<CognitiveTrainingSession> findLatestCompleted(String elderId, UUID albumId);
     List<CognitiveTrainingSession> findCompletedByAlbumIdAndDateBetween(UUID albumId, LocalDate from, LocalDate to);
 }

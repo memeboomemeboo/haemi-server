@@ -31,6 +31,11 @@ public class AlbumRepositoryAdapter implements AlbumRepository {
     }
 
     @Override
+    public List<Album> findAll() {
+        return jpa.findAll();
+    }
+
+    @Override
     public List<Album> findAllByElderProfileId(String elderProfileId) {
         return jpa.findAllByElderProfileId(elderProfileId);
     }
