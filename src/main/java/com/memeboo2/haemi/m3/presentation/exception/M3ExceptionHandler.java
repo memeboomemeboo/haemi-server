@@ -25,9 +25,19 @@ public class M3ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
-    @ExceptionHandler({GrandchildChanceExhaustedException.class, IllegalArgumentException.class})
+    @ExceptionHandler({
+            GrandchildChanceExhaustedException.class,
+            TrainingPrerequisiteNotMetException.class,
+            IllegalArgumentException.class
+    })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleBadRequest(RuntimeException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(TrainingQuestionGenerationException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ApiResponse<Void> handleQuestionGenerationFailure(TrainingQuestionGenerationException e) {
         return ApiResponse.error(e.getMessage());
     }
 }
