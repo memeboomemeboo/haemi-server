@@ -1,16 +1,24 @@
 package com.memeboo2.haemi.m5.infrastructure.scheduler;
 
+import com.memeboo2.haemi.m5.application.service.CareApplicationService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CareReminderScheduler {
 
-    // F5-01/F5-02: 실제 배포에서는 활성 알람과 산책 루틴을 분 단위로 조회해 FCM으로 발송한다.
+    private final CareApplicationService careApplicationService;
+
     @Scheduled(cron = "0 * * * * *")
     public void scanDueReminders() {
-        log.debug("공통 알림 스캔");
+        LocalDateTime now = LocalDateTime.now();
+        log.debug("공통 알림 스캔: now={}", now);
+        careApplicationService.processDueReminders(now);
     }
 }

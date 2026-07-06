@@ -19,6 +19,10 @@
 | F3-02 난이도 적응형 알고리즘 | 최고 | 최근 3세션 이동평균, 극단적 점수 완충, 레벨별 기준표 관리, 연속 정답·오답·timeout 조정, 반복 오답 유형 우선 배치 | 전문가 분기 검토 기한 알림 자동화 |
 | F3-03 손주 찬스 | 최고 | 세션당 2회 제한, 가족 전체 알림, 가족 구성원 응답 검증, 30분 만료 상태 갱신, 안내 메시지·문제 패스 API, 미사용 완료 뱃지 상태 제공 | 실제 푸시 알림 연결 |
 | F4-01 주간·월간 인지 리포트 | 중간 | 주·월간 스케줄러, 7일 조건, 정답률 추이, 회상 참여, 최다 반응 사진 유형, 이전 기간 비교, PDF 차트·다운로드, 가족 그룹 알림, 열람 시각 기록 | 실제 이메일 발송, 기관-관리자 소속 관계와 기관 수신자 지정 |
+| F4-02 인지 상태 변화 조기 알림 | 최고 | 주 보호자·기관 담당자 수신자 설정, 7일 미참여, 정답률 20%p 하락·반응 시간 50% 증가의 3일 지속 조건, 주 1회 제한, 안내·의료 면책 문구 제공 | 실제 푸시·이메일 발송 연결 |
+| F4-03 기관 관리자 포털 | 최고 | 기관별 기간·어르신 필터, 참여율·평균 정답률·주간 변화·기관 평균 비교, 데이터 없음 처리, 익명화 CSV/PDF export, 기관 관리자 역할 제한 | 기관별 관리자 소속 범위를 세분화할 경우 기관-관리자 관계 모델 추가 |
+| F5-01 손주 목소리 알람 | 중간 | 반복 예약 스캔, 녹음 음성·클라이언트 TTS fallback 구분, 어르신 확인, 실제 가족 구성원 확인 알림, 10분 무응답 1회 알림 | FCM/APNs 기반 실제 기기 알람·음성 재생 |
+| F5-02 하루 10분 산책 유도 | 중간 | 오전·오후 예약 스캔, 기본 10분, 날씨별 실내 활동 fallback, 수동 시작·완료·주간 달성률, 실제 가족 구성원 완료 알림 | 실제 날씨 API, 위치·활동 센서 추적, FCM/APNs 발송 |
 
 ## 주요 구현 근거
 
@@ -66,6 +70,38 @@
 
 `EMAIL` 또는 `IN_APP_AND_EMAIL`을 선택해도 실제 이메일 연동 전까지는 가족 앱 알림으로 대체한다.
 
+### F4-02 인지 상태 변화 조기 알림
+
+- 수신자 설정·3일 지속 조건·주 1회 제한: [`DashboardApplicationService.java`](../../src/main/java/com/memeboo2/haemi/m4/application/service/DashboardApplicationService.java)
+- 주 보호자·기관 담당자 설정 모델: [`AlertRecipientSetting.java`](../../src/main/java/com/memeboo2/haemi/m4/domain/model/dashboard/AlertRecipientSetting.java)
+- 수신자 설정·알림 탐지 API: [`DashboardController.java`](../../src/main/java/com/memeboo2/haemi/m4/presentation/DashboardController.java)
+
+수신자 설정 없이 탐지를 실행하면 알림을 잘못된 대상으로 보내지 않고 `400`을 반환한다. 정답률·반응 시간 변화는 최근 3일 모두 훈련에 참여했고 기준을 초과한 경우에만 알린다.
+
+### F4-03 기관 관리자 포털
+
+- 기관 지표·주간 변화·참여율 집계: [`DashboardApplicationService.java`](../../src/main/java/com/memeboo2/haemi/m4/application/service/DashboardApplicationService.java)
+- 익명화 CSV/PDF 생성: [`InstitutionDashboardExportAdapter.java`](../../src/main/java/com/memeboo2/haemi/m4/infrastructure/export/InstitutionDashboardExportAdapter.java)
+- 기관 관리자 역할 제한: [`SecurityConfig.java`](../../src/main/java/com/memeboo2/haemi/auth/infrastructure/security/SecurityConfig.java)
+
+기관 데이터가 없으면 빈 대시보드 대신 `404`를 반환한다. export 파일에는 원본 어르신 ID를 포함하지 않고 익명 식별자만 포함한다.
+
+### F5-01 손주 목소리 알람
+
+- 예약 발생·10분 무응답 상태: [`VoiceAlarm.java`](../../src/main/java/com/memeboo2/haemi/m5/domain/model/care/VoiceAlarm.java)
+- 예약 스캔·어르신/가족 알림 처리: [`CareApplicationService.java`](../../src/main/java/com/memeboo2/haemi/m5/application/service/CareApplicationService.java)
+- 분 단위 실행 스케줄러: [`CareReminderScheduler.java`](../../src/main/java/com/memeboo2/haemi/m5/infrastructure/scheduler/CareReminderScheduler.java)
+
+가족 알림은 `groupId`를 회원 ID로 사용하지 않고 앨범의 실제 구성원 ID를 조회한다. 알람 확인은 해당 알람의 어르신 ID가 일치하고 알람이 실제 발생한 뒤에만 가능하다.
+
+### F5-02 하루 10분 산책 유도
+
+- 오전·오후 예약과 중복 방지: [`WalkRoutine.java`](../../src/main/java/com/memeboo2/haemi/m5/domain/model/care/WalkRoutine.java)
+- 날씨 fallback·수동 시작/완료·가족 알림: [`CareApplicationService.java`](../../src/main/java/com/memeboo2/haemi/m5/application/service/CareApplicationService.java)
+- 악천후 완료 차단: [`WalkRecord.java`](../../src/main/java/com/memeboo2/haemi/m5/domain/model/care/WalkRecord.java)
+
+위치·활동 센서가 없는 사용자는 기존 수동 시작·완료 API를 사용한다. 외부 날씨 API가 연결되기 전에는 `StubWeatherAdapter`가 맑음으로 응답한다.
+
 ## 아직 구현하지 않은 부분
 
 ### 외부 AI
@@ -90,6 +126,17 @@
 
 회원 JWT와 FCM registration token은 서로 다른 값이다. 앱이 회원 인증 후 기기 토큰을 별도로 서버에 등록해야 한다.
 
+F5-01/F5-02의 서버 스케줄러와 10분 무응답 판정은 구현되어 있다. 현재 `NotificationPort` 구현이 로그 어댑터이므로 실제 스마트폰 알람 표시와 녹음 음성 재생은 위 기기 토큰 연동 이후 가능하다.
+
+### 날씨·위치·활동 추적
+
+- 어르신 위치 기반 날씨 provider와 장애 시 기본값 정책
+- 모바일 위치 권한과 산책 경로 또는 시작 위치 연동
+- HealthKit·Health Connect 등 활동 센서 걸음 수 연동
+- 센서 미지원·권한 거부 사용자의 수동 완료 유지
+
+현재는 외부 데이터 없이 예약 알림, 악천후 fallback 분기, 수동 산책 완료와 주간 달성률을 검증할 수 있다.
+
 ### 이메일과 기관 수신자
 
 - 이메일 발송 provider와 발송 실패 fallback 결과 기록
@@ -101,9 +148,12 @@
 
 ## 검증 결과
 
-- `./gradlew test --rerun-tasks`
-- 전체 113개 테스트 성공, 실패 0
-- Flyway V1~V4 마이그레이션 적용 및 재실행 검증
+- `./gradlew test`
+- 전체 128개 테스트 성공, 실패 0
+- Flyway V1~V6 마이그레이션 적용 및 재실행 검증
 - 리포트 생성 API에서 정답률 추이 7건, 회상 참여 14건, 최다 반응 사진 유형 반환 확인
 - 리포트 열람 기록 API 성공 확인
 - PDF 다운로드 HTTP 200 및 PDF 렌더링 확인
+- 보안 필터 체인에서 가족의 기관 포털 접근 `403`, 기관 관리자의 컨트롤러 진입 확인
+- 수신자 설정 저장·조회 API와 산책 루틴 기본 10분 응답 확인
+- 조기 알림 3일 지속·일시 변동 제외, 10분 무응답 1회, 악천후 완료 차단 회귀 테스트 통과

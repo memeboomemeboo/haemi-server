@@ -50,6 +50,9 @@ public class VoiceAlarm extends AbstractAggregateRoot<VoiceAlarm> {
     @Column(name = "last_acknowledged_at")
     private LocalDateTime lastAcknowledgedAt;
 
+    @Column(name = "last_no_response_notified_at")
+    private LocalDateTime lastNoResponseNotifiedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -69,12 +72,56 @@ public class VoiceAlarm extends AbstractAggregateRoot<VoiceAlarm> {
     }
 
     public void markTriggered() {
-        this.lastTriggeredAt = LocalDateTime.now();
+        markTriggered(LocalDateTime.now());
+    }
+
+    public void markTriggered(LocalDateTime triggeredAt) {
+        this.lastTriggeredAt = triggeredAt;
+        this.lastNoResponseNotifiedAt = null;
     }
 
     public void acknowledge() {
-        this.lastAcknowledgedAt = LocalDateTime.now();
+        acknowledge(LocalDateTime.now());
+    }
+
+    public void acknowledge(LocalDateTime acknowledgedAt) {
+        if (!isAwaitingResponse()) {
+            throw new AlarmNotAwaitingResponseException();
+        }
+        this.lastAcknowledgedAt = acknowledgedAt;
         registerEvent(new VoiceAlarmAcknowledgedEvent(id, elderId, groupId, lastAcknowledgedAt));
+    }
+
+    public boolean shouldTrigger(LocalDateTime now) {
+        if (!active || !repeatRule.appliesTo(now.getDayOfWeek())) {
+            return false;
+        }
+        if (alarmTime.getHour() != now.getHour() || alarmTime.getMinute() != now.getMinute()) {
+            return false;
+        }
+        return lastTriggeredAt == null
+                || !lastTriggeredAt.toLocalDate().equals(now.toLocalDate())
+                || lastTriggeredAt.getHour() != now.getHour()
+                || lastTriggeredAt.getMinute() != now.getMinute();
+    }
+
+    public boolean isNoResponseDue(LocalDateTime now) {
+        return isAwaitingResponse()
+                && !lastTriggeredAt.plusMinutes(10).isAfter(now)
+                && (lastNoResponseNotifiedAt == null
+                || lastNoResponseNotifiedAt.isBefore(lastTriggeredAt));
+    }
+
+    public void markNoResponseNotified(LocalDateTime notifiedAt) {
+        if (!isNoResponseDue(notifiedAt)) {
+            throw new AlarmNotAwaitingResponseException();
+        }
+        this.lastNoResponseNotifiedAt = notifiedAt;
+    }
+
+    public boolean isAwaitingResponse() {
+        return lastTriggeredAt != null
+                && (lastAcknowledgedAt == null || lastAcknowledgedAt.isBefore(lastTriggeredAt));
     }
 
     public void deactivate() {

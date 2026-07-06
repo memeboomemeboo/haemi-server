@@ -15,8 +15,10 @@ public record InstitutionDashboardResult(
             String anonymizedSeniorId,
             String elderId,
             int participationCount,
+            double participationRate,
             double averageAccuracyRate,
             double averageResponseSeconds,
+            double weeklyAccuracyChange,
             double accuracyDeltaFromInstitution
     ) {}
 }

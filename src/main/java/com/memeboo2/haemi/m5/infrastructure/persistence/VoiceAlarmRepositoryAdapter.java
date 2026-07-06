@@ -32,6 +32,11 @@ public class VoiceAlarmRepositoryAdapter implements VoiceAlarmRepository {
     }
 
     @Override
+    public List<VoiceAlarm> findAllActive() {
+        return jpa.findByActiveTrue();
+    }
+
+    @Override
     public boolean existsActiveNearTime(String elderId, LocalTime from, LocalTime to) {
         return jpa.existsByElderIdAndActiveTrueAndAlarmTimeBetween(elderId, from, to);
     }

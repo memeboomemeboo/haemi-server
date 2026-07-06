@@ -6,14 +6,17 @@ import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
 import com.memeboo2.haemi.m4.application.command.RecordCognitiveMetricCommand;
+import com.memeboo2.haemi.m4.application.command.UpdateAlertRecipientsCommand;
 import com.memeboo2.haemi.m4.application.dto.*;
 import com.memeboo2.haemi.m4.application.query.GetCognitiveMetricQuery;
 import com.memeboo2.haemi.m4.application.query.GetInstitutionDashboardQuery;
 import com.memeboo2.haemi.m4.domain.model.dashboard.*;
 import com.memeboo2.haemi.m4.domain.port.PdfReportPort;
+import com.memeboo2.haemi.m4.domain.port.InstitutionDashboardExportPort;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveChangeAlertRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveMetricRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveReportRepository;
+import com.memeboo2.haemi.m4.domain.repository.AlertRecipientSettingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,8 +39,10 @@ public class DashboardApplicationService {
     private final CognitiveMetricRepository metricRepository;
     private final CognitiveReportRepository reportRepository;
     private final CognitiveChangeAlertRepository alertRepository;
+    private final AlertRecipientSettingRepository alertRecipientRepository;
     private final AlbumRepository albumRepository;
     private final PdfReportPort pdfReportPort;
+    private final InstitutionDashboardExportPort institutionDashboardExportPort;
     private final NotificationPort notificationPort;
 
     @Transactional
@@ -173,7 +178,26 @@ public class DashboardApplicationService {
 
     // F4-02: 조기 알림 트리거 검사
     @Transactional
+    public AlertRecipientSettingResult updateAlertRecipients(UpdateAlertRecipientsCommand command) {
+        AlertRecipientSetting existing = alertRecipientRepository.findByElderId(command.elderId())
+                .orElse(null);
+        AlertRecipientSetting setting = AlertRecipientSetting.createOrUpdate(
+                existing,
+                command.elderId(),
+                command.primaryCaregiverMemberId(),
+                command.institutionManagerMemberIds()
+        );
+        return AlertRecipientSettingResult.from(alertRecipientRepository.save(setting));
+    }
+
+    @Transactional(readOnly = true)
+    public AlertRecipientSettingResult getAlertRecipients(String elderId) {
+        return AlertRecipientSettingResult.from(loadAlertRecipients(elderId));
+    }
+
+    @Transactional
     public List<CognitiveAlertResult> detectEarlyAlerts(String elderId) {
+        AlertRecipientSetting recipients = loadAlertRecipients(elderId);
         LocalDate today = LocalDate.now();
         List<CognitiveDailyMetric> recent = metricRepository.findByElderIdAndDateBetween(
                 elderId, today.minusDays(6), today);
@@ -187,24 +211,49 @@ public class DashboardApplicationService {
         List<CognitiveChangeAlert> alerts = new ArrayList<>();
         if (recent.stream().noneMatch(CognitiveDailyMetric::participated)) {
             alerts.add(createAlert(recent.get(0), AlertType.NO_PARTICIPATION_7_DAYS,
-                    "최근 7일 동안 세션 참여가 없습니다. 의료 진단이 아니며, 생활 패턴 변화를 함께 확인해주세요."));
+                    "최근 7일 동안 세션 참여가 없습니다. 의료 진단이 아니며, 생활 패턴 변화를 함께 확인해주세요.",
+                    recipients));
+            return alerts.stream().map(CognitiveAlertResult::from).toList();
         }
 
         List<CognitiveDailyMetric> previous = metricRepository.findByElderIdAndDateBetween(
                 elderId, today.minusDays(13), today.minusDays(7));
         if (previous.size() >= 7) {
-            double recentAccuracy = recent.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
             double previousAccuracy = previous.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
-            double recentResponse = recent.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0);
             double previousResponse = previous.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0);
+            List<CognitiveDailyMetric> lastThreeDays = recent.stream()
+                    .filter(metric -> !metric.getMetricDate().isBefore(today.minusDays(2)))
+                    .sorted(Comparator.comparing(CognitiveDailyMetric::getMetricDate))
+                    .toList();
 
-            if (previousAccuracy > 0 && previousAccuracy - recentAccuracy >= 0.20) {
+            if (lastThreeDays.size() == 3
+                    && previousAccuracy > 0
+                    && lastThreeDays.stream().allMatch(
+                    metric -> metric.participated()
+                            && previousAccuracy - metric.getTrainingAccuracyRate() >= 0.20)) {
+                double recentAccuracy = lastThreeDays.stream()
+                        .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
+                        .average()
+                        .orElse(0.0);
                 alerts.add(createAlert(recent.get(0), AlertType.ACCURACY_DROP,
-                        "정답률이 전주 대비 20% 이상 하락했습니다. 의료 진단이 아니며, 컨디션과 환경 변화를 확인해주세요."));
+                        "정답률이 전주 대비 %.1f%%p 하락한 상태가 3일간 지속되었습니다. 의료 진단이 아니며, 컨디션과 환경 변화를 확인해주세요."
+                                .formatted((previousAccuracy - recentAccuracy) * 100),
+                        recipients));
+                return alerts.stream().map(CognitiveAlertResult::from).toList();
             }
-            if (previousResponse > 0 && recentResponse >= previousResponse * 1.5) {
+            if (lastThreeDays.size() == 3
+                    && previousResponse > 0
+                    && lastThreeDays.stream().allMatch(
+                    metric -> metric.participated()
+                            && metric.getAverageResponseSeconds() >= previousResponse * 1.5)) {
+                double recentResponse = lastThreeDays.stream()
+                        .mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds)
+                        .average()
+                        .orElse(0.0);
                 alerts.add(createAlert(recent.get(0), AlertType.RESPONSE_TIME_INCREASE,
-                        "평균 반응 시간이 전주 대비 50% 이상 증가했습니다. 의료 진단이 아니며, 최근 생활 변화를 확인해주세요."));
+                        "평균 반응 시간이 전주 대비 %.1f%% 증가한 상태가 3일간 지속되었습니다. 의료 진단이 아니며, 최근 생활 변화를 확인해주세요."
+                                .formatted(((recentResponse / previousResponse) - 1.0) * 100),
+                        recipients));
             }
         }
 
@@ -221,6 +270,9 @@ public class DashboardApplicationService {
                     .filter(m -> query.elderIds().contains(m.getElderId()))
                     .toList();
         }
+        if (metrics.isEmpty()) {
+            throw new InstitutionSeniorsNotFoundException(query.institutionId());
+        }
         double institutionAccuracy = metrics.stream()
                 .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
                 .average().orElse(0.0);
@@ -234,12 +286,38 @@ public class DashboardApplicationService {
                 .map(entry -> {
                     List<CognitiveDailyMetric> values = entry.getValue();
                     double avgAccuracy = values.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
+                    long periodDays = ChronoUnit.DAYS.between(query.from(), query.to()) + 1;
+                    long participatedDays = values.stream()
+                            .filter(CognitiveDailyMetric::participated)
+                            .map(CognitiveDailyMetric::getMetricDate)
+                            .distinct()
+                            .count();
+                    LocalDate currentWeekStart = query.to().minusDays(6);
+                    List<CognitiveDailyMetric> currentWeek = values.stream()
+                            .filter(value -> !value.getMetricDate().isBefore(currentWeekStart))
+                            .toList();
+                    List<CognitiveDailyMetric> previousWeek = metricRepository
+                            .findByElderIdAndDateBetween(
+                                    entry.getKey(),
+                                    currentWeekStart.minusDays(7),
+                                    currentWeekStart.minusDays(1)
+                            );
+                    double currentWeekAccuracy = currentWeek.stream()
+                            .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
+                            .average()
+                            .orElse(avgAccuracy);
+                    double previousWeekAccuracy = previousWeek.stream()
+                            .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
+                            .average()
+                            .orElse(currentWeekAccuracy);
                     return new InstitutionDashboardResult.SeniorSummary(
                             anonymize(entry.getKey()),
                             entry.getKey(),
                             values.stream().mapToInt(CognitiveDailyMetric::getTrainingSessionCount).sum(),
+                            participatedDays / (double) periodDays,
                             avgAccuracy,
                             values.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0),
+                            currentWeekAccuracy - previousWeekAccuracy,
                             avgAccuracy - institutionAccuracy
                     );
                 })
@@ -250,12 +328,28 @@ public class DashboardApplicationService {
                 institutionAccuracy, institutionResponse, seniors);
     }
 
-    private CognitiveChangeAlert createAlert(CognitiveDailyMetric metric, AlertType type, String message) {
+    @Transactional(readOnly = true)
+    public InstitutionDashboardExportResult exportInstitutionDashboard(
+            GetInstitutionDashboardQuery query,
+            DashboardExportFormat format
+    ) {
+        return institutionDashboardExportPort.export(
+                getInstitutionDashboard(query), format);
+    }
+
+    private CognitiveChangeAlert createAlert(CognitiveDailyMetric metric, AlertType type,
+                                             String message, AlertRecipientSetting recipients) {
         CognitiveChangeAlert alert = CognitiveChangeAlert.create(
                 metric.getElderId(), metric.getAlbumId(), type, message + " 대응 가이드: " + GUIDE_LINK, GUIDE_LINK);
         CognitiveChangeAlert saved = alertRepository.save(alert);
-        notificationPort.sendToMember(metric.getElderId(), "인지 변화 알림", saved.getMessage());
+        notificationPort.sendToGroup(
+                recipients.recipientMemberIds(), "인지 변화 알림", saved.getMessage());
         return saved;
+    }
+
+    private AlertRecipientSetting loadAlertRecipients(String elderId) {
+        return alertRecipientRepository.findByElderId(elderId)
+                .orElseThrow(() -> new AlertRecipientsNotConfiguredException(elderId));
     }
 
     private LocalDate resolvePeriodEnd(ReportPeriod period) {

@@ -10,4 +10,5 @@ public interface WalkRoutineRepository {
     WalkRoutine save(WalkRoutine routine);
     Optional<WalkRoutine> findById(UUID id);
     List<WalkRoutine> findActiveByElderId(String elderId);
+    List<WalkRoutine> findAllActive();
 }
