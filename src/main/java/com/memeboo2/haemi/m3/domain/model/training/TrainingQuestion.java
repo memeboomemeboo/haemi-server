@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Embeddable
@@ -65,5 +66,9 @@ public class TrainingQuestion {
     public boolean isCorrect(String submittedAnswer) {
         return submittedAnswer != null
                 && correctAnswer.trim().equalsIgnoreCase(submittedAnswer.trim());
+    }
+
+    public String getPatternKey() {
+        return type.name() + ":" + correctAnswer.trim().toLowerCase(Locale.ROOT);
     }
 }

@@ -16,10 +16,12 @@ import java.util.UUID;
 @Component
 public class AlbumCognitiveQuestionGeneratorAdapter implements CognitiveQuestionGeneratorPort {
 
-    private static final QuestionType[] TYPES = QuestionType.values();
-
     @Override
-    public List<TrainingQuestion> generate(Album album, int difficultyLevel) {
+    public List<TrainingQuestion> generate(
+            Album album,
+            int difficultyLevel,
+            List<QuestionType> prioritizedQuestionTypes
+    ) {
         List<Photo> photos = album.getPhotos();
         if (photos.isEmpty()) {
             throw new IllegalArgumentException("인지 훈련 문제 생성에 사용할 사진이 없습니다.");
@@ -27,18 +29,36 @@ public class AlbumCognitiveQuestionGeneratorAdapter implements CognitiveQuestion
 
         int normalizedLevel = Math.max(1, Math.min(5, difficultyLevel));
         int questionCount = normalizedLevel <= 2 ? 3 : normalizedLevel <= 4 ? 4 : 5;
+        List<QuestionType> types = prioritizedQuestionTypes == null || prioritizedQuestionTypes.isEmpty()
+                ? List.of(QuestionType.values())
+                : List.copyOf(new java.util.LinkedHashSet<>(prioritizedQuestionTypes));
         int typeOffset = Math.floorMod(
                 album.getId().hashCode() + LocalDate.now().getDayOfYear() + normalizedLevel,
-                TYPES.length
+                types.size()
         );
-
         List<TrainingQuestion> questions = new ArrayList<>(questionCount);
         for (int index = 0; index < questionCount; index++) {
-            QuestionType type = TYPES[(typeOffset + index) % TYPES.length];
+            QuestionType type = index == 0
+                    ? types.getFirst()
+                    : nextDifferentType(types, typeOffset + index - 1, questions.getLast().getType());
             Photo photo = photos.get(index % photos.size());
             questions.add(createQuestion(type, photo, normalizedLevel));
         }
         return questions;
+    }
+
+    private QuestionType nextDifferentType(
+            List<QuestionType> types,
+            int candidateIndex,
+            QuestionType previousType
+    ) {
+        for (int offset = 0; offset < types.size(); offset++) {
+            QuestionType candidate = types.get(Math.floorMod(candidateIndex + offset, types.size()));
+            if (candidate != previousType) {
+                return candidate;
+            }
+        }
+        throw new IllegalArgumentException("연속 중복 방지를 위해 문제 유형이 두 개 이상 필요합니다.");
     }
 
     private TrainingQuestion createQuestion(QuestionType type, Photo photo, int difficultyLevel) {
