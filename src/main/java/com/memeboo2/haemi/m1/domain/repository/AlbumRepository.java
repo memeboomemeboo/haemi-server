@@ -14,6 +14,8 @@ public interface AlbumRepository {
 
     Optional<Album> findByGroupId(String groupId);
 
+    List<Album> findAll();
+
     List<Album> findAllByElderProfileId(String elderProfileId);
 
     boolean existsByGroupId(String groupId);
