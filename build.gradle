@@ -45,6 +45,9 @@ dependencies {
 	// TOTP (2FA)
 	implementation 'dev.samstevens.totp:totp:1.7.1'
 
+	// PDF generation (OpenPDF, LGPLv3)
+	implementation 'com.github.librepdf:openpdf:1.3.3'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

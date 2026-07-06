@@ -143,10 +143,11 @@ class CognitiveTrainingSessionTest {
     @DisplayName("손주 찬스는 세션당 두 번만 사용할 수 있다")
     void requestGrandchildChance_enforcesLimit() {
         CognitiveTrainingSession session = session(2);
+        Set<String> family = Set.of("family-1");
 
-        assertThat(session.requestGrandchildChance()).isEqualTo(1);
-        assertThat(session.requestGrandchildChance()).isZero();
-        assertThatThrownBy(session::requestGrandchildChance)
+        assertThat(session.requestGrandchildChance(family)).isEqualTo(1);
+        assertThat(session.requestGrandchildChance(family)).isZero();
+        assertThatThrownBy(() -> session.requestGrandchildChance(family))
                 .isInstanceOf(GrandchildChanceExhaustedException.class);
     }
 
@@ -158,6 +159,7 @@ class CognitiveTrainingSessionTest {
         assertThatThrownBy(() -> session.applyHint("손녀", " "))
                 .isInstanceOf(IllegalArgumentException.class);
 
+        session.requestGrandchildChance(Set.of("family-1"));
         session.applyHint("손녀", "첫 글자는 사입니다");
     }
 
