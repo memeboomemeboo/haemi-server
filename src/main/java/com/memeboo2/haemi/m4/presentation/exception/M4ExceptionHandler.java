@@ -2,6 +2,7 @@ package com.memeboo2.haemi.m4.presentation.exception;
 
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m4.domain.model.dashboard.CognitiveMetricNotFoundException;
+import com.memeboo2.haemi.m4.domain.model.dashboard.CognitiveReportNotFoundException;
 import com.memeboo2.haemi.m4.domain.model.dashboard.DataInsufficientException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -20,9 +21,9 @@ public class M4ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
-    @ExceptionHandler(CognitiveMetricNotFoundException.class)
+    @ExceptionHandler({CognitiveMetricNotFoundException.class, CognitiveReportNotFoundException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ApiResponse<Void> handleMetricNotFound(CognitiveMetricNotFoundException e) {
+    public ApiResponse<Void> handleMetricNotFound(RuntimeException e) {
         return ApiResponse.error(e.getMessage());
     }
 }

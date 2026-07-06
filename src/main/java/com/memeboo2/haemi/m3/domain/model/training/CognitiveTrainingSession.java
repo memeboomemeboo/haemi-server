@@ -130,6 +130,23 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return attempt;
     }
 
+    public QuestionAttempt passCurrentQuestion() {
+        expireGrandchildChanceIfNeeded(LocalDateTime.now());
+        if (lastChanceStatus != GrandchildChanceStatus.EXPIRED) {
+            throw new TrainingQuestionPassUnavailableException();
+        }
+        TrainingQuestion question = currentQuestion()
+                .orElseThrow(TrainingSessionAlreadyCompletedException::new);
+        QuestionAttempt attempt = QuestionAttempt.of(
+                question.getQuestionId(), null, false, 61);
+        attempts.add(attempt);
+        currentQuestionIndex++;
+        if (currentQuestionIndex >= questions.size()) {
+            complete();
+        }
+        return attempt;
+    }
+
     public int requestGrandchildChance(Set<String> recipientMemberIds) {
         return requestGrandchildChance(recipientMemberIds, LocalDateTime.now());
     }
@@ -191,6 +208,12 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     public boolean isLastGrandchildChanceExpired() {
         return lastChanceStatus == GrandchildChanceStatus.EXPIRED;
+    }
+
+    public boolean refreshGrandchildChanceStatus(LocalDateTime now) {
+        GrandchildChanceStatus previousStatus = lastChanceStatus;
+        expireGrandchildChanceIfNeeded(now);
+        return previousStatus != lastChanceStatus;
     }
 
     public double getAccuracyRate() {

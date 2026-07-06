@@ -2,6 +2,8 @@ package com.memeboo2.haemi.m4.infrastructure.pdf;
 
 import com.memeboo2.haemi.m4.domain.model.dashboard.CognitiveReport;
 import com.memeboo2.haemi.m4.domain.model.dashboard.ReportPeriod;
+import com.memeboo2.haemi.m4.domain.model.dashboard.ReportDeliveryMethod;
+import com.memeboo2.haemi.m4.domain.model.dashboard.ReportTrendPoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,7 +35,8 @@ class OpenPdfReportAdapterTest {
         CognitiveReport report = CognitiveReport.create(
                 "elder-1", UUID.randomUUID(), ReportPeriod.WEEKLY,
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 6),
-                5, 0.75, 25.0, 3, "Average accuracy 75.0%, avg response 25.0s.", null);
+                5, 0.75, 25.0, 3, 4, "FAMILY",
+                0.05, -2.0, trend(), "요약", ReportDeliveryMethod.IN_APP);
 
         String pdfKey = adapter.generatePdf(report);
 
@@ -48,7 +52,8 @@ class OpenPdfReportAdapterTest {
         CognitiveReport report = CognitiveReport.create(
                 "elder-2", UUID.randomUUID(), ReportPeriod.MONTHLY,
                 LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30),
-                20, 0.68, 30.0, 10, "Average accuracy 68.0%, avg response 30.0s.", null);
+                20, 0.68, 30.0, 10, 7, "FAMILY",
+                -0.02, 3.0, trend(), "요약", ReportDeliveryMethod.IN_APP);
 
         String pdfKey = adapter.generatePdf(report);
 
@@ -67,7 +72,8 @@ class OpenPdfReportAdapterTest {
         CognitiveReport report = CognitiveReport.create(
                 "elder-3", UUID.randomUUID(), ReportPeriod.WEEKLY,
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 6),
-                3, 0.9, 15.0, 1, "Average accuracy 90.0%.", null);
+                3, 0.9, 15.0, 1, 2, "PORTRAIT",
+                0.1, -1.0, trend(), "요약", ReportDeliveryMethod.IN_APP);
 
         String pdfKey = nestedAdapter.generatePdf(report);
 
@@ -81,11 +87,20 @@ class OpenPdfReportAdapterTest {
         CognitiveReport report = CognitiveReport.create(
                 "elder-4", UUID.randomUUID(), ReportPeriod.WEEKLY,
                 LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 6),
-                1, 0.5, 40.0, 0, null, null);
+                1, 0.5, 40.0, 0, 0, null,
+                0.0, 0.0, List.of(), null, ReportDeliveryMethod.IN_APP);
 
         String pdfKey = adapter.generatePdf(report);
 
         File file = new File(pdfKey);
         assertThat(file).exists();
+    }
+
+    private List<ReportTrendPoint> trend() {
+        return List.of(
+                new ReportTrendPoint(LocalDate.of(2026, 7, 1), 0.6),
+                new ReportTrendPoint(LocalDate.of(2026, 7, 2), 0.75),
+                new ReportTrendPoint(LocalDate.of(2026, 7, 3), 0.9)
+        );
     }
 }

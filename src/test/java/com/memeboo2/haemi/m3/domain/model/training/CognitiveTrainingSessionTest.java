@@ -42,6 +42,33 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
+    @DisplayName("30분이 지난 손주 찬스는 조회 갱신 후 안내와 문제 패스를 허용한다")
+    void refreshAndPass_expiredGrandchildChance() {
+        CognitiveTrainingSession session = session();
+        LocalDateTime requestedAt = LocalDateTime.of(2026, 7, 6, 10, 0);
+        session.requestGrandchildChance(Set.of("family-1"), requestedAt);
+
+        boolean changed = session.refreshGrandchildChanceStatus(requestedAt.plusMinutes(30));
+        QuestionAttempt attempt = session.passCurrentQuestion();
+
+        assertThat(changed).isTrue();
+        assertThat(session.isLastGrandchildChanceExpired()).isTrue();
+        assertThat(attempt.isCorrect()).isFalse();
+        assertThat(attempt.isTimeout()).isTrue();
+        assertThat(session.getCurrentQuestionIndex()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("30분이 지나지 않은 손주 찬스 문제는 건너뛸 수 없다")
+    void pass_rejectsPendingGrandchildChance() {
+        CognitiveTrainingSession session = session();
+        session.requestGrandchildChance(Set.of("family-1"));
+
+        assertThatThrownBy(session::passCurrentQuestion)
+                .isInstanceOf(TrainingQuestionPassUnavailableException.class);
+    }
+
+    @Test
     @DisplayName("알림을 받을 가족 구성원이 없으면 손주 찬스를 요청할 수 없다")
     void requestGrandchildChance_rejectsEmptyRecipients() {
         CognitiveTrainingSession session = session();

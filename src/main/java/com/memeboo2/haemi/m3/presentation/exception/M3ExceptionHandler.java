@@ -30,6 +30,8 @@ public class M3ExceptionHandler {
             GrandchildChanceExhaustedException.class,
             GrandchildChanceExpiredException.class,
             GrandchildChanceUnavailableException.class,
+            GrandchildChanceResponderNotMemberException.class,
+            TrainingQuestionPassUnavailableException.class,
             TrainingPrerequisiteNotMetException.class,
             IllegalArgumentException.class
     })
