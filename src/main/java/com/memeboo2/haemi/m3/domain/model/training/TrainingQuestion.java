@@ -5,6 +5,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Embeddable
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -26,18 +28,38 @@ public class TrainingQuestion {
     @Column(name = "question_difficulty", nullable = false)
     private int difficultyLevel;
 
+    @Column(name = "question_photo_id", columnDefinition = "uuid")
+    private UUID photoId;
+
     private TrainingQuestion(String questionId, QuestionType type, String prompt,
-                             String correctAnswer, int difficultyLevel) {
+                             String correctAnswer, int difficultyLevel, UUID photoId) {
         this.questionId = questionId;
         this.type = type;
         this.prompt = prompt;
         this.correctAnswer = correctAnswer;
         this.difficultyLevel = difficultyLevel;
+        this.photoId = photoId;
     }
 
     public static TrainingQuestion of(String questionId, QuestionType type, String prompt,
                                       String correctAnswer, int difficultyLevel) {
-        return new TrainingQuestion(questionId, type, prompt, correctAnswer, difficultyLevel);
+        return new TrainingQuestion(questionId, type, prompt, correctAnswer, difficultyLevel, null);
+    }
+
+    public static TrainingQuestion withPhoto(String questionId, QuestionType type, String prompt,
+                                             String correctAnswer, int difficultyLevel, UUID photoId) {
+        return new TrainingQuestion(questionId, type, prompt, correctAnswer, difficultyLevel, photoId);
+    }
+
+    public TrainingQuestion copyWithNewId() {
+        return new TrainingQuestion(
+                "cached-" + UUID.randomUUID(),
+                type,
+                prompt,
+                correctAnswer,
+                difficultyLevel,
+                photoId
+        );
     }
 
     public boolean isCorrect(String submittedAnswer) {

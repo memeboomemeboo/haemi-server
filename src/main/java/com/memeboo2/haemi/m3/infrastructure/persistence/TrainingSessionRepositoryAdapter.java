@@ -34,6 +34,12 @@ public class TrainingSessionRepositoryAdapter implements TrainingSessionReposito
     }
 
     @Override
+    public Optional<CognitiveTrainingSession> findLatestCompleted(String elderId, UUID albumId) {
+        return jpa.findFirstByElderIdAndAlbumIdAndStatusOrderBySessionDateDesc(
+                elderId, albumId, TrainingSessionStatus.COMPLETED);
+    }
+
+    @Override
     public List<CognitiveTrainingSession> findCompletedByAlbumIdAndDateBetween(UUID albumId, LocalDate from, LocalDate to) {
         return jpa.findByAlbumIdAndSessionDateBetweenAndStatus(albumId, from, to, TrainingSessionStatus.COMPLETED);
     }
