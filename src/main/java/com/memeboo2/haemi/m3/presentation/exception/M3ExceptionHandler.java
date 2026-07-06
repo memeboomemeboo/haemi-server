@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.presentation.exception;
 
+import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m3.domain.model.training.*;
 import org.springframework.core.Ordered;
@@ -13,9 +14,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class M3ExceptionHandler {
 
-    @ExceptionHandler(TrainingSessionNotFoundException.class)
+    @ExceptionHandler({TrainingSessionNotFoundException.class, AlbumNotFoundException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ApiResponse<Void> handleNotFound(TrainingSessionNotFoundException e) {
+    public ApiResponse<Void> handleNotFound(RuntimeException e) {
         return ApiResponse.error(e.getMessage());
     }
 
@@ -25,7 +26,12 @@ public class M3ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
-    @ExceptionHandler({GrandchildChanceExhaustedException.class, IllegalArgumentException.class})
+    @ExceptionHandler({
+            GrandchildChanceExhaustedException.class,
+            GrandchildChanceExpiredException.class,
+            GrandchildChanceUnavailableException.class,
+            IllegalArgumentException.class
+    })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleBadRequest(RuntimeException e) {
         return ApiResponse.error(e.getMessage());

@@ -1,5 +1,9 @@
 package com.memeboo2.haemi.m3.application.service;
 
+import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
+import com.memeboo2.haemi.m1.domain.model.album.Album;
+import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
+import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.*;
 import com.memeboo2.haemi.m3.application.dto.AnswerResult;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
@@ -26,6 +30,7 @@ public class TrainingApplicationService {
     private final TrainingSessionRepository sessionRepository;
     private final DifficultyProfileRepository profileRepository;
     private final CognitiveQuestionGeneratorPort questionGeneratorPort;
+    private final AlbumRepository albumRepository;
 
     // F3-01: 일일 인지 훈련 세션 시작
     @Transactional
@@ -84,7 +89,9 @@ public class TrainingApplicationService {
     @Transactional
     public ChanceResult requestGrandchildChance(RequestGrandchildChanceCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
-        int remaining = session.requestGrandchildChance();
+        Album album = albumRepository.findById(AlbumId.of(session.getAlbumId()))
+                .orElseThrow(() -> new AlbumNotFoundException(session.getAlbumId().toString()));
+        int remaining = session.requestGrandchildChance(album.getMemberIds());
         sessionRepository.save(session);
         return new ChanceResult(command.sessionId(), remaining, "가족에게 힌트를 요청했습니다.");
     }

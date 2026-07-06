@@ -23,6 +23,10 @@ public record TrainingSessionResult(
         double averageResponseSeconds,
         String lastHintResponder,
         String lastHintText,
+        GrandchildChanceStatus lastChanceStatus,
+        String lastChanceQuestionId,
+        LocalDateTime lastChanceRequestedAt,
+        boolean chanceUnusedCompletionBadgeAwarded,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
@@ -71,6 +75,10 @@ public record TrainingSessionResult(
                 session.getAverageResponseSeconds(),
                 session.getLastHintResponder(),
                 session.getLastHintText(),
+                session.getLastChanceStatus(),
+                session.getLastChanceQuestionId(),
+                session.getLastChanceRequestedAt(),
+                session.isChanceUnusedCompletionBadgeAwarded(),
                 session.getStartedAt(),
                 session.getCompletedAt()
         );
