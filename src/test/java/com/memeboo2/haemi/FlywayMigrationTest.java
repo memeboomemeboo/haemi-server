@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -32,6 +32,9 @@ class FlywayMigrationTest {
             assertThat(tableExists(connection, "difficulty_profile_accuracy_history")).isTrue();
             assertThat(tableExists(connection, "difficulty_profile_wrong_patterns")).isTrue();
             assertThat(tableExists(connection, "difficulty_level_changes")).isTrue();
+            assertThat(columnExists(connection, "cognitive_training_sessions", "last_chance_status")).isTrue();
+            assertThat(columnExists(connection, "cognitive_reports", "viewed_at")).isTrue();
+            assertThat(tableExists(connection, "cognitive_report_accuracy_trend")).isTrue();
         }
     }
 

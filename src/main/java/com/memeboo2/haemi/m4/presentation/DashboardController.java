@@ -14,6 +14,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -53,6 +58,24 @@ public class DashboardController {
             @RequestParam(defaultValue = "IN_APP") ReportDeliveryMethod deliveryMethod) {
         return ApiResponse.ok(dashboardService.generateReport(
                 new GenerateCognitiveReportCommand(elderId, albumId, period, deliveryMethod)));
+    }
+
+    @Operation(summary = "인지 리포트 열람 기록 [F4-01]")
+    @PostMapping("/reports/{reportId}/viewed")
+    public ApiResponse<CognitiveReportResult> markReportViewed(@PathVariable String reportId) {
+        return ApiResponse.ok(dashboardService.markReportViewed(reportId), "리포트 열람 시각이 기록되었습니다.");
+    }
+
+    @Operation(summary = "인지 리포트 PDF 다운로드 [F4-01]")
+    @GetMapping("/reports/{reportId}/pdf")
+    public ResponseEntity<Resource> downloadReportPdf(@PathVariable String reportId) {
+        var report = dashboardService.getReport(reportId);
+        Resource resource = new FileSystemResource(report.getPdfKey());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + resource.getFilename() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(resource);
     }
 
     @Operation(

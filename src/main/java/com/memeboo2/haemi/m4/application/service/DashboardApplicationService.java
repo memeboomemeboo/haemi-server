@@ -1,6 +1,9 @@
 package com.memeboo2.haemi.m4.application.service;
 
+import com.memeboo2.haemi.m1.domain.model.album.Album;
+import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
+import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
 import com.memeboo2.haemi.m4.application.command.RecordCognitiveMetricCommand;
 import com.memeboo2.haemi.m4.application.dto.*;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -32,6 +36,7 @@ public class DashboardApplicationService {
     private final CognitiveMetricRepository metricRepository;
     private final CognitiveReportRepository reportRepository;
     private final CognitiveChangeAlertRepository alertRepository;
+    private final AlbumRepository albumRepository;
     private final PdfReportPort pdfReportPort;
     private final NotificationPort notificationPort;
 
@@ -97,22 +102,73 @@ public class DashboardApplicationService {
         double avgAccuracy = metrics.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
         double avgResponse = metrics.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0);
         int memoryPosts = metrics.stream().mapToInt(CognitiveDailyMetric::getMemoryPostCount).sum();
+        int reminiscenceParticipationCount = metrics.stream()
+                .mapToInt(CognitiveDailyMetric::getReminiscenceReactionCount)
+                .sum();
+        String mostReactedPhotoType = metrics.stream()
+                .filter(metric -> metric.getMostReactedPhotoType() != null)
+                .filter(metric -> !metric.getMostReactedPhotoType().isBlank())
+                .collect(Collectors.groupingBy(
+                        CognitiveDailyMetric::getMostReactedPhotoType,
+                        LinkedHashMap::new,
+                        Collectors.summingInt(CognitiveDailyMetric::getReminiscenceReactionCount)
+                ))
+                .entrySet().stream()
+                .max(Map.Entry.<String, Integer>comparingByValue()
+                        .thenComparing(Map.Entry::getKey))
+                .map(Map.Entry::getKey)
+                .orElse(null);
 
-        String summary = buildChangeSummary(command.elderId(), start, end, avgAccuracy, avgResponse);
+        long periodDays = ChronoUnit.DAYS.between(start, end) + 1;
+        LocalDate previousEnd = start.minusDays(1);
+        LocalDate previousStart = previousEnd.minusDays(periodDays - 1);
+        List<CognitiveDailyMetric> previousMetrics = metricRepository.findByElderIdAndDateBetween(
+                command.elderId(), previousStart, previousEnd);
+        double previousAccuracy = previousMetrics.stream()
+                .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
+                .average()
+                .orElse(avgAccuracy);
+        double previousResponse = previousMetrics.stream()
+                .mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds)
+                .average()
+                .orElse(avgResponse);
+        double accuracyChange = avgAccuracy - previousAccuracy;
+        double responseChange = avgResponse - previousResponse;
+
+        String summary = buildChangeSummary(
+                start, end, avgAccuracy, avgResponse, accuracyChange, responseChange,
+                previousMetrics.isEmpty());
+        UUID albumId = resolveAlbumId(command, metrics);
+        List<ReportTrendPoint> trend = metrics.stream()
+                .sorted(Comparator.comparing(CognitiveDailyMetric::getMetricDate))
+                .map(metric -> new ReportTrendPoint(
+                        metric.getMetricDate(), metric.getTrainingAccuracyRate()))
+                .toList();
         CognitiveReport report = CognitiveReport.create(
                 command.elderId(),
-                command.albumId() != null ? UUID.fromString(command.albumId()) : null,
+                albumId,
                 command.period(), start, end, participationCount, avgAccuracy,
-                avgResponse, memoryPosts, summary, null);
+                avgResponse, memoryPosts, reminiscenceParticipationCount,
+                mostReactedPhotoType, accuracyChange, responseChange, trend,
+                summary, command.deliveryMethod());
         String pdfKey = pdfReportPort.generatePdf(report);
-        CognitiveReport saved = reportRepository.save(CognitiveReport.create(
-                command.elderId(),
-                command.albumId() != null ? UUID.fromString(command.albumId()) : null,
-                command.period(), start, end, participationCount, avgAccuracy,
-                avgResponse, memoryPosts, summary, pdfKey));
+        report.assignPdfKey(pdfKey);
+        CognitiveReport saved = reportRepository.save(report);
 
-        notificationPort.sendToMember(command.elderId(), "인지 리포트가 생성되었습니다", summary);
+        sendReportNotification(saved);
         return CognitiveReportResult.from(saved);
+    }
+
+    @Transactional
+    public CognitiveReportResult markReportViewed(String reportId) {
+        CognitiveReport report = loadReport(reportId);
+        report.markViewed(LocalDateTime.now());
+        return CognitiveReportResult.from(reportRepository.save(report));
+    }
+
+    @Transactional(readOnly = true)
+    public CognitiveReport getReport(String reportId) {
+        return loadReport(reportId);
     }
 
     // F4-02: 조기 알림 트리거 검사
@@ -210,10 +266,62 @@ public class DashboardApplicationService {
         return today.minusMonths(1).with(TemporalAdjusters.lastDayOfMonth());
     }
 
-    private String buildChangeSummary(String elderId, LocalDate start, LocalDate end,
-                                      double avgAccuracy, double avgResponse) {
-        return "%s ~ %s 평균 정답률 %.1f%%, 평균 반응 시간 %.1f초입니다."
-                .formatted(start, end, avgAccuracy * 100, avgResponse);
+    private String buildChangeSummary(LocalDate start, LocalDate end,
+                                      double avgAccuracy, double avgResponse,
+                                      double accuracyChange, double responseChange,
+                                      boolean noPreviousData) {
+        if (noPreviousData) {
+            return "%s ~ %s 평균 정답률 %.1f%%, 평균 반응 시간 %.1f초입니다. 비교할 이전 기간 데이터가 없습니다."
+                    .formatted(start, end, avgAccuracy * 100, avgResponse);
+        }
+        return "%s ~ %s 평균 정답률 %.1f%%(%+.1f%%p), 평균 반응 시간 %.1f초(%+.1f초)입니다."
+                .formatted(start, end, avgAccuracy * 100, accuracyChange * 100,
+                        avgResponse, responseChange);
+    }
+
+    private UUID resolveAlbumId(GenerateCognitiveReportCommand command,
+                                List<CognitiveDailyMetric> metrics) {
+        if (command.albumId() != null && !command.albumId().isBlank()) {
+            return UUID.fromString(command.albumId());
+        }
+        return metrics.stream()
+                .map(CognitiveDailyMetric::getAlbumId)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void sendReportNotification(CognitiveReport report) {
+        Set<String> recipients = new LinkedHashSet<>();
+        if (report.getAlbumId() != null) {
+            albumRepository.findById(AlbumId.of(report.getAlbumId()))
+                    .map(Album::getMemberIds)
+                    .ifPresent(recipients::addAll);
+        } else {
+            albumRepository.findAllByElderProfileId(report.getElderId()).stream()
+                    .map(Album::getMemberIds)
+                    .forEach(recipients::addAll);
+        }
+        String body = report.getChangeSummary();
+        if (report.getDeliveryMethod() == ReportDeliveryMethod.EMAIL
+                || report.getDeliveryMethod() == ReportDeliveryMethod.IN_APP_AND_EMAIL) {
+            body = "이메일 발송 연동 전까지 앱 내 알림으로 제공됩니다. " + body;
+        }
+        if (recipients.isEmpty()) {
+            log.warn("인지 리포트 알림 대상 없음: reportId={}, elderId={}",
+                    report.getId(), report.getElderId());
+            return;
+        }
+        notificationPort.sendToGroup(recipients, "인지 리포트가 생성되었습니다", body);
+    }
+
+    private CognitiveReport loadReport(String reportId) {
+        try {
+            return reportRepository.findById(UUID.fromString(reportId))
+                    .orElseThrow(() -> new CognitiveReportNotFoundException(reportId));
+        } catch (IllegalArgumentException invalidId) {
+            throw new CognitiveReportNotFoundException(reportId);
+        }
     }
 
     private String anonymize(String elderId) {

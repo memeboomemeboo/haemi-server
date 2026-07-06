@@ -81,4 +81,12 @@ public class TrainingController {
                 sessionId, request.responderMemberId(), request.responderName(), request.hintText()));
         return ApiResponse.ok(result, "힌트를 전달했습니다.");
     }
+
+    @Operation(summary = "30분 미응답 문제 건너뛰기 [F3-03]")
+    @PostMapping("/{sessionId}/pass")
+    public ApiResponse<TrainingSessionResult> passQuestion(@PathVariable String sessionId) {
+        TrainingSessionResult result = trainingService.passQuestion(
+                new PassTrainingQuestionCommand(sessionId));
+        return ApiResponse.ok(result, "문제를 건너뛰었습니다.");
+    }
 }

@@ -7,8 +7,10 @@ import com.memeboo2.haemi.m1.domain.model.album.PhotoMetadata;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.AnswerTrainingQuestionCommand;
 import com.memeboo2.haemi.m3.application.command.RequestGrandchildChanceCommand;
+import com.memeboo2.haemi.m3.application.command.ProvideHintCommand;
 import com.memeboo2.haemi.m3.application.command.StartTrainingSessionCommand;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
+import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
 import com.memeboo2.haemi.m3.domain.port.CognitiveQuestionGeneratorPort;
@@ -104,6 +106,41 @@ class TrainingApplicationServiceTest {
                 .isInstanceOf(GrandchildChanceUnavailableException.class);
 
         verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("가족 그룹 구성원이 아닌 응답자의 힌트는 거부한다")
+    void provideHint_rejectsResponderOutsideAlbum() {
+        CognitiveTrainingSession session = session();
+        Album album = Album.create("elder-1", "group-1", "family-1");
+        session.requestGrandchildChance(album.getMemberIds());
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(albumRepository.findById(AlbumId.of(session.getAlbumId()))).thenReturn(Optional.of(album));
+
+        assertThatThrownBy(() -> service.provideHint(new ProvideHintCommand(
+                session.getId().toString(), "outsider", "외부인", "힌트")))
+                .isInstanceOf(GrandchildChanceResponderNotMemberException.class);
+
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("당일 세션 조회 시 30분 지난 손주 찬스를 만료시키고 패스 상태를 반환한다")
+    void getTodaySession_expiresChanceAndExposesPassState() {
+        CognitiveTrainingSession session = session();
+        session.requestGrandchildChance(java.util.Set.of("family-1"));
+        ReflectionTestUtils.setField(
+                session, "lastChanceRequestedAt", LocalDateTime.now().minusMinutes(31));
+        when(sessionRepository.findByElderIdAndSessionDate("elder-1", LocalDate.now()))
+                .thenReturn(Optional.of(session));
+        when(sessionRepository.save(session)).thenReturn(session);
+
+        var result = service.getTodaySession(new GetTodayTrainingSessionQuery("elder-1"));
+
+        assertThat(result.lastChanceStatus()).isEqualTo(GrandchildChanceStatus.EXPIRED);
+        assertThat(result.questionPassAvailable()).isTrue();
+        assertThat(result.grandchildChanceGuideMessage()).contains("조금 더 생각해볼까요");
+        verify(sessionRepository).save(session);
     }
 
     @Test
