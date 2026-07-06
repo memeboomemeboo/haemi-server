@@ -1,8 +1,6 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: finepinee/haemi:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
