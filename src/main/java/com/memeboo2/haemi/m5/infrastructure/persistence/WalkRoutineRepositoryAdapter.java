@@ -29,4 +29,9 @@ public class WalkRoutineRepositoryAdapter implements WalkRoutineRepository {
     public List<WalkRoutine> findActiveByElderId(String elderId) {
         return jpa.findByElderIdAndActiveTrue(elderId);
     }
+
+    @Override
+    public List<WalkRoutine> findAllActive() {
+        return jpa.findByActiveTrue();
+    }
 }

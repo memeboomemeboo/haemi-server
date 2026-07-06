@@ -3,14 +3,18 @@ package com.memeboo2.haemi.m4.presentation;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
 import com.memeboo2.haemi.m4.application.command.RecordCognitiveMetricCommand;
+import com.memeboo2.haemi.m4.application.command.UpdateAlertRecipientsCommand;
 import com.memeboo2.haemi.m4.application.dto.*;
 import com.memeboo2.haemi.m4.application.query.GetCognitiveMetricQuery;
 import com.memeboo2.haemi.m4.application.query.GetInstitutionDashboardQuery;
 import com.memeboo2.haemi.m4.application.service.DashboardApplicationService;
 import com.memeboo2.haemi.m4.domain.model.dashboard.ReportDeliveryMethod;
 import com.memeboo2.haemi.m4.domain.model.dashboard.ReportPeriod;
+import com.memeboo2.haemi.m4.domain.model.dashboard.DashboardExportFormat;
+import com.memeboo2.haemi.m4.presentation.dto.request.UpdateAlertRecipientsRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -87,6 +91,28 @@ public class DashboardController {
         return ApiResponse.ok(dashboardService.detectEarlyAlerts(elderId));
     }
 
+    @Operation(summary = "인지 변화 알림 수신자 설정 [F4-02]")
+    @PutMapping("/alerts/recipients/{elderId}")
+    public ApiResponse<AlertRecipientSettingResult> updateAlertRecipients(
+            @PathVariable String elderId,
+            @Valid @RequestBody UpdateAlertRecipientsRequest request
+    ) {
+        return ApiResponse.ok(dashboardService.updateAlertRecipients(
+                new UpdateAlertRecipientsCommand(
+                        elderId,
+                        request.primaryCaregiverMemberId(),
+                        request.institutionManagerMemberIds()
+                )), "알림 수신자가 설정되었습니다.");
+    }
+
+    @Operation(summary = "인지 변화 알림 수신자 조회 [F4-02]")
+    @GetMapping("/alerts/recipients/{elderId}")
+    public ApiResponse<AlertRecipientSettingResult> getAlertRecipients(
+            @PathVariable String elderId
+    ) {
+        return ApiResponse.ok(dashboardService.getAlertRecipients(elderId));
+    }
+
     @Operation(summary = "기관 관리자 포털 조회 [F4-03]")
     @GetMapping("/institutions/{institutionId}")
     public ApiResponse<InstitutionDashboardResult> getInstitutionDashboard(
@@ -96,5 +122,25 @@ public class DashboardController {
             @RequestParam(required = false) List<String> elderIds) {
         return ApiResponse.ok(dashboardService.getInstitutionDashboard(
                 new GetInstitutionDashboardQuery(institutionId, from, to, elderIds)));
+    }
+
+    @Operation(summary = "기관 관리자 대시보드 내보내기 [F4-03]")
+    @GetMapping("/institutions/{institutionId}/export")
+    public ResponseEntity<byte[]> exportInstitutionDashboard(
+            @PathVariable String institutionId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) List<String> elderIds,
+            @RequestParam(defaultValue = "CSV") DashboardExportFormat format
+    ) {
+        InstitutionDashboardExportResult export = dashboardService.exportInstitutionDashboard(
+                new GetInstitutionDashboardQuery(institutionId, from, to, elderIds),
+                format
+        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + export.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, export.contentType())
+                .body(export.content());
     }
 }

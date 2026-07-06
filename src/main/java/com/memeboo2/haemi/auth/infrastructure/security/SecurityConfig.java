@@ -42,7 +42,10 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
 
                         // 기관 관리자 전용
-                        .requestMatchers("/api/v1/admin/**").hasRole("INSTITUTION_ADMIN")
+                        .requestMatchers(
+                                "/api/v1/admin/**",
+                                "/api/v1/cognitive-dashboard/institutions/**"
+                        ).hasRole("INSTITUTION_ADMIN")
 
                         // 나머지 인증 필요
                         .anyRequest().authenticated()

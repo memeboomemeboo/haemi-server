@@ -3,6 +3,7 @@ package com.memeboo2.haemi.m5.application.dto;
 import com.memeboo2.haemi.m5.domain.model.care.WalkRoutine;
 
 import java.time.LocalTime;
+import java.time.LocalDateTime;
 
 public record WalkRoutineResult(
         String routineId,
@@ -11,7 +12,8 @@ public record WalkRoutineResult(
         LocalTime morningTime,
         LocalTime afternoonTime,
         int targetMinutes,
-        boolean active
+        boolean active,
+        LocalDateTime lastRemindedAt
 ) {
     public static WalkRoutineResult from(WalkRoutine routine) {
         return new WalkRoutineResult(
@@ -21,7 +23,8 @@ public record WalkRoutineResult(
                 routine.getMorningTime(),
                 routine.getAfternoonTime(),
                 routine.getTargetMinutes(),
-                routine.isActive()
+                routine.isActive(),
+                routine.getLastRemindedAt()
         );
     }
 }

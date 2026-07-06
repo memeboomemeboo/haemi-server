@@ -67,6 +67,9 @@ public class WalkRecord extends AbstractAggregateRoot<WalkRecord> {
     }
 
     public void complete(int durationMinutes, int stepCount) {
+        if (status != WalkStatus.STARTED) {
+            throw new WalkCompletionUnavailableException();
+        }
         this.durationMinutes = Math.max(durationMinutes, 0);
         this.stepCount = Math.max(stepCount, 0);
         this.status = WalkStatus.COMPLETED;
