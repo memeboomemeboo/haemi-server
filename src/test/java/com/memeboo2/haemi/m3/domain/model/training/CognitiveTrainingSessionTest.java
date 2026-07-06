@@ -112,10 +112,16 @@ class CognitiveTrainingSessionTest {
     void difficultyProfile_increasesAfterConsecutiveCorrectAnswers() {
         DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
 
-        profile.applyAttempts(List.of(
-                QuestionAttempt.of("q1", "a", true, 10),
-                QuestionAttempt.of("q2", "b", true, 10),
-                QuestionAttempt.of("q3", "c", true, 10)));
+        profile.applySession(
+                List.of(
+                        performance("q1", "p1", QuestionType.WORD_ASSOCIATION, true, false),
+                        performance("q2", "p2", QuestionType.PERSON_RECALL, true, false),
+                        performance("q3", "p3", QuestionType.SEQUENCE_MEMORY, true, false)
+                ),
+                1.0,
+                10.0,
+                DifficultyPolicy.defaultFor(2)
+        );
 
         assertThat(profile.getCurrentLevel()).isEqualTo(3);
         assertThat(profile.getConsecutiveCorrect()).isZero();
@@ -125,16 +131,113 @@ class CognitiveTrainingSessionTest {
     @DisplayName("오답 3회 또는 시간 초과가 있으면 난이도를 낮춘다")
     void difficultyProfile_decreasesAfterFailures() {
         DifficultyProfile wrong = DifficultyProfile.defaultFor("elder-1");
-        wrong.applyAttempts(List.of(
-                QuestionAttempt.of("q1", "x", false, 10),
-                QuestionAttempt.of("q2", "x", false, 10),
-                QuestionAttempt.of("q3", "x", false, 10)));
+        wrong.applySession(
+                List.of(
+                        performance("q1", "p1", QuestionType.WORD_ASSOCIATION, false, false),
+                        performance("q2", "p2", QuestionType.PERSON_RECALL, false, false),
+                        performance("q3", "p3", QuestionType.SEQUENCE_MEMORY, false, false)
+                ),
+                0.0,
+                10.0,
+                DifficultyPolicy.defaultFor(2)
+        );
 
         DifficultyProfile timeout = DifficultyProfile.defaultFor("elder-2");
-        timeout.applyAttempts(List.of(QuestionAttempt.of("q1", "a", true, 61)));
+        timeout.applySession(
+                List.of(performance(
+                        "q1", "p1", QuestionType.WORD_ASSOCIATION, false, true)),
+                0.0,
+                61.0,
+                DifficultyPolicy.defaultFor(2)
+        );
 
         assertThat(wrong.getCurrentLevel()).isEqualTo(1);
         assertThat(timeout.getCurrentLevel()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("0%에서 100%로 급변한 두 번째 세션은 난이도를 즉시 높이지 않는다")
+    void difficultyProfile_buffersExtremeScoreUntilThreeSessionsExist() {
+        DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
+        DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
+        List<QuestionPerformance> neutral = List.of(
+                performance("q1", "p1", QuestionType.WORD_ASSOCIATION, true, false),
+                performance("q2", "p2", QuestionType.PERSON_RECALL, false, false),
+                performance("q3", "p3", QuestionType.SEQUENCE_MEMORY, true, false)
+        );
+
+        profile.applySession(neutral, 0.0, 20.0, policy);
+        DifficultyAdjustment adjustment = profile.applySession(
+                List.of(
+                        performance("q4", "p4", QuestionType.WORD_ASSOCIATION, true, false),
+                        performance("q5", "p5", QuestionType.PERSON_RECALL, true, false),
+                        performance("q6", "p6", QuestionType.SEQUENCE_MEMORY, true, false)
+                ),
+                1.0,
+                10.0,
+                policy
+        );
+
+        assertThat(adjustment.extremeScoreBuffered()).isTrue();
+        assertThat(profile.getCurrentLevel()).isEqualTo(2);
+        assertThat(profile.getRecentAccuracyRates()).containsExactly(0.0, 1.0);
+    }
+
+    @Test
+    @DisplayName("정확도 이력은 최근 세 세션만 유지한다")
+    void difficultyProfile_keepsOnlyThreeSessionWindow() {
+        DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
+        DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
+        List<QuestionPerformance> neutral = List.of(
+                performance("q1", "p1", QuestionType.WORD_ASSOCIATION, true, false),
+                performance("q2", "p2", QuestionType.PERSON_RECALL, false, false)
+        );
+
+        profile.applySession(neutral, 0.1, 20.0, policy);
+        profile.applySession(neutral, 0.2, 20.0, policy);
+        profile.applySession(neutral, 0.3, 20.0, policy);
+        profile.applySession(neutral, 0.4, 20.0, policy);
+
+        assertThat(profile.getRecentAccuracyRates()).containsExactly(0.2, 0.3, 0.4);
+        assertThat(profile.getThreeSessionMovingAverage()).isEqualTo(0.3);
+    }
+
+    @Test
+    @DisplayName("같은 문제 패턴을 세 번 틀리면 해당 문제 유형을 다음 세션에서 우선한다")
+    void difficultyProfile_prioritizesRepeatedWrongPattern() {
+        DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
+        DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
+
+        for (int index = 1; index <= 3; index++) {
+            profile.applySession(
+                    List.of(
+                            performance(
+                                    "wrong-" + index,
+                                    "PERSON_RECALL:홍길동",
+                                    QuestionType.PERSON_RECALL,
+                                    false,
+                                    false
+                            ),
+                            performance(
+                                    "correct-" + index,
+                                    "WORD_ASSOCIATION:가족",
+                                    QuestionType.WORD_ASSOCIATION,
+                                    true,
+                                    false
+                            )
+                    ),
+                    0.5,
+                    20.0,
+                    policy
+            );
+        }
+
+        assertThat(profile.getWrongAnswerPatterns())
+                .filteredOn(WrongAnswerPattern::isRepeated)
+                .extracting(WrongAnswerPattern::getLastQuestionId)
+                .containsExactly("wrong-3");
+        assertThat(profile.recommendQuestionTypes(policy).getFirst())
+                .isEqualTo(QuestionType.PERSON_RECALL);
     }
 
     private CognitiveTrainingSession session(int level) {
@@ -151,5 +254,15 @@ class CognitiveTrainingSessionTest {
 
     private TrainingQuestion question(String id, QuestionType type, String answer) {
         return TrainingQuestion.of(id, type, "질문 " + id, answer, 2);
+    }
+
+    private QuestionPerformance performance(
+            String questionId,
+            String patternKey,
+            QuestionType type,
+            boolean correct,
+            boolean timeout
+    ) {
+        return new QuestionPerformance(questionId, patternKey, type, correct, timeout);
     }
 }

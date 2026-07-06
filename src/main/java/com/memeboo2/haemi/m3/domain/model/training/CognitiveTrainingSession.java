@@ -177,6 +177,29 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return Collections.unmodifiableList(attempts);
     }
 
+    public List<QuestionPerformance> getQuestionPerformances() {
+        Map<String, TrainingQuestion> questionsById = questions.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        TrainingQuestion::getQuestionId,
+                        question -> question
+                ));
+        return attempts.stream()
+                .map(attempt -> {
+                    TrainingQuestion question = questionsById.get(attempt.getQuestionId());
+                    if (question == null) {
+                        throw new TrainingQuestionNotFoundException(attempt.getQuestionId());
+                    }
+                    return new QuestionPerformance(
+                            attempt.getQuestionId(),
+                            question.getPatternKey(),
+                            question.getType(),
+                            attempt.isCorrect(),
+                            attempt.isTimeout()
+                    );
+                })
+                .toList();
+    }
+
     private void complete() {
         this.status = TrainingSessionStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();

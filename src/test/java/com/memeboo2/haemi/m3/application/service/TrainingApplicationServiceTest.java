@@ -7,16 +7,20 @@ import com.memeboo2.haemi.m1.domain.model.album.PhotoMetadata;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.AnswerTrainingQuestionCommand;
 import com.memeboo2.haemi.m3.application.command.StartTrainingSessionCommand;
+import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
 import com.memeboo2.haemi.m3.domain.port.CognitiveQuestionGeneratorPort;
 import com.memeboo2.haemi.m3.domain.port.TrainingSpeechSynthesisPort;
+import com.memeboo2.haemi.m3.domain.repository.DifficultyPolicyRepository;
 import com.memeboo2.haemi.m3.domain.repository.DifficultyProfileRepository;
 import com.memeboo2.haemi.m3.domain.repository.TrainingSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,9 +38,11 @@ class TrainingApplicationServiceTest {
 
     @Mock TrainingSessionRepository sessionRepository;
     @Mock DifficultyProfileRepository profileRepository;
+    @Mock DifficultyPolicyRepository policyRepository;
     @Mock AlbumRepository albumRepository;
     @Mock CognitiveQuestionGeneratorPort questionGenerator;
     @Mock TrainingSpeechSynthesisPort speechSynthesis;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private TrainingApplicationService service;
 
@@ -45,14 +51,19 @@ class TrainingApplicationServiceTest {
         service = new TrainingApplicationService(
                 sessionRepository,
                 profileRepository,
+                policyRepository,
                 albumRepository,
                 questionGenerator,
-                speechSynthesis
+                speechSynthesis,
+                eventPublisher
         );
         lenient().when(sessionRepository.findByElderIdAndSessionDate(anyString(), any(LocalDate.class)))
                 .thenReturn(Optional.empty());
         lenient().when(speechSynthesis.synthesize(anyString()))
                 .thenAnswer(invocation -> speech(invocation.getArgument(0)));
+        lenient().when(policyRepository.findByLevel(anyInt()))
+                .thenAnswer(invocation -> Optional.of(
+                        DifficultyPolicy.defaultFor(invocation.getArgument(0))));
     }
 
     @Test
@@ -84,7 +95,7 @@ class TrainingApplicationServiceTest {
         Album album = albumWithPhotos("elder-profile-1", 5);
         List<TrainingQuestion> questions = questions();
         prepareStart(album);
-        when(questionGenerator.generate(album, 2)).thenReturn(questions);
+        when(questionGenerator.generate(eq(album), eq(2), anyList())).thenReturn(questions);
 
         var result = service.startSession(startCommand("elder-profile-1", album));
 
@@ -101,7 +112,8 @@ class TrainingApplicationServiceTest {
         Album album = albumWithPhotos("elder-profile-1", 5);
         CognitiveTrainingSession cached = completedSession(album, "elder-profile-1");
         prepareStart(album);
-        when(questionGenerator.generate(album, 2)).thenThrow(new IllegalStateException("AI unavailable"));
+        when(questionGenerator.generate(eq(album), eq(2), anyList()))
+                .thenThrow(new IllegalStateException("AI unavailable"));
         when(sessionRepository.findLatestCompleted("elder-profile-1", album.getId()))
                 .thenReturn(Optional.of(cached));
 
@@ -117,7 +129,8 @@ class TrainingApplicationServiceTest {
     void returnsServiceUnavailableErrorWhenGenerationAndCacheBothFail() {
         Album album = albumWithPhotos("elder-profile-1", 5);
         prepareStart(album);
-        when(questionGenerator.generate(album, 2)).thenThrow(new IllegalStateException("AI unavailable"));
+        when(questionGenerator.generate(eq(album), eq(2), anyList()))
+                .thenThrow(new IllegalStateException("AI unavailable"));
         when(sessionRepository.findLatestCompleted("elder-profile-1", album.getId()))
                 .thenReturn(Optional.empty());
 
@@ -149,6 +162,34 @@ class TrainingApplicationServiceTest {
         assertThat(result.message()).contains("정답률은 67퍼센트");
         assertThat(result.session().speechGuide().text()).contains("정답률은 67퍼센트");
         verify(speechSynthesis).synthesize(contains("정말 잘하셨어요"));
+    }
+
+    @Test
+    void publishesDifficultyChangeWhenCompletedSessionRaisesLevel() {
+        Album album = albumWithPhotos("elder-profile-1", 5);
+        CognitiveTrainingSession session = CognitiveTrainingSession.start(
+                "elder-profile-1", album.getId(), StartMode.MANUAL, 2, questions());
+        session.answer("q1", "정답1", 10);
+        session.answer("q2", "정답2", 10);
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(profileRepository.findByElderId("elder-profile-1"))
+                .thenReturn(Optional.of(DifficultyProfile.defaultFor("elder-profile-1")));
+
+        service.answerQuestion(new AnswerTrainingQuestionCommand(
+                session.getId().toString(),
+                "q3",
+                "정답3",
+                10
+        ));
+
+        ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue())
+                .isInstanceOfSatisfying(DifficultyLevelChangedEvent.class, changed -> {
+                    assertThat(changed.previousLevel()).isEqualTo(2);
+                    assertThat(changed.currentLevel()).isEqualTo(3);
+                    assertThat(changed.elderId()).isEqualTo("elder-profile-1");
+                });
     }
 
     private void prepareStart(Album album) {
