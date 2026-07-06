@@ -15,7 +15,7 @@ jobs:
 
       - name: Check commit messages
         run: |
-          PATTERN="^(feat|fix|refactor|hotfix|docs|style|remove|delete|test|chore|comment|revert|ci|cd|mergeπ): .{1,72}$"
+          PATTERN="^(feat|fix|refactor|hotfix|docs|style|remove|delete|test|chore|comment|revert|ci|cd|merge): .{1,72}$"
 
           FAILED=0
 
