@@ -24,6 +24,10 @@ public record TrainingSessionResult(
         SpeechGuideResult speechGuide,
         String lastHintResponder,
         String lastHintText,
+        GrandchildChanceStatus lastChanceStatus,
+        String lastChanceQuestionId,
+        LocalDateTime lastChanceRequestedAt,
+        boolean chanceUnusedCompletionBadgeAwarded,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
@@ -94,6 +98,10 @@ public record TrainingSessionResult(
                 SpeechGuideResult.from(speech),
                 session.getLastHintResponder(),
                 session.getLastHintText(),
+                session.getLastChanceStatus(),
+                session.getLastChanceQuestionId(),
+                session.getLastChanceRequestedAt(),
+                session.isChanceUnusedCompletionBadgeAwarded(),
                 session.getStartedAt(),
                 session.getCompletedAt()
         );

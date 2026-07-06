@@ -13,4 +13,5 @@ public interface CognitiveMetricRepository {
     List<CognitiveDailyMetric> findByElderIdAndDateBetween(String elderId, LocalDate from, LocalDate to);
     List<CognitiveDailyMetric> findByAlbumIdAndDateBetween(UUID albumId, LocalDate from, LocalDate to);
     List<CognitiveDailyMetric> findByInstitutionIdAndDateBetween(String institutionId, LocalDate from, LocalDate to);
+    List<String> findAllDistinctElderIds();
 }

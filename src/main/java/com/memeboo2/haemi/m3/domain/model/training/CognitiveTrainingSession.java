@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.domain.model.training;
 
+import com.memeboo2.haemi.m3.domain.event.GrandchildChanceUnusedBadgeAwardedEvent;
 import com.memeboo2.haemi.m3.domain.event.HintRequestedEvent;
 import com.memeboo2.haemi.m3.domain.event.TrainingSessionCompletedEvent;
 import jakarta.persistence.*;
@@ -22,6 +23,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     private static final int MIN_QUESTION_COUNT = 3;
     private static final int MAX_QUESTION_COUNT = 5;
     private static final int MAX_CHANCE_PER_SESSION = 2;
+    private static final int GRANDCHILD_CHANCE_RESPONSE_LIMIT_MINUTES = 30;
 
     @Id
     @Column(columnDefinition = "uuid")
@@ -63,6 +65,16 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     @Column(name = "chance_used_count", nullable = false)
     private int chanceUsedCount;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "last_chance_status", nullable = false)
+    private GrandchildChanceStatus lastChanceStatus;
+
+    @Column(name = "last_chance_question_id")
+    private String lastChanceQuestionId;
+
+    @Column(name = "last_chance_requested_at")
+    private LocalDateTime lastChanceRequestedAt;
+
     @Column(name = "last_hint_text", length = 500)
     private String lastHintText;
 
@@ -74,6 +86,9 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Column(name = "chance_unused_completion_badge_awarded", nullable = false)
+    private boolean chanceUnusedCompletionBadgeAwarded;
 
     public static CognitiveTrainingSession start(String elderId, UUID albumId, StartMode startMode,
                                                  int difficultyLevel, List<TrainingQuestion> questions) {
@@ -89,6 +104,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         session.questions = new ArrayList<>(questions);
         session.currentQuestionIndex = 0;
         session.chanceUsedCount = 0;
+        session.lastChanceStatus = GrandchildChanceStatus.NONE;
+        session.chanceUnusedCompletionBadgeAwarded = false;
         session.startedAt = LocalDateTime.now();
         return session;
     }
@@ -97,6 +114,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         if (status == TrainingSessionStatus.COMPLETED) {
             throw new TrainingSessionAlreadyCompletedException();
         }
+        expireGrandchildChanceIfNeeded(LocalDateTime.now());
         TrainingQuestion question = currentQuestion()
                 .filter(q -> q.getQuestionId().equals(questionId))
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
@@ -112,7 +130,15 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return attempt;
     }
 
-    public int requestGrandchildChance() {
+    public int requestGrandchildChance(Set<String> recipientMemberIds) {
+        return requestGrandchildChance(recipientMemberIds, LocalDateTime.now());
+    }
+
+    int requestGrandchildChance(Set<String> recipientMemberIds, LocalDateTime requestedAt) {
+        if (recipientMemberIds == null || recipientMemberIds.isEmpty()) {
+            throw new GrandchildChanceUnavailableException();
+        }
+        expireGrandchildChanceIfNeeded(requestedAt);
         if (chanceUsedCount >= MAX_CHANCE_PER_SESSION) {
             throw new GrandchildChanceExhaustedException();
         }
@@ -120,15 +146,30 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .map(TrainingQuestion::getQuestionId)
                 .orElseThrow(() -> new TrainingSessionAlreadyCompletedException());
         chanceUsedCount++;
+        lastChanceStatus = GrandchildChanceStatus.PENDING;
+        lastChanceQuestionId = questionId;
+        lastChanceRequestedAt = requestedAt;
         registerEvent(new HintRequestedEvent(
-                id, elderId, albumId, questionId, chanceUsedCount, LocalDateTime.now()));
+                id, elderId, albumId, questionId, chanceUsedCount, recipientMemberIds, requestedAt));
         return getRemainingChanceCount();
     }
 
     public void applyHint(String responderName, String hintText) {
+        applyHint(responderName, hintText, LocalDateTime.now());
+    }
+
+    void applyHint(String responderName, String hintText, LocalDateTime respondedAt) {
         if (hintText == null || hintText.isBlank()) {
             throw new IllegalArgumentException("힌트 내용을 입력해주세요.");
         }
+        expireGrandchildChanceIfNeeded(respondedAt);
+        if (lastChanceStatus == GrandchildChanceStatus.EXPIRED) {
+            throw new GrandchildChanceExpiredException();
+        }
+        if (lastChanceStatus != GrandchildChanceStatus.PENDING) {
+            throw new IllegalArgumentException("진행 중인 손주 찬스 요청이 없습니다.");
+        }
+        lastChanceStatus = GrandchildChanceStatus.ANSWERED;
         this.lastHintResponder = responderName;
         this.lastHintText = hintText;
     }
@@ -142,6 +183,14 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     public int getRemainingChanceCount() {
         return Math.max(0, MAX_CHANCE_PER_SESSION - chanceUsedCount);
+    }
+
+    public boolean isGrandchildChancePending() {
+        return lastChanceStatus == GrandchildChanceStatus.PENDING;
+    }
+
+    public boolean isLastGrandchildChanceExpired() {
+        return lastChanceStatus == GrandchildChanceStatus.EXPIRED;
     }
 
     public double getAccuracyRate() {
@@ -203,9 +252,22 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     private void complete() {
         this.status = TrainingSessionStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
+        if (chanceUsedCount == 0) {
+            this.chanceUnusedCompletionBadgeAwarded = true;
+            registerEvent(new GrandchildChanceUnusedBadgeAwardedEvent(id, elderId, albumId, completedAt));
+        }
         registerEvent(new TrainingSessionCompletedEvent(
                 id, elderId, albumId, sessionDate, getAccuracyRate(),
                 getAverageResponseSeconds(), attempts.size(), completedAt));
+    }
+
+    private void expireGrandchildChanceIfNeeded(LocalDateTime now) {
+        if (lastChanceStatus != GrandchildChanceStatus.PENDING || lastChanceRequestedAt == null) {
+            return;
+        }
+        if (!lastChanceRequestedAt.plusMinutes(GRANDCHILD_CHANCE_RESPONSE_LIMIT_MINUTES).isAfter(now)) {
+            lastChanceStatus = GrandchildChanceStatus.EXPIRED;
+        }
     }
 
     private static void validateQuestions(List<TrainingQuestion> questions) {

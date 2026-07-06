@@ -207,7 +207,7 @@ public class DashboardApplicationService {
         if (period == ReportPeriod.WEEKLY) {
             return today.minusDays(1);
         }
-        return today.minusDays(1);
+        return today.minusMonths(1).with(TemporalAdjusters.lastDayOfMonth());
     }
 
     private String buildChangeSummary(String elderId, LocalDate start, LocalDate end,
