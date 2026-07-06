@@ -2,6 +2,7 @@ package com.memeboo2.haemi.m5.application.service;
 
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
+import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m5.application.command.*;
 import com.memeboo2.haemi.m5.application.dto.*;
 import com.memeboo2.haemi.m5.domain.model.care.*;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +33,7 @@ public class CareApplicationService {
     private final PhotoStoragePort storagePort;
     private final WeatherPort weatherPort;
     private final NotificationPort notificationPort;
+    private final AlbumRepository albumRepository;
 
     // F5-01: 손주 목소리 알람 생성
     @Transactional
@@ -69,9 +72,12 @@ public class CareApplicationService {
     public VoiceAlarmResult acknowledgeAlarm(AcknowledgeVoiceAlarmCommand command) {
         VoiceAlarm alarm = voiceAlarmRepository.findById(UUID.fromString(command.alarmId()))
                 .orElseThrow(() -> new VoiceAlarmNotFoundException(command.alarmId()));
+        if (!alarm.getElderId().equals(command.elderId())) {
+            throw new AlarmAccessDeniedException();
+        }
         alarm.acknowledge();
         voiceAlarmRepository.save(alarm);
-        notificationPort.sendToGroup(Set.of(alarm.getGroupId()),
+        notificationPort.sendToGroup(familyMemberIds(alarm.getGroupId()),
                 "알람 확인", acknowledgementMessage(alarm.getAlarmType()));
         return VoiceAlarmResult.from(alarm);
     }
@@ -106,9 +112,15 @@ public class CareApplicationService {
                 .orElseThrow(() -> new WalkRoutineNotFoundException(command.walkRecordId()));
         record.complete(command.durationMinutes(), command.stepCount());
         walkRecordRepository.save(record);
-        notificationPort.sendToGroup(Set.of(record.getGroupId()),
+        notificationPort.sendToGroup(familyMemberIds(record.getGroupId()),
                 "산책 완료", "어르신이 오늘의 산책을 완료했습니다.");
         return WalkRecordResult.from(record);
+    }
+
+    @Transactional
+    public void processDueReminders(LocalDateTime now) {
+        voiceAlarmRepository.findAllActive().forEach(alarm -> processVoiceAlarm(alarm, now));
+        walkRoutineRepository.findAllActive().forEach(routine -> processWalkRoutine(routine, now));
     }
 
     @Transactional(readOnly = true)
@@ -131,6 +143,63 @@ public class CareApplicationService {
             case WATER -> "물을 드셨어요.";
             case WALK -> "산책 알람을 확인하셨어요.";
             case ETC -> "알람을 확인하셨어요.";
+        };
+    }
+
+    private void processVoiceAlarm(VoiceAlarm alarm, LocalDateTime now) {
+        if (alarm.shouldTrigger(now)) {
+            alarm.markTriggered(now);
+            voiceAlarmRepository.save(alarm);
+            notificationPort.sendToMember(alarm.getElderId(),
+                    alarmTitle(alarm.getAlarmType()),
+                    alarm.usesTtsFallback()
+                            ? "가족이 설정한 알람이에요. 화면의 안내 문구를 읽어드릴게요."
+                            : "가족의 목소리 알람이 도착했어요.");
+        }
+
+        if (alarm.isNoResponseDue(now)) {
+            alarm.markNoResponseNotified(now);
+            voiceAlarmRepository.save(alarm);
+            notificationPort.sendToGroup(familyMemberIds(alarm.getGroupId()),
+                    "알람 무응답",
+                    "어르신이 알람을 10분 동안 확인하지 않았습니다.");
+        }
+    }
+
+    private void processWalkRoutine(WalkRoutine routine, LocalDateTime now) {
+        if (!routine.shouldRemind(now)) {
+            return;
+        }
+        WeatherCondition condition = weatherPort.currentCondition(routine.getElderId());
+        routine.markReminded(now);
+        walkRoutineRepository.save(routine);
+        if (condition == WeatherCondition.CLEAR) {
+            notificationPort.sendToMember(routine.getElderId(),
+                    "10분 산책 시간이에요",
+                    "가볍게 걸으며 오늘의 산책을 시작해 보세요.");
+            return;
+        }
+        notificationPort.sendToMember(routine.getElderId(),
+                "오늘은 실내 운동을 해봐요",
+                "날씨가 좋지 않아 안전한 실내 활동을 안내합니다.");
+    }
+
+    private Set<String> familyMemberIds(String groupId) {
+        return albumRepository.findByGroupId(groupId)
+                .map(album -> album.getMemberIds())
+                .filter(memberIds -> !memberIds.isEmpty())
+                .orElseGet(() -> {
+                    log.warn("가족 알림 대상 없음: groupId={}", groupId);
+                    return Set.of();
+                });
+    }
+
+    private String alarmTitle(AlarmType type) {
+        return switch (type) {
+            case MEDICATION -> "약 드실 시간이에요";
+            case WATER -> "물 드실 시간이에요";
+            case WALK -> "산책할 시간이에요";
+            case ETC -> "가족 알람이 도착했어요";
         };
     }
 }

@@ -18,7 +18,9 @@ public record VoiceAlarmResult(
         boolean ttsFallback,
         boolean active,
         LocalDateTime lastTriggeredAt,
-        LocalDateTime lastAcknowledgedAt
+        LocalDateTime lastAcknowledgedAt,
+        LocalDateTime lastNoResponseNotifiedAt,
+        boolean awaitingResponse
 ) {
     public static VoiceAlarmResult from(VoiceAlarm alarm) {
         return new VoiceAlarmResult(
@@ -32,7 +34,9 @@ public record VoiceAlarmResult(
                 alarm.usesTtsFallback(),
                 alarm.isActive(),
                 alarm.getLastTriggeredAt(),
-                alarm.getLastAcknowledgedAt()
+                alarm.getLastAcknowledgedAt(),
+                alarm.getLastNoResponseNotifiedAt(),
+                alarm.isAwaitingResponse()
         );
     }
 }

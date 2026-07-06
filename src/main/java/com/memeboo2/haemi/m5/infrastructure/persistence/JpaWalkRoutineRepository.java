@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface JpaWalkRoutineRepository extends JpaRepository<WalkRoutine, UUID> {
     List<WalkRoutine> findByElderIdAndActiveTrue(String elderId);
+    List<WalkRoutine> findByActiveTrue();
 }

@@ -40,6 +40,9 @@ public class WalkRoutine {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "last_reminded_at")
+    private LocalDateTime lastRemindedAt;
+
     public static WalkRoutine create(String elderId, String groupId, LocalTime morningTime,
                                      LocalTime afternoonTime, int targetMinutes) {
         WalkRoutine routine = new WalkRoutine();
@@ -52,5 +55,32 @@ public class WalkRoutine {
         routine.active = true;
         routine.createdAt = LocalDateTime.now();
         return routine;
+    }
+
+    public boolean shouldRemind(LocalDateTime now) {
+        if (!active) {
+            return false;
+        }
+        boolean due = matches(now, morningTime) || matches(now, afternoonTime);
+        if (!due) {
+            return false;
+        }
+        return lastRemindedAt == null
+                || !lastRemindedAt.toLocalDate().equals(now.toLocalDate())
+                || lastRemindedAt.getHour() != now.getHour()
+                || lastRemindedAt.getMinute() != now.getMinute();
+    }
+
+    public void markReminded(LocalDateTime remindedAt) {
+        if (!shouldRemind(remindedAt)) {
+            throw new IllegalStateException("현재 시각에는 산책 알림을 보낼 수 없습니다.");
+        }
+        this.lastRemindedAt = remindedAt;
+    }
+
+    private boolean matches(LocalDateTime now, LocalTime reminderTime) {
+        return reminderTime != null
+                && reminderTime.getHour() == now.getHour()
+                && reminderTime.getMinute() == now.getMinute();
     }
 }

@@ -11,5 +11,6 @@ public interface VoiceAlarmRepository {
     VoiceAlarm save(VoiceAlarm alarm);
     Optional<VoiceAlarm> findById(UUID id);
     List<VoiceAlarm> findActiveByElderId(String elderId);
+    List<VoiceAlarm> findAllActive();
     boolean existsActiveNearTime(String elderId, LocalTime from, LocalTime to);
 }

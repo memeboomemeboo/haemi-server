@@ -9,5 +9,6 @@ import java.util.UUID;
 
 public interface JpaVoiceAlarmRepository extends JpaRepository<VoiceAlarm, UUID> {
     List<VoiceAlarm> findByElderIdAndActiveTrue(String elderId);
+    List<VoiceAlarm> findByActiveTrue();
     boolean existsByElderIdAndActiveTrueAndAlarmTimeBetween(String elderId, LocalTime from, LocalTime to);
 }
