@@ -14,5 +14,7 @@ springdoc:
     enabled: true
 
 haemi:
+  openapi:
+    include-local-server: false
   jwt:
     secret: ${JWT_SECRET}

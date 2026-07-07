@@ -61,6 +61,15 @@ jobs:
               echo 'IMAGE_TAG=${{ github.sha }}' >> .env
             fi
 
+            APP_PORT_VALUE="$(grep -E '^APP_PORT=' .env | tail -n 1 | cut -d= -f2-)"
+            APP_PORT_VALUE="${APP_PORT_VALUE:-8080}"
+            OPENAPI_SERVER_URL_VALUE="http://${{ secrets.EC2_HOST }}:${APP_PORT_VALUE}"
+            if grep -q '^OPENAPI_SERVER_URL=' .env; then
+              sed -i "s#^OPENAPI_SERVER_URL=.*#OPENAPI_SERVER_URL=${OPENAPI_SERVER_URL_VALUE}#" .env
+            else
+              echo "OPENAPI_SERVER_URL=${OPENAPI_SERVER_URL_VALUE}" >> .env
+            fi
+
             docker compose pull app
             docker compose up -d
             docker image prune -f

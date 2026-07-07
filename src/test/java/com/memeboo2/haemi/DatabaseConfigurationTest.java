@@ -22,7 +22,10 @@ class DatabaseConfigurationTest {
                 .containsEntry("spring.datasource.driver-class-name", "org.postgresql.Driver")
                 .containsEntry("spring.datasource.url", "${DB_URL:jdbc:postgresql://localhost:5432/haemi}")
                 .containsEntry("spring.jpa.hibernate.ddl-auto", "validate")
-                .containsEntry("spring.flyway.enabled", true);
+                .containsEntry("spring.flyway.enabled", true)
+                .containsEntry("haemi.openapi.server-url", "${OPENAPI_SERVER_URL:}")
+                .containsEntry("haemi.openapi.local-server-url", "${OPENAPI_LOCAL_SERVER_URL:http://localhost:8080}")
+                .containsEntry("haemi.openapi.include-local-server", "${OPENAPI_INCLUDE_LOCAL_SERVER:true}");
     }
 
     @Test
@@ -35,6 +38,7 @@ class DatabaseConfigurationTest {
                 .containsEntry("spring.datasource.password", "${DB_PASSWORD}")
                 .containsEntry("spring.jpa.hibernate.ddl-auto", "validate")
                 .containsEntry("haemi.jwt.secret", "${JWT_SECRET}")
+                .containsEntry("haemi.openapi.include-local-server", false)
                 .containsEntry("springdoc.api-docs.enabled", true)
                 .containsEntry("springdoc.swagger-ui.enabled", true);
     }
