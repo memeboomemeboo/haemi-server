@@ -8,5 +8,5 @@ import java.util.UUID;
 
 public interface JpaPhotoSyncLogRepository extends JpaRepository<PhotoSyncLog, UUID> {
 
-    List<PhotoSyncLog> findByAlbumIdOrderBySyncedAtDesc(UUID albumId);
+    List<PhotoSyncLog> findTop30ByAlbumIdOrderBySyncedAtDesc(UUID albumId);
 }

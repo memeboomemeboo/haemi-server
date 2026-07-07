@@ -77,7 +77,7 @@ public class Photo {
     }
 
     void updateMemo(String timePeriod, String locationText, String memo) {
-        this.metadata = this.metadata.withMemo(timePeriod, locationText, memo);
+        this.metadata = getMetadata().withMemo(timePeriod, locationText, memo);
     }
 
     void tagPersons(List<PersonTag> tags) {

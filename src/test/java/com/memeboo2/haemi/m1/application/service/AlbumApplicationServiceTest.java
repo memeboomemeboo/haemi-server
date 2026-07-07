@@ -2,7 +2,9 @@ package com.memeboo2.haemi.m1.application.service;
 
 import com.memeboo2.haemi.m1.application.command.AcceptInviteCommand;
 import com.memeboo2.haemi.m1.application.command.InviteMemberCommand;
+import com.memeboo2.haemi.m1.application.dto.AlbumResult;
 import com.memeboo2.haemi.m1.application.dto.TimelineResult;
+import com.memeboo2.haemi.m1.application.query.GetAlbumQuery;
 import com.memeboo2.haemi.m1.application.query.GetTimelineQuery;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumAccessDeniedException;
@@ -70,7 +72,7 @@ class AlbumApplicationServiceTest {
         addPhoto("hash-1");
 
         TimelineResult result = service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), null, null, null, null, "FAMILY"));
+                new GetTimelineQuery(album.getAlbumId().toString(), "owner", null, null, null, null, "FAMILY"));
 
         assertThat(result.belowMinimumPhotoThreshold()).isTrue();
         assertThat(result.guideMessage()).isEqualTo("사진을 더 추가하면 타임라인이 만들어집니다");
@@ -84,13 +86,31 @@ class AlbumApplicationServiceTest {
         addPhoto("hash-3");
 
         TimelineResult familyResult = service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), null, null, null, null, "FAMILY"));
+                new GetTimelineQuery(album.getAlbumId().toString(), "owner", null, null, null, null, "FAMILY"));
         TimelineResult elderResult = service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), null, null, null, null, "ELDER"));
+                new GetTimelineQuery(album.getAlbumId().toString(), "elder-1", null, null, null, null, "ELDER"));
 
         assertThat(familyResult.editable()).isTrue();
         assertThat(familyResult.belowMinimumPhotoThreshold()).isFalse();
         assertThat(elderResult.editable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("앨범 구성원도 어르신도 아니면 앨범과 타임라인을 조회할 수 없다")
+    void getAlbumAndTimeline_rejectNonMemberNonElderViewer() {
+        assertThatThrownBy(() -> service.getAlbum(new GetAlbumQuery(album.getAlbumId().toString(), "stranger")))
+                .isInstanceOf(AlbumAccessDeniedException.class);
+        assertThatThrownBy(() -> service.getTimeline(
+                new GetTimelineQuery(album.getAlbumId().toString(), "stranger", null, null, null, null, "FAMILY")))
+                .isInstanceOf(AlbumAccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("어르신 본인은 구성원이 아니어도 앨범을 조회할 수 있다")
+    void getAlbum_allowsElderViewer() {
+        AlbumResult result = service.getAlbum(new GetAlbumQuery(album.getAlbumId().toString(), "elder-1"));
+
+        assertThat(result.albumId()).isEqualTo(album.getAlbumId().toString());
     }
 
     private void addPhoto(String hash) {

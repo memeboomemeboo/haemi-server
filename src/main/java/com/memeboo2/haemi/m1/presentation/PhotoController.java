@@ -58,6 +58,7 @@ public class PhotoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
                     description = "이미 저장된 사진(중복)",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "앨범 구성원이 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -74,16 +75,7 @@ public class PhotoController {
 
         List<PhotoResult> results = new ArrayList<>();
         for (MultipartFile file : files) {
-            SavePhotoCommand cmd = new SavePhotoCommand(
-                    albumId, uploadedBy,
-                    file.getInputStream(),
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    file.getSize(),
-                    computeHash(file),
-                    null, null, null
-            );
-            results.add(photoService.savePhoto(cmd));
+            results.add(photoService.savePhoto(toSaveCommand(albumId, uploadedBy, file)));
         }
         return ApiResponse.ok(results, results.size() + "장 저장되었습니다.");
     }
@@ -104,6 +96,7 @@ public class PhotoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "동기화 완료"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
                     description = "Wi-Fi 전용 설정 중 셀룰러 연결 / 배터리 20% 이하"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "앨범 구성원이 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
     })
     @PostMapping(value = "/sync", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -120,15 +113,7 @@ public class PhotoController {
 
         List<SavePhotoCommand> cmds = new ArrayList<>();
         for (MultipartFile file : files) {
-            cmds.add(new SavePhotoCommand(
-                    albumId, uploadedBy,
-                    file.getInputStream(),
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    file.getSize(),
-                    computeHash(file),
-                    null, null, null
-            ));
+            cmds.add(toSaveCommand(albumId, uploadedBy, file));
         }
 
         PhotoApplicationService.SyncResult result = photoService.syncPhotos(
@@ -168,6 +153,8 @@ public class PhotoController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "저장 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
                     description = "메모 200자 초과 / 인물 태그 10명 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "앨범 구성원이 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
                     description = "앨범 또는 사진 없음")
     })
@@ -175,6 +162,7 @@ public class PhotoController {
     public ApiResponse<PhotoResult> updateMemo(
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
             @Parameter(description = "사진 UUID") @PathVariable String photoId,
+            @Parameter(description = "요청자 memberId", required = true) @RequestParam String requestingMemberId,
             @Valid @RequestBody UpdatePhotoMemoRequest request) {
 
         List<UpdatePhotoMemoCommand.PersonTagItem> tags = request.personTags() == null ? List.of() :
@@ -183,7 +171,7 @@ public class PhotoController {
                         .toList();
 
         PhotoResult result = photoService.updatePhotoMemo(new UpdatePhotoMemoCommand(
-                albumId, photoId,
+                albumId, photoId, requestingMemberId,
                 request.timePeriod(), request.locationText(), request.memo(),
                 tags
         ));
@@ -213,6 +201,18 @@ public class PhotoController {
             @Parameter(description = "요청자 memberId", required = true)
             @RequestParam String requestingMemberId) {
         photoService.removePhoto(new RemovePhotoCommand(albumId, photoId, requestingMemberId));
+    }
+
+    private SavePhotoCommand toSaveCommand(String albumId, String uploadedBy, MultipartFile file) throws IOException {
+        return new SavePhotoCommand(
+                albumId, uploadedBy,
+                file.getInputStream(),
+                file.getOriginalFilename(),
+                file.getContentType(),
+                file.getSize(),
+                computeHash(file),
+                null, null, null
+        );
     }
 
     private String computeHash(MultipartFile file) {

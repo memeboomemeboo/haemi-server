@@ -39,15 +39,17 @@ public class AlbumApplicationService {
         return AlbumResult.from(album);
     }
 
-    // F1-03: 멤버 초대 (기존 그룹 구성원만 초대 가능)
+    // F1-03: 멤버 초대 (기존 그룹 구성원만 초대 가능). 이미 초대/가입된 대상이면 알림을 다시 보내지 않는다.
     @Transactional
     public void inviteMember(InviteMemberCommand command) {
         Album album = loadAlbumOrThrow(command.albumId());
         album.requireMember(command.inviterId());
-        album.inviteMember(command.inviteeId());
+        boolean newlyInvited = album.inviteMember(command.inviteeId());
         albumRepository.save(album);
-        notificationPort.sendToMember(command.inviteeId(),
-                "해미 앨범 초대", "가족 앨범에 초대되었습니다.");
+        if (newlyInvited) {
+            notificationPort.sendToMember(command.inviteeId(),
+                    "해미 앨범 초대", "가족 앨범에 초대되었습니다.");
+        }
     }
 
     // F1-03: 초대 수락
@@ -59,17 +61,19 @@ public class AlbumApplicationService {
         log.info("초대 수락: albumId={}, memberId={}", command.albumId(), command.memberId());
     }
 
-    // F1-03: 앨범 조회
+    // F1-03: 앨범 조회 (그룹 구성원 또는 해당 어르신만 조회 가능)
     @Transactional(readOnly = true)
     public AlbumResult getAlbum(GetAlbumQuery query) {
         Album album = loadAlbumOrThrow(query.albumId());
+        album.requireViewer(query.viewerMemberId());
         return AlbumResult.from(album);
     }
 
-    // F1-06: 타임라인 조회
+    // F1-06: 타임라인 조회 (그룹 구성원 또는 해당 어르신만 조회 가능)
     @Transactional(readOnly = true)
     public TimelineResult getTimeline(GetTimelineQuery query) {
         Album album = loadAlbumOrThrow(query.albumId());
+        album.requireViewer(query.viewerMemberId());
         TimelineSortBy sortBy = "UPLOADED_AT".equals(query.sortBy())
                 ? TimelineSortBy.UPLOADED_AT : TimelineSortBy.SHOT_AT;
         List<Photo> photos = album.getPhotosForTimeline(

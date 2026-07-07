@@ -186,7 +186,7 @@ public class CareApplicationService {
 
     private Set<String> familyMemberIds(String groupId) {
         return albumRepository.findByGroupId(groupId)
-                .map(album -> album.getMemberIds())
+                .map(album -> album.getAllMemberIds())
                 .filter(memberIds -> !memberIds.isEmpty())
                 .orElseGet(() -> {
                     log.warn("가족 알림 대상 없음: groupId={}", groupId);

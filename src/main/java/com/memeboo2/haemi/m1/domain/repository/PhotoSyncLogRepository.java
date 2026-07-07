@@ -9,5 +9,6 @@ public interface PhotoSyncLogRepository {
 
     PhotoSyncLog save(PhotoSyncLog log);
 
-    List<PhotoSyncLog> findByAlbumIdOrderBySyncedAtDesc(AlbumId albumId);
+    // 최신 30건만 반환 - 이력이 무한히 쌓여도 응답 크기를 제한한다
+    List<PhotoSyncLog> findTop30ByAlbumIdOrderBySyncedAtDesc(AlbumId albumId);
 }

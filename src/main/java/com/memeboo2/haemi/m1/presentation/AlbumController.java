@@ -53,17 +53,20 @@ public class AlbumController {
 
     @Operation(
             summary = "앨범 조회 [F1-03]",
-            description = "앨범 상세 정보와 최근 사진 10장을 반환합니다."
+            description = "앨범 상세 정보와 최근 사진 10장을 반환합니다. 앨범 그룹 구성원 또는 해당 어르신만 조회할 수 있습니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "앨범 접근 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
     })
     @GetMapping("/{albumId}")
     public ApiResponse<AlbumResult> getAlbum(
             @Parameter(description = "앨범 UUID", example = "550e8400-e29b-41d4-a716-446655440000")
-            @PathVariable String albumId) {
-        return ApiResponse.ok(albumService.getAlbum(new GetAlbumQuery(albumId)));
+            @PathVariable String albumId,
+            @Parameter(description = "조회자 memberId(그룹 구성원) 또는 어르신 프로필 ID", required = true)
+            @RequestParam String viewerMemberId) {
+        return ApiResponse.ok(albumService.getAlbum(new GetAlbumQuery(albumId, viewerMemberId)));
     }
 
     @Operation(
@@ -124,11 +127,14 @@ public class AlbumController {
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "앨범 접근 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
     })
     @GetMapping("/{albumId}/timeline")
     public ApiResponse<TimelineResult> getTimeline(
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
+            @Parameter(description = "조회자 memberId(그룹 구성원) 또는 어르신 프로필 ID", required = true)
+            @RequestParam String viewerMemberId,
             @Parameter(description = "특정 인물 필터 (memberId)") @RequestParam(required = false) String memberId,
             @Parameter(description = "장소 키워드 필터") @RequestParam(required = false) String location,
             @Parameter(description = "시기 필터 (예: \"1978년 여름\")") @RequestParam(required = false) String timePeriod,
@@ -137,7 +143,7 @@ public class AlbumController {
             @Parameter(description = "뷰어 역할", schema = @Schema(allowableValues = {"ELDER", "FAMILY"}))
             @RequestParam(defaultValue = "FAMILY") String role) {
         TimelineResult result = albumService.getTimeline(
-                new GetTimelineQuery(albumId, memberId, location, timePeriod, sortBy, role));
+                new GetTimelineQuery(albumId, viewerMemberId, memberId, location, timePeriod, sortBy, role));
         return ApiResponse.ok(result);
     }
 }

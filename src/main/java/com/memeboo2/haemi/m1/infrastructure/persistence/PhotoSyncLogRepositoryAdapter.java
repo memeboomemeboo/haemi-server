@@ -20,7 +20,7 @@ public class PhotoSyncLogRepositoryAdapter implements PhotoSyncLogRepository {
     }
 
     @Override
-    public List<PhotoSyncLog> findByAlbumIdOrderBySyncedAtDesc(AlbumId albumId) {
-        return jpa.findByAlbumIdOrderBySyncedAtDesc(albumId.value());
+    public List<PhotoSyncLog> findTop30ByAlbumIdOrderBySyncedAtDesc(AlbumId albumId) {
+        return jpa.findTop30ByAlbumIdOrderBySyncedAtDesc(albumId.value());
     }
 }

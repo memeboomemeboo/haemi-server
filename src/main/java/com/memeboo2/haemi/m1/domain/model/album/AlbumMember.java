@@ -57,4 +57,11 @@ public class AlbumMember {
     void accept() {
         this.status = MembershipStatus.ACCEPTED;
     }
+
+    // 이미 PENDING 상태인 초대를 재초대하면 만료 시각을 다시 24시간으로 늘려준다
+    void refreshInviteIfPending() {
+        if (status == MembershipStatus.PENDING) {
+            this.invitedAt = LocalDateTime.now();
+        }
+    }
 }

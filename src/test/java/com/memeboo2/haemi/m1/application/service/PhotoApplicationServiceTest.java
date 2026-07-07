@@ -97,7 +97,7 @@ class PhotoApplicationServiceTest {
     void getSyncHistory_returnsLogs() {
         PhotoSyncLog logEntry = PhotoSyncLog.create(album.getAlbumId(), "owner", 1, 1, 0,
                 NetworkType.WIFI, 90, false);
-        when(photoSyncLogRepository.findByAlbumIdOrderBySyncedAtDesc(album.getAlbumId()))
+        when(photoSyncLogRepository.findTop30ByAlbumIdOrderBySyncedAtDesc(album.getAlbumId()))
                 .thenReturn(List.of(logEntry));
 
         List<SyncHistoryResult> result = service.getSyncHistory(
@@ -105,5 +105,46 @@ class PhotoApplicationServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).savedCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("앨범 구성원이 아니면 사진 저장/동기화를 할 수 없다")
+    void savePhotoAndSyncPhotos_rejectNonMember() {
+        SavePhotoCommand saveCmd = new SavePhotoCommand(
+                album.getAlbumId().toString(), "stranger",
+                new ByteArrayInputStream("data".getBytes()), "a.jpg", "image/jpeg", 10,
+                "hash-1", null, null, null);
+        assertThatThrownBy(() -> service.savePhoto(saveCmd)).isInstanceOf(AlbumAccessDeniedException.class);
+
+        SyncPhotosCommand syncCmd = new SyncPhotosCommand(
+                album.getAlbumId().toString(), "stranger", List.of(),
+                true, NetworkType.WIFI, 80, false);
+        assertThatThrownBy(() -> service.syncPhotos(syncCmd)).isInstanceOf(AlbumAccessDeniedException.class);
+
+        verifyNoInteractions(photoStoragePort, photoSyncLogRepository);
+    }
+
+    @Test
+    @DisplayName("동기화 배치 중 일부 파일 검증에 실패해도 나머지는 저장되고 이력이 기록된다")
+    void syncPhotos_skipsInvalidFileWithoutAbortingBatch() throws Exception {
+        when(photoStoragePort.store(any(), any(), any())).thenReturn("storage-key");
+        SavePhotoCommand validCmd = new SavePhotoCommand(
+                album.getAlbumId().toString(), "owner",
+                new ByteArrayInputStream("data".getBytes()), "a.jpg", "image/jpeg", 10,
+                "hash-1", null, null, null);
+        SavePhotoCommand invalidFormatCmd = new SavePhotoCommand(
+                album.getAlbumId().toString(), "owner",
+                new ByteArrayInputStream("data".getBytes()), "b.gif", "image/gif", 10,
+                "hash-2", null, null, null);
+        SyncPhotosCommand command = new SyncPhotosCommand(
+                album.getAlbumId().toString(), "owner", List.of(validCmd, invalidFormatCmd),
+                true, NetworkType.WIFI, 80, false);
+
+        PhotoApplicationService.SyncResult result = service.syncPhotos(command);
+
+        assertThat(result.saved()).hasSize(1);
+        assertThat(result.skipped()).containsExactly("b.gif");
+        verify(photoSyncLogRepository).save(argThat(log ->
+                log.getSavedCount() == 1 && log.getSkippedCount() == 1));
     }
 }

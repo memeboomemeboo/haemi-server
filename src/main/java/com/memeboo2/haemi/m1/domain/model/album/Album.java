@@ -40,6 +40,7 @@ public class Album extends AbstractAggregateRoot<Album> {
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "album_members", joinColumns = @JoinColumn(name = "album_id"))
+    @Getter(AccessLevel.NONE)
     private List<AlbumMember> members = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
@@ -71,22 +72,23 @@ public class Album extends AbstractAggregateRoot<Album> {
         return photo;
     }
 
-    // F1-03: 가족 그룹 멤버 초대 (수락 전까지는 PENDING 상태)
-    public void inviteMember(String memberId) {
-        if (members.stream().anyMatch(m -> m.getMemberId().equals(memberId))) {
-            return;
+    // F1-03: 가족 그룹 멤버 초대 (수락 전까지는 PENDING 상태). 새로 초대된 경우에만 true를 반환한다.
+    public boolean inviteMember(String memberId) {
+        Optional<AlbumMember> existing = findMember(memberId);
+        if (existing.isPresent()) {
+            existing.get().refreshInviteIfPending();
+            return false;
         }
         if (members.size() >= MAX_GROUP_MEMBERS) {
             throw new AlbumMemberLimitExceededException(MAX_GROUP_MEMBERS);
         }
         members.add(AlbumMember.pending(memberId));
+        return true;
     }
 
     // F1-03: 초대 수락 (24시간 경과 시 만료)
     public void acceptInvite(String memberId) {
-        AlbumMember member = members.stream()
-                .filter(m -> m.getMemberId().equals(memberId))
-                .findFirst()
+        AlbumMember member = findMember(memberId)
                 .orElseThrow(() -> new MemberNotInvitedException(memberId));
         if (member.getStatus() == MembershipStatus.ACCEPTED) {
             return;
@@ -109,6 +111,19 @@ public class Album extends AbstractAggregateRoot<Album> {
         if (!isMember(memberId)) {
             throw new AlbumAccessDeniedException();
         }
+    }
+
+    // F1-03/F1-06: 앨범 열람 권한 - 그룹 구성원 또는 해당 어르신 본인만 허용
+    public void requireViewer(String viewerId) {
+        if (!isMember(viewerId) && !elderProfileId.equals(viewerId)) {
+            throw new AlbumAccessDeniedException();
+        }
+    }
+
+    private Optional<AlbumMember> findMember(String memberId) {
+        return members.stream()
+                .filter(m -> m.getMemberId().equals(memberId))
+                .findFirst();
     }
 
     // F1-04: 사진 메모 업데이트
@@ -184,20 +199,31 @@ public class Album extends AbstractAggregateRoot<Album> {
     }
 
     public boolean isMember(String memberId) {
-        return members.stream().anyMatch(m -> m.getMemberId().equals(memberId)
-                && m.getStatus() == MembershipStatus.ACCEPTED);
+        return findMember(memberId)
+                .filter(m -> m.getStatus() == MembershipStatus.ACCEPTED)
+                .isPresent();
     }
 
     public List<Photo> getPhotos() {
         return Collections.unmodifiableList(photos);
     }
 
+    // 정식 구성원(수락 완료) ID만 반환 - 접근 제어·앨범 조회 응답에 사용
     public Set<String> getMemberIds() {
-        Set<String> accepted = members.stream()
-                .filter(m -> m.getStatus() == MembershipStatus.ACCEPTED)
+        return unmodifiableMemberIds(m -> m.getStatus() == MembershipStatus.ACCEPTED);
+    }
+
+    // 초대 수락 여부와 무관하게 모든 구성원(PENDING 포함) ID 반환 - 알림 발송 대상 산정에 사용
+    public Set<String> getAllMemberIds() {
+        return unmodifiableMemberIds(m -> true);
+    }
+
+    private Set<String> unmodifiableMemberIds(java.util.function.Predicate<AlbumMember> filter) {
+        Set<String> ids = members.stream()
+                .filter(filter)
                 .map(AlbumMember::getMemberId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        return Collections.unmodifiableSet(accepted);
+        return Collections.unmodifiableSet(ids);
     }
 
     private Photo findPhotoOrThrow(PhotoId photoId) {

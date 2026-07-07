@@ -109,7 +109,7 @@ public class TrainingApplicationService {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
         Album album = albumRepository.findById(AlbumId.of(session.getAlbumId()))
                 .orElseThrow(() -> new AlbumNotFoundException(session.getAlbumId().toString()));
-        int remaining = session.requestGrandchildChance(album.getMemberIds());
+        int remaining = session.requestGrandchildChance(album.getAllMemberIds());
         sessionRepository.save(session);
         return new ChanceResult(command.sessionId(), remaining, "가족에게 힌트를 요청했습니다.");
     }

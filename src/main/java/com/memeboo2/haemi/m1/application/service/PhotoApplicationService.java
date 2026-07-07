@@ -14,6 +14,7 @@ import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m1.domain.repository.PhotoSyncLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,17 +26,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PhotoApplicationService {
 
-    private static final int LOW_BATTERY_THRESHOLD = 20;
-
     private final AlbumRepository albumRepository;
     private final PhotoStoragePort photoStoragePort;
     private final NotificationPort notificationPort;
     private final PhotoSyncLogRepository photoSyncLogRepository;
 
+    @Value("${haemi.album.sync-low-battery-threshold:20}")
+    private int lowBatteryThreshold = 20;
+
     // F1-01: 사진 개별 저장
     @Transactional
     public PhotoResult savePhoto(SavePhotoCommand command) {
         Album album = loadAlbumOrThrow(command.albumId());
+        album.requireMember(command.uploadedBy());
 
         // 중복 검사는 Album 애그리게이트에서 수행
         String storageKey;
@@ -49,15 +52,13 @@ public class PhotoApplicationService {
             throw new PhotoStorageException("사진 저장에 실패했습니다.", e);
         }
 
-        PhotoFile file = PhotoFile.of(storageKey, command.originalFilename(),
-                command.contentType(), command.fileSize());
-        PhotoMetadata metadata = PhotoMetadata.of(command.shotAt(), command.latitude(), command.longitude());
-
-        Photo photo = album.addPhoto(file, metadata, command.sha256Hash(), command.uploadedBy());
+        Photo photo = buildAndAddPhoto(album, storageKey, command.originalFilename(),
+                command.contentType(), command.fileSize(), command.shotAt(),
+                command.latitude(), command.longitude(), command.sha256Hash(), command.uploadedBy());
         albumRepository.save(album);
 
-        // 그룹 전체에 알림
-        notificationPort.sendToGroup(album.getMemberIds(),
+        // 그룹 전체(초대 수락 여부와 무관하게 모든 구성원)에 알림
+        notificationPort.sendToGroup(album.getAllMemberIds(),
                 "새 사진 추가됨",
                 command.uploadedBy() + "님이 사진을 추가했습니다.");
 
@@ -69,11 +70,12 @@ public class PhotoApplicationService {
     @Transactional
     public SyncResult syncPhotos(SyncPhotosCommand command) {
         Album album = loadAlbumOrThrow(command.albumId());
+        album.requireMember(command.uploadedBy());
 
         if (command.wifiOnly() && command.networkType() == NetworkType.CELLULAR) {
             throw SyncConditionNotMetException.wifiRequired();
         }
-        if (command.batteryLevel() != null && command.batteryLevel() <= LOW_BATTERY_THRESHOLD) {
+        if (command.batteryLevel() != null && command.batteryLevel() <= lowBatteryThreshold) {
             throw SyncConditionNotMetException.lowBattery();
         }
 
@@ -85,25 +87,20 @@ public class PhotoApplicationService {
                 skipped.add(photoCmd.originalFilename());
                 continue;
             }
-            String storageKey;
             try {
-                storageKey = photoStoragePort.store(
+                String storageKey = photoStoragePort.store(
                         photoCmd.inputStream(),
                         photoCmd.originalFilename(),
                         photoCmd.contentType()
                 );
+                Photo photo = buildAndAddPhoto(album, storageKey, photoCmd.originalFilename(),
+                        photoCmd.contentType(), photoCmd.fileSize(), photoCmd.shotAt(),
+                        photoCmd.latitude(), photoCmd.longitude(), photoCmd.sha256Hash(), command.uploadedBy());
+                saved.add(PhotoResult.from(photo));
             } catch (Exception e) {
                 log.warn("동기화 중 사진 저장 실패: {}", photoCmd.originalFilename(), e);
                 skipped.add(photoCmd.originalFilename());
-                continue;
             }
-
-            PhotoFile file = PhotoFile.of(storageKey, photoCmd.originalFilename(),
-                    photoCmd.contentType(), photoCmd.fileSize());
-            PhotoMetadata metadata = PhotoMetadata.of(photoCmd.shotAt(), photoCmd.latitude(), photoCmd.longitude());
-
-            Photo photo = album.addPhoto(file, metadata, photoCmd.sha256Hash(), command.uploadedBy());
-            saved.add(PhotoResult.from(photo));
         }
 
         albumRepository.save(album);
@@ -126,7 +123,7 @@ public class PhotoApplicationService {
     @Transactional(readOnly = true)
     public List<SyncHistoryResult> getSyncHistory(GetSyncHistoryQuery query) {
         Album album = loadAlbumOrThrow(query.albumId());
-        return photoSyncLogRepository.findByAlbumIdOrderBySyncedAtDesc(album.getAlbumId()).stream()
+        return photoSyncLogRepository.findTop30ByAlbumIdOrderBySyncedAtDesc(album.getAlbumId()).stream()
                 .map(SyncHistoryResult::from)
                 .toList();
     }
@@ -135,6 +132,7 @@ public class PhotoApplicationService {
     @Transactional
     public PhotoResult updatePhotoMemo(UpdatePhotoMemoCommand command) {
         Album album = loadAlbumOrThrow(command.albumId());
+        album.requireMember(command.requestingMemberId());
         PhotoId photoId = PhotoId.of(command.photoId());
 
         album.updatePhotoMemo(photoId, command.timePeriod(), command.locationText(), command.memo());
@@ -164,6 +162,14 @@ public class PhotoApplicationService {
         Album album = loadAlbumOrThrow(command.albumId());
         album.removePhoto(PhotoId.of(command.photoId()), command.requestingMemberId());
         albumRepository.save(album);
+    }
+
+    private Photo buildAndAddPhoto(Album album, String storageKey, String originalFilename, String contentType,
+                                    long fileSize, java.time.LocalDateTime shotAt, Double latitude, Double longitude,
+                                    String sha256Hash, String uploadedBy) {
+        PhotoFile file = PhotoFile.of(storageKey, originalFilename, contentType, fileSize);
+        PhotoMetadata metadata = PhotoMetadata.of(shotAt, latitude, longitude);
+        return album.addPhoto(file, metadata, sha256Hash, uploadedBy);
     }
 
     private Album loadAlbumOrThrow(String albumId) {

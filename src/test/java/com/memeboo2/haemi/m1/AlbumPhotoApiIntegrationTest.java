@@ -49,6 +49,36 @@ class AlbumPhotoApiIntegrationTest {
     }
 
     @Test
+    void getAlbumAndTimeline_rejectViewerWhoIsNotMemberOrElder() throws Exception {
+        String albumId = createAlbum("owner-0");
+
+        mockMvc.perform(get("/api/v1/albums/{albumId}", albumId)
+                        .param("viewerMemberId", "stranger")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+
+        mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
+                        .param("viewerMemberId", "stranger")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void savePhoto_rejectsUploaderWhoIsNotAlbumMember() throws Exception {
+        String albumId = createAlbum("owner-0b");
+        MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
+
+        mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos", albumId)
+                        .file(file)
+                        .param("uploadedBy", "stranger")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void inviteMember_rejectsInviterWhoIsNotAlbumMember() throws Exception {
         String albumId = createAlbum("owner-1");
 
@@ -75,6 +105,7 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}", albumId)
+                        .param("viewerMemberId", "owner-2")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.memberIds", org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("family-2"))));
@@ -84,6 +115,7 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}", albumId)
+                        .param("viewerMemberId", "owner-2")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.memberIds", org.hamcrest.Matchers.hasItem("family-2")));
@@ -155,6 +187,7 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
+                        .param("viewerMemberId", "owner-6")
                         .param("role", "FAMILY")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -163,6 +196,7 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(jsonPath("$.data.editable").value(true));
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
+                        .param("viewerMemberId", "elder-api-test")
                         .param("role", "ELDER")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
