@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m1.application.service;
 
+import com.memeboo2.haemi.m1.application.command.AcceptInviteCommand;
 import com.memeboo2.haemi.m1.application.command.CreateAlbumCommand;
 import com.memeboo2.haemi.m1.application.command.InviteMemberCommand;
 import com.memeboo2.haemi.m1.application.dto.AlbumResult;
@@ -10,6 +11,7 @@ import com.memeboo2.haemi.m1.application.query.GetTimelineQuery;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.model.album.Photo;
+import com.memeboo2.haemi.m1.domain.model.album.TimelineSortBy;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,14 +39,24 @@ public class AlbumApplicationService {
         return AlbumResult.from(album);
     }
 
-    // F1-03: 멤버 초대
+    // F1-03: 멤버 초대 (기존 그룹 구성원만 초대 가능)
     @Transactional
     public void inviteMember(InviteMemberCommand command) {
         Album album = loadAlbumOrThrow(command.albumId());
+        album.requireMember(command.inviterId());
         album.inviteMember(command.inviteeId());
         albumRepository.save(album);
         notificationPort.sendToMember(command.inviteeId(),
                 "해미 앨범 초대", "가족 앨범에 초대되었습니다.");
+    }
+
+    // F1-03: 초대 수락
+    @Transactional
+    public void acceptInvite(AcceptInviteCommand command) {
+        Album album = loadAlbumOrThrow(command.albumId());
+        album.acceptInvite(command.memberId());
+        albumRepository.save(album);
+        log.info("초대 수락: albumId={}, memberId={}", command.albumId(), command.memberId());
     }
 
     // F1-03: 앨범 조회
@@ -58,7 +70,15 @@ public class AlbumApplicationService {
     @Transactional(readOnly = true)
     public TimelineResult getTimeline(GetTimelineQuery query) {
         Album album = loadAlbumOrThrow(query.albumId());
-        List<Photo> photos = album.getPhotosForTimeline(query.filterMemberId(), query.filterLocation());
+        TimelineSortBy sortBy = "UPLOADED_AT".equals(query.sortBy())
+                ? TimelineSortBy.UPLOADED_AT : TimelineSortBy.SHOT_AT;
+        List<Photo> photos = album.getPhotosForTimeline(
+                query.filterMemberId(), query.filterLocation(), query.filterTimePeriod(), sortBy);
+
+        boolean belowThreshold = !album.hasEnoughPhotosForTimeline();
+        String guideMessage = belowThreshold
+                ? "사진을 더 추가하면 타임라인이 만들어집니다" : null;
+        boolean editable = "FAMILY".equals(query.viewerRole());
 
         // 연도-계절 단위로 그룹화
         Map<String, List<Photo>> grouped = photos.stream()
@@ -84,7 +104,7 @@ public class AlbumApplicationService {
         }
         if (unknownGroup != null) groups.add(unknownGroup);
 
-        return new TimelineResult(query.albumId(), groups, photos.size());
+        return new TimelineResult(query.albumId(), groups, photos.size(), editable, belowThreshold, guideMessage);
     }
 
     private String resolvePeriodLabel(Photo photo) {

@@ -16,6 +16,10 @@ public interface JpaAlbumRepository extends JpaRepository<Album, UUID> {
 
     boolean existsByGroupId(String groupId);
 
-    @Query("SELECT a FROM Album a WHERE a.ownerMemberId = :memberId OR :memberId MEMBER OF a.memberIds")
+    @Query("""
+            SELECT a FROM Album a
+            WHERE a.ownerMemberId = :memberId
+               OR EXISTS (SELECT 1 FROM a.members m WHERE m.memberId = :memberId)
+            """)
     List<Album> findAllByMemberId(String memberId);
 }

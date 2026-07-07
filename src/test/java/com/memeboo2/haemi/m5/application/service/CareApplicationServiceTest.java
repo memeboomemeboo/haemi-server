@@ -52,6 +52,7 @@ class CareApplicationServiceTest {
                 LocalTime.of(9, 0), "voice-key", RepeatRule.DAILY);
         Album album = Album.create("elder-1", "group-1", "family-1");
         album.inviteMember("family-2");
+        album.acceptInvite("family-2");
         when(voiceAlarmRepository.findAllActive()).thenReturn(List.of(alarm));
         when(walkRoutineRepository.findAllActive()).thenReturn(List.of());
         when(albumRepository.findByGroupId("group-1")).thenReturn(Optional.of(album));

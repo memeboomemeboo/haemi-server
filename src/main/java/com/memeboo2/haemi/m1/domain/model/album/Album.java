@@ -10,6 +10,7 @@ import org.springframework.data.domain.AbstractAggregateRoot;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "albums")
@@ -18,6 +19,7 @@ import java.util.*;
 public class Album extends AbstractAggregateRoot<Album> {
 
     private static final int MAX_GROUP_MEMBERS = 10;
+    private static final int MIN_PHOTOS_FOR_TIMELINE = 3;
 
     @Id
     @Column(columnDefinition = "uuid")
@@ -38,8 +40,7 @@ public class Album extends AbstractAggregateRoot<Album> {
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "album_members", joinColumns = @JoinColumn(name = "album_id"))
-    @Column(name = "member_id")
-    private Set<String> memberIds = new LinkedHashSet<>();
+    private List<AlbumMember> members = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -50,7 +51,7 @@ public class Album extends AbstractAggregateRoot<Album> {
         album.elderProfileId = elderProfileId;
         album.groupId = groupId;
         album.ownerMemberId = ownerMemberId;
-        album.memberIds.add(ownerMemberId);
+        album.members.add(AlbumMember.accepted(ownerMemberId));
         album.createdAt = LocalDateTime.now();
         return album;
     }
@@ -70,19 +71,44 @@ public class Album extends AbstractAggregateRoot<Album> {
         return photo;
     }
 
-    // F1-03: 가족 그룹 멤버 초대
+    // F1-03: 가족 그룹 멤버 초대 (수락 전까지는 PENDING 상태)
     public void inviteMember(String memberId) {
-        if (memberIds.size() >= MAX_GROUP_MEMBERS) {
+        if (members.stream().anyMatch(m -> m.getMemberId().equals(memberId))) {
+            return;
+        }
+        if (members.size() >= MAX_GROUP_MEMBERS) {
             throw new AlbumMemberLimitExceededException(MAX_GROUP_MEMBERS);
         }
-        memberIds.add(memberId);
+        members.add(AlbumMember.pending(memberId));
+    }
+
+    // F1-03: 초대 수락 (24시간 경과 시 만료)
+    public void acceptInvite(String memberId) {
+        AlbumMember member = members.stream()
+                .filter(m -> m.getMemberId().equals(memberId))
+                .findFirst()
+                .orElseThrow(() -> new MemberNotInvitedException(memberId));
+        if (member.getStatus() == MembershipStatus.ACCEPTED) {
+            return;
+        }
+        if (member.isExpired()) {
+            throw new InviteExpiredException();
+        }
+        member.accept();
     }
 
     public void removeMember(String memberId) {
         if (ownerMemberId.equals(memberId)) {
             throw new IllegalStateException("앨범 소유자는 탈퇴할 수 없습니다.");
         }
-        memberIds.remove(memberId);
+        members.removeIf(m -> m.getMemberId().equals(memberId));
+    }
+
+    // F1-03: 역할 기반 접근 제어 - 앨범 그룹 구성원만 허용
+    public void requireMember(String memberId) {
+        if (!isMember(memberId)) {
+            throw new AlbumAccessDeniedException();
+        }
     }
 
     // F1-04: 사진 메모 업데이트
@@ -125,18 +151,32 @@ public class Album extends AbstractAggregateRoot<Album> {
                 .count() >= minRequired;
     }
 
-    // F1-06: 타임라인용 사진 목록 (필터 조건 적용)
-    public List<Photo> getPhotosForTimeline(String filterMemberId, String filterLocation) {
+    // F1-06: 타임라인용 사진 목록 (인물/장소/시기 필터, 촬영·업로드 날짜 정렬 지원)
+    public List<Photo> getPhotosForTimeline(String filterMemberId, String filterLocation,
+                                             String filterTimePeriod, TimelineSortBy sortBy) {
+        Comparator<Photo> comparator = sortBy == TimelineSortBy.UPLOADED_AT
+                ? Comparator.comparing(Photo::getUploadedAt)
+                : Comparator.comparing(p -> {
+                    LocalDateTime shot = p.getMetadata().getShotAt();
+                    return shot != null ? shot : LocalDateTime.MIN;
+                });
+
         return photos.stream()
                 .filter(p -> filterMemberId == null || p.getPersonTags().stream()
                         .anyMatch(t -> t.getMemberId().equals(filterMemberId)))
                 .filter(p -> filterLocation == null || (p.getMetadata().getLocationText() != null
                         && p.getMetadata().getLocationText().contains(filterLocation)))
-                .sorted(Comparator.comparing(p -> {
-                    LocalDateTime shot = p.getMetadata().getShotAt();
-                    return shot != null ? shot : LocalDateTime.MIN;
-                }))
+                .filter(p -> filterTimePeriod == null || filterTimePeriod.equals(p.getMetadata().getTimePeriod()))
+                .sorted(comparator)
                 .toList();
+    }
+
+    // F1-06: 타임라인 구성 최소 조건(시기 메타데이터 보유 사진 3장 이상) 충족 여부
+    public boolean hasEnoughPhotosForTimeline() {
+        long withTimeInfo = photos.stream()
+                .filter(p -> p.getMetadata().getTimePeriod() != null || p.getMetadata().getShotAt() != null)
+                .count();
+        return withTimeInfo >= MIN_PHOTOS_FOR_TIMELINE;
     }
 
     public boolean isDuplicate(String hash) {
@@ -144,7 +184,8 @@ public class Album extends AbstractAggregateRoot<Album> {
     }
 
     public boolean isMember(String memberId) {
-        return memberIds.contains(memberId);
+        return members.stream().anyMatch(m -> m.getMemberId().equals(memberId)
+                && m.getStatus() == MembershipStatus.ACCEPTED);
     }
 
     public List<Photo> getPhotos() {
@@ -152,7 +193,11 @@ public class Album extends AbstractAggregateRoot<Album> {
     }
 
     public Set<String> getMemberIds() {
-        return Collections.unmodifiableSet(memberIds);
+        Set<String> accepted = members.stream()
+                .filter(m -> m.getStatus() == MembershipStatus.ACCEPTED)
+                .map(AlbumMember::getMemberId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return Collections.unmodifiableSet(accepted);
     }
 
     private Photo findPhotoOrThrow(PhotoId photoId) {

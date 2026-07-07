@@ -88,6 +88,30 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler(AlbumAccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleAlbumAccessDenied(AlbumAccessDeniedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(MemberNotInvitedException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleMemberNotInvited(MemberNotInvitedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(InviteExpiredException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleInviteExpired(InviteExpiredException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(SyncConditionNotMetException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleSyncConditionNotMet(SyncConditionNotMetException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleValidation(MethodArgumentNotValidException e) {

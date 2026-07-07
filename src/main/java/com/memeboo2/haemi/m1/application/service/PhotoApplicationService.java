@@ -5,10 +5,13 @@ import com.memeboo2.haemi.m1.application.command.SavePhotoCommand;
 import com.memeboo2.haemi.m1.application.command.SyncPhotosCommand;
 import com.memeboo2.haemi.m1.application.command.UpdatePhotoMemoCommand;
 import com.memeboo2.haemi.m1.application.dto.PhotoResult;
+import com.memeboo2.haemi.m1.application.dto.SyncHistoryResult;
+import com.memeboo2.haemi.m1.application.query.GetSyncHistoryQuery;
 import com.memeboo2.haemi.m1.domain.model.album.*;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
+import com.memeboo2.haemi.m1.domain.repository.PhotoSyncLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,9 +25,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PhotoApplicationService {
 
+    private static final int LOW_BATTERY_THRESHOLD = 20;
+
     private final AlbumRepository albumRepository;
     private final PhotoStoragePort photoStoragePort;
     private final NotificationPort notificationPort;
+    private final PhotoSyncLogRepository photoSyncLogRepository;
 
     // F1-01: 사진 개별 저장
     @Transactional
@@ -59,10 +65,18 @@ public class PhotoApplicationService {
         return PhotoResult.from(photo);
     }
 
-    // F1-02: 일괄 동기화 (증분 - 중복 사진은 건너뜀)
+    // F1-02: 일괄 동기화 (증분 - 중복 사진은 건너뜀, Wi-Fi/배터리 조건 검증 및 이력 기록)
     @Transactional
     public SyncResult syncPhotos(SyncPhotosCommand command) {
         Album album = loadAlbumOrThrow(command.albumId());
+
+        if (command.wifiOnly() && command.networkType() == NetworkType.CELLULAR) {
+            throw SyncConditionNotMetException.wifiRequired();
+        }
+        if (command.batteryLevel() != null && command.batteryLevel() <= LOW_BATTERY_THRESHOLD) {
+            throw SyncConditionNotMetException.lowBattery();
+        }
+
         List<PhotoResult> saved = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
 
@@ -94,6 +108,11 @@ public class PhotoApplicationService {
 
         albumRepository.save(album);
 
+        photoSyncLogRepository.save(PhotoSyncLog.create(
+                album.getAlbumId(), command.uploadedBy(),
+                command.photos().size(), saved.size(), skipped.size(),
+                command.networkType(), command.batteryLevel(), command.backgroundSync()));
+
         notificationPort.sendToMember(command.uploadedBy(),
                 "동기화 완료",
                 "총 " + saved.size() + "장 동기화 완료");
@@ -101,6 +120,15 @@ public class PhotoApplicationService {
         log.info("사진 동기화 완료: albumId={}, saved={}, skipped={}",
                 command.albumId(), saved.size(), skipped.size());
         return new SyncResult(saved, skipped);
+    }
+
+    // F1-02: 날짜별 동기화 이력 조회
+    @Transactional(readOnly = true)
+    public List<SyncHistoryResult> getSyncHistory(GetSyncHistoryQuery query) {
+        Album album = loadAlbumOrThrow(query.albumId());
+        return photoSyncLogRepository.findByAlbumIdOrderBySyncedAtDesc(album.getAlbumId()).stream()
+                .map(SyncHistoryResult::from)
+                .toList();
     }
 
     // F1-04: 사진 메모 & 회상 태깅

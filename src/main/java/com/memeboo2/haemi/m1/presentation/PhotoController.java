@@ -5,7 +5,10 @@ import com.memeboo2.haemi.m1.application.command.SavePhotoCommand;
 import com.memeboo2.haemi.m1.application.command.SyncPhotosCommand;
 import com.memeboo2.haemi.m1.application.command.UpdatePhotoMemoCommand;
 import com.memeboo2.haemi.m1.application.dto.PhotoResult;
+import com.memeboo2.haemi.m1.application.dto.SyncHistoryResult;
+import com.memeboo2.haemi.m1.application.query.GetSyncHistoryQuery;
 import com.memeboo2.haemi.m1.application.service.PhotoApplicationService;
+import com.memeboo2.haemi.m1.domain.model.album.NetworkType;
 import com.memeboo2.haemi.m1.presentation.dto.request.UpdatePhotoMemoRequest;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -92,10 +95,15 @@ public class PhotoController {
 
                     - SHA-256 해시 비교로 중복을 자동 제거합니다.
                     - 응답의 `skipped` 필드에서 건너뛴 파일명을 확인할 수 있습니다.
+                    - Wi-Fi 전용 설정(`wifiOnly`, 기본값 true) 상태에서 셀룰러 연결이면 동기화가 거부됩니다.
+                    - 배터리 20% 이하(`batteryLevel`)에서는 동기화가 거부되고, 충전 후 재개해야 합니다.
+                    - 동기화 결과는 날짜별 이력으로 기록되며 `/sync/history`에서 조회할 수 있습니다.
                     """
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "동기화 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "Wi-Fi 전용 설정 중 셀룰러 연결 / 배터리 20% 이하"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
     })
     @PostMapping(value = "/sync", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -103,7 +111,12 @@ public class PhotoController {
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
             @Parameter(description = "업로더 memberId", required = true) @RequestParam String uploadedBy,
             @Parameter(description = "사진 파일 목록", required = true)
-            @RequestPart("files") List<MultipartFile> files) throws IOException {
+            @RequestPart("files") List<MultipartFile> files,
+            @Parameter(description = "Wi-Fi 전용 동기화 여부") @RequestParam(defaultValue = "true") boolean wifiOnly,
+            @Parameter(description = "현재 기기 네트워크 종류") @RequestParam(defaultValue = "UNKNOWN") NetworkType networkType,
+            @Parameter(description = "현재 기기 배터리 잔량(%)") @RequestParam(required = false) Integer batteryLevel,
+            @Parameter(description = "백그라운드 동기화 여부") @RequestParam(defaultValue = "false") boolean backgroundSync
+    ) throws IOException {
 
         List<SavePhotoCommand> cmds = new ArrayList<>();
         for (MultipartFile file : files) {
@@ -119,8 +132,22 @@ public class PhotoController {
         }
 
         PhotoApplicationService.SyncResult result = photoService.syncPhotos(
-                new SyncPhotosCommand(albumId, uploadedBy, cmds));
+                new SyncPhotosCommand(albumId, uploadedBy, cmds, wifiOnly, networkType, batteryLevel, backgroundSync));
         return ApiResponse.ok(result, "총 " + result.saved().size() + "장 동기화 완료");
+    }
+
+    @Operation(
+            summary = "동기화 이력 조회 [F1-02]",
+            description = "날짜별로 동기화된 사진 수(요청/저장/건너뜀)와 동기화 시점의 네트워크·배터리 상태를 최신순으로 반환합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
+    })
+    @GetMapping("/sync/history")
+    public ApiResponse<List<SyncHistoryResult>> getSyncHistory(
+            @Parameter(description = "앨범 UUID") @PathVariable String albumId) {
+        return ApiResponse.ok(photoService.getSyncHistory(new GetSyncHistoryQuery(albumId)));
     }
 
     @Operation(
