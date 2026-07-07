@@ -35,8 +35,8 @@ class DatabaseConfigurationTest {
                 .containsEntry("spring.datasource.password", "${DB_PASSWORD}")
                 .containsEntry("spring.jpa.hibernate.ddl-auto", "validate")
                 .containsEntry("haemi.jwt.secret", "${JWT_SECRET}")
-                .containsEntry("springdoc.api-docs.enabled", false)
-                .containsEntry("springdoc.swagger-ui.enabled", false);
+                .containsEntry("springdoc.api-docs.enabled", true)
+                .containsEntry("springdoc.swagger-ui.enabled", true);
     }
 
     @Test
