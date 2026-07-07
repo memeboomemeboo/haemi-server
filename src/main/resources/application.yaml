@@ -46,6 +46,10 @@ springdoc:
   default-produces-media-type: application/json
 
 haemi:
+  openapi:
+    server-url: ${OPENAPI_SERVER_URL:}
+    local-server-url: ${OPENAPI_LOCAL_SERVER_URL:http://localhost:8080}
+    include-local-server: ${OPENAPI_INCLUDE_LOCAL_SERVER:true}
   storage:
     upload-path: ${java.io.tmpdir}/haemi/photos
   album:

@@ -1,4 +1,4 @@
-name: CI
+name: Spring Boot Test
 
 on:
   pull_request:

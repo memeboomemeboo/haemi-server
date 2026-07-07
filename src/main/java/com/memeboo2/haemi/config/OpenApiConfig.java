@@ -9,18 +9,21 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.util.StringUtils;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI haemiOpenAPI(@Value("${EC2_HOST:localhost}") String ec2Host) {
-        return new OpenAPI()
+    public OpenAPI haemiOpenAPI(Environment environment) {
+        OpenAPI openAPI = new OpenAPI()
                 .info(new Info()
                         .title("해미 API")
                         .description("""
@@ -43,10 +46,6 @@ public class OpenApiConfig {
                                 .name("memeboo2")
                                 .email("aa01034795025@gmail.com"))
                         .license(new License().name("Private")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8080").description("로컬 개발 서버"),
-                        new Server().url("http://" + ec2Host + ":8080").description("운영 서버")
-                ))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Token"))
                 .tags(List.of(
                         new Tag().name("Auth").description("회원가입 · 로그인 · 토큰 관리 · 2FA · 프로필"),
@@ -66,5 +65,45 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("JWT 액세스 토큰. 로그인 후 발급받은 accessToken을 입력하세요.")));
+
+        List<Server> servers = openApiServers(environment);
+        if (!servers.isEmpty()) {
+            openAPI.servers(servers);
+        }
+        return openAPI;
+    }
+
+    private List<Server> openApiServers(Environment environment) {
+        String serverUrl = environment.getProperty("haemi.openapi.server-url", "");
+        String localServerUrl = environment.getProperty("haemi.openapi.local-server-url", "http://localhost:8080");
+        boolean includeLocalServer = environment.getProperty(
+                "haemi.openapi.include-local-server",
+                Boolean.class,
+                true
+        );
+
+        List<Server> servers = new ArrayList<>();
+        if (StringUtils.hasText(serverUrl) && !isLocalhostUrl(serverUrl)) {
+            servers.add(new Server().url(serverUrl).description("운영 서버"));
+        }
+        if (includeLocalServer && StringUtils.hasText(localServerUrl)) {
+            servers.add(new Server().url(localServerUrl).description("로컬 개발 서버"));
+        }
+        return servers;
+    }
+
+    private boolean isLocalhostUrl(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            if (!StringUtils.hasText(host)) {
+                return false;
+            }
+            return host.equalsIgnoreCase("localhost")
+                    || host.equals("127.0.0.1")
+                    || host.equals("0.0.0.0")
+                    || host.equals("::1");
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 }
