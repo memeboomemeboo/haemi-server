@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,7 +23,7 @@ public class OpenApiConfig {
 
     @Bean
     public OpenAPI haemiOpenAPI(Environment environment) {
-        return new OpenAPI()
+        OpenAPI openAPI = new OpenAPI()
                 .info(new Info()
                         .title("해미 API")
                         .description("""
@@ -45,7 +46,6 @@ public class OpenApiConfig {
                                 .name("memeboo2")
                                 .email("aa01034795025@gmail.com"))
                         .license(new License().name("Private")))
-                .servers(openApiServers(environment))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Token"))
                 .tags(List.of(
                         new Tag().name("Auth").description("회원가입 · 로그인 · 토큰 관리 · 2FA · 프로필"),
@@ -65,6 +65,12 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("JWT 액세스 토큰. 로그인 후 발급받은 accessToken을 입력하세요.")));
+
+        List<Server> servers = openApiServers(environment);
+        if (!servers.isEmpty()) {
+            openAPI.servers(servers);
+        }
+        return openAPI;
     }
 
     private List<Server> openApiServers(Environment environment) {
@@ -77,15 +83,27 @@ public class OpenApiConfig {
         );
 
         List<Server> servers = new ArrayList<>();
-        if (StringUtils.hasText(serverUrl)) {
+        if (StringUtils.hasText(serverUrl) && !isLocalhostUrl(serverUrl)) {
             servers.add(new Server().url(serverUrl).description("운영 서버"));
         }
         if (includeLocalServer && StringUtils.hasText(localServerUrl)) {
             servers.add(new Server().url(localServerUrl).description("로컬 개발 서버"));
         }
-        if (servers.isEmpty()) {
-            servers.add(new Server().url("http://localhost:8080").description("로컬 개발 서버"));
-        }
         return servers;
+    }
+
+    private boolean isLocalhostUrl(String url) {
+        try {
+            String host = URI.create(url).getHost();
+            if (!StringUtils.hasText(host)) {
+                return false;
+            }
+            return host.equalsIgnoreCase("localhost")
+                    || host.equals("127.0.0.1")
+                    || host.equals("0.0.0.0")
+                    || host.equals("::1");
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 }
