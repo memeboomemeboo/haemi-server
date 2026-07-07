@@ -92,6 +92,23 @@ class TrainingApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("손주 찬스 알림 대상은 수락 완료된 구성원만 포함한다 (PENDING 초대자는 제외)")
+    void requestGrandchildChance_excludesPendingInvitee() {
+        CognitiveTrainingSession session = session();
+        Album album = spy(Album.create("elder-1", "group-1", "family-1"));
+        album.inviteMember("family-2"); // 아직 수락 전(PENDING)
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(albumRepository.findById(AlbumId.of(session.getAlbumId()))).thenReturn(Optional.of(album));
+        when(sessionRepository.save(any(CognitiveTrainingSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.requestGrandchildChance(
+                new RequestGrandchildChanceCommand(session.getId().toString(), "elder-1"));
+
+        verify(album).getMemberIds();
+        verify(album, never()).getAllMemberIds();
+    }
+
+    @Test
     @DisplayName("앨범에 알림을 받을 가족 구성원이 없으면 손주 찬스 요청을 저장하지 않는다")
     void requestGrandchildChance_rejectsAlbumWithoutMembers() {
         CognitiveTrainingSession session = session();

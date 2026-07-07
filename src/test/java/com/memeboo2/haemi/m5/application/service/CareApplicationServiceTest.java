@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.mockito.Mockito.*;
 
@@ -65,6 +66,28 @@ class CareApplicationServiceTest {
                 "elder-1", "약 드실 시간이에요", "가족의 목소리 알람이 도착했어요.");
         verify(notificationPort, times(1)).sendToGroup(
                 album.getMemberIds(), "알람 무응답",
+                "어르신이 알람을 10분 동안 확인하지 않았습니다.");
+    }
+
+    @Test
+    @DisplayName("초대 수락 전 PENDING 구성원은 돌봄 알림 대상에서 제외된다")
+    void processDueReminders_excludesPendingInvitee() {
+        LocalDateTime due = LocalDateTime.of(2026, 7, 6, 9, 0);
+        VoiceAlarm alarm = VoiceAlarm.create(
+                "elder-1", "group-1", AlarmType.MEDICATION,
+                LocalTime.of(9, 0), "voice-key", RepeatRule.DAILY);
+        Album album = Album.create("elder-1", "group-1", "family-1");
+        album.inviteMember("family-2"); // 아직 수락 전(PENDING)
+        when(voiceAlarmRepository.findAllActive()).thenReturn(List.of(alarm));
+        when(walkRoutineRepository.findAllActive()).thenReturn(List.of());
+        when(albumRepository.findByGroupId("group-1")).thenReturn(Optional.of(album));
+
+        service.processDueReminders(due);
+        service.processDueReminders(due.plusMinutes(10));
+        service.processDueReminders(due.plusMinutes(11));
+
+        verify(notificationPort, times(1)).sendToGroup(
+                Set.of("family-1"), "알람 무응답",
                 "어르신이 알람을 10분 동안 확인하지 않았습니다.");
     }
 

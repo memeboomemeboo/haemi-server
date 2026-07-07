@@ -123,6 +123,7 @@ public class PhotoApplicationService {
     @Transactional(readOnly = true)
     public List<SyncHistoryResult> getSyncHistory(GetSyncHistoryQuery query) {
         Album album = loadAlbumOrThrow(query.albumId());
+        album.requireMember(query.viewerMemberId());
         return photoSyncLogRepository.findTop30ByAlbumIdOrderBySyncedAtDesc(album.getAlbumId()).stream()
                 .map(SyncHistoryResult::from)
                 .toList();

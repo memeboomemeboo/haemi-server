@@ -169,11 +169,18 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(jsonPath("$.data.saved.length()").value(1));
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/photos/sync/history", albumId)
+                        .param("viewerMemberId", "owner-5")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].savedCount").value(1))
                 .andExpect(jsonPath("$.data[0].networkType").value("WIFI"))
                 .andExpect(jsonPath("$.data[0].batteryLevel").value(80));
+
+        mockMvc.perform(get("/api/v1/albums/{albumId}/photos/sync/history", albumId)
+                        .param("viewerMemberId", "stranger")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test

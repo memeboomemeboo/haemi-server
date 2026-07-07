@@ -127,12 +127,15 @@ public class PhotoController {
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "앨범 구성원이 아님"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앨범 없음")
     })
     @GetMapping("/sync/history")
     public ApiResponse<List<SyncHistoryResult>> getSyncHistory(
-            @Parameter(description = "앨범 UUID") @PathVariable String albumId) {
-        return ApiResponse.ok(photoService.getSyncHistory(new GetSyncHistoryQuery(albumId)));
+            @Parameter(description = "앨범 UUID") @PathVariable String albumId,
+            @Parameter(description = "조회자 memberId(그룹 구성원)", required = true)
+            @RequestParam String viewerMemberId) {
+        return ApiResponse.ok(photoService.getSyncHistory(new GetSyncHistoryQuery(albumId, viewerMemberId)));
     }
 
     @Operation(

@@ -101,10 +101,19 @@ class PhotoApplicationServiceTest {
                 .thenReturn(List.of(logEntry));
 
         List<SyncHistoryResult> result = service.getSyncHistory(
-                new GetSyncHistoryQuery(album.getAlbumId().toString()));
+                new GetSyncHistoryQuery(album.getAlbumId().toString(), "owner"));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).savedCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("앨범 구성원이 아니면 동기화 이력을 조회할 수 없다")
+    void getSyncHistory_rejectsNonMember() {
+        assertThatThrownBy(() -> service.getSyncHistory(
+                new GetSyncHistoryQuery(album.getAlbumId().toString(), "stranger")))
+                .isInstanceOf(AlbumAccessDeniedException.class);
+        verifyNoInteractions(photoSyncLogRepository);
     }
 
     @Test
