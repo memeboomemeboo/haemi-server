@@ -11,14 +11,17 @@ import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI haemiOpenAPI() {
+    public OpenAPI haemiOpenAPI(Environment environment) {
         return new OpenAPI()
                 .info(new Info()
                         .title("해미 API")
@@ -42,10 +45,7 @@ public class OpenApiConfig {
                                 .name("memeboo2")
                                 .email("aa01034795025@gmail.com"))
                         .license(new License().name("Private")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8080").description("로컬 개발 서버"),
-                        new Server().url("https://api.haemi.kr").description("운영 서버")
-                ))
+                .servers(openApiServers(environment))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Token"))
                 .tags(List.of(
                         new Tag().name("Auth").description("회원가입 · 로그인 · 토큰 관리 · 2FA · 프로필"),
@@ -65,5 +65,27 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("JWT 액세스 토큰. 로그인 후 발급받은 accessToken을 입력하세요.")));
+    }
+
+    private List<Server> openApiServers(Environment environment) {
+        String serverUrl = environment.getProperty("haemi.openapi.server-url", "");
+        String localServerUrl = environment.getProperty("haemi.openapi.local-server-url", "http://localhost:8080");
+        boolean includeLocalServer = environment.getProperty(
+                "haemi.openapi.include-local-server",
+                Boolean.class,
+                true
+        );
+
+        List<Server> servers = new ArrayList<>();
+        if (StringUtils.hasText(serverUrl)) {
+            servers.add(new Server().url(serverUrl).description("운영 서버"));
+        }
+        if (includeLocalServer && StringUtils.hasText(localServerUrl)) {
+            servers.add(new Server().url(localServerUrl).description("로컬 개발 서버"));
+        }
+        if (servers.isEmpty()) {
+            servers.add(new Server().url("http://localhost:8080").description("로컬 개발 서버"));
+        }
+        return servers;
     }
 }
