@@ -57,15 +57,45 @@ class AlbumTest {
     }
 
     @Test
-    @DisplayName("앨범 구성원은 최대 10명까지 초대할 수 있다")
+    @DisplayName("앨범 구성원은 최대 10명까지 초대할 수 있다 (수락 대기 포함)")
     void inviteMember_enforcesMemberLimit() {
         for (int i = 1; i <= 9; i++) {
             album.inviteMember("member-" + i);
         }
 
-        assertThat(album.getMemberIds()).hasSize(10);
+        assertThat(album.getMemberIds()).containsExactly("owner");
         assertThatThrownBy(() -> album.inviteMember("member-10"))
                 .isInstanceOf(AlbumMemberLimitExceededException.class);
+    }
+
+    @Test
+    @DisplayName("초대는 PENDING 상태이며 수락해야 정식 구성원이 된다")
+    void inviteMember_requiresAcceptanceToBecomeMember() {
+        album.inviteMember("family-2");
+
+        assertThat(album.isMember("family-2")).isFalse();
+        assertThat(album.getMemberIds()).doesNotContain("family-2");
+
+        album.acceptInvite("family-2");
+
+        assertThat(album.isMember("family-2")).isTrue();
+        assertThat(album.getMemberIds()).contains("owner", "family-2");
+    }
+
+    @Test
+    @DisplayName("초대되지 않은 사람은 수락할 수 없다")
+    void acceptInvite_rejectsUninvitedMember() {
+        assertThatThrownBy(() -> album.acceptInvite("stranger"))
+                .isInstanceOf(MemberNotInvitedException.class);
+    }
+
+    @Test
+    @DisplayName("역할 기반 접근 제어: 구성원이 아니면 앨범 작업이 거부된다")
+    void requireMember_rejectsNonMembers() {
+        assertThatThrownBy(() -> album.requireMember("stranger"))
+                .isInstanceOf(AlbumAccessDeniedException.class);
+
+        album.requireMember("owner");
     }
 
     @Test
@@ -141,9 +171,45 @@ class AlbumTest {
         album.tagPersonsOnPhoto(later.getPhotoId(), List.of(PersonTag.of("member-1", "가족")));
         album.tagPersonsOnPhoto(earlier.getPhotoId(), List.of(PersonTag.of("member-1", "가족")));
 
-        assertThat(album.getPhotosForTimeline("member-1", "서울"))
+        assertThat(album.getPhotosForTimeline("member-1", "서울", null, TimelineSortBy.SHOT_AT))
                 .containsExactly(earlier, later);
-        assertThat(album.getPhotosForTimeline("unknown", null)).isEmpty();
+        assertThat(album.getPhotosForTimeline("unknown", null, null, TimelineSortBy.SHOT_AT)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("타임라인을 시기 메타데이터로 필터링한다")
+    void getPhotosForTimeline_filtersByTimePeriod() {
+        Photo childhood = addPhoto("childhood", "uploader", LocalDateTime.of(1978, 7, 1, 0, 0));
+        Photo other = addPhoto("other", "uploader", LocalDateTime.of(2020, 1, 1, 0, 0));
+        album.updatePhotoMemo(childhood.getPhotoId(), "유년기", null, null);
+
+        assertThat(album.getPhotosForTimeline(null, null, "유년기", TimelineSortBy.SHOT_AT))
+                .containsExactly(childhood);
+        assertThat(album.getPhotosForTimeline(null, null, null, TimelineSortBy.SHOT_AT))
+                .containsExactly(childhood, other);
+    }
+
+    @Test
+    @DisplayName("타임라인을 업로드 날짜 기준으로도 정렬할 수 있다")
+    void getPhotosForTimeline_sortsByUploadedAt() {
+        Photo shotEarlyUploadedLate = addPhoto("a", "uploader", LocalDateTime.of(2020, 1, 1, 0, 0));
+        Photo shotLateUploadedEarly = addPhoto("b", "uploader", LocalDateTime.of(2025, 1, 1, 0, 0));
+
+        assertThat(album.getPhotosForTimeline(null, null, null, TimelineSortBy.UPLOADED_AT))
+                .containsExactly(shotEarlyUploadedLate, shotLateUploadedEarly);
+    }
+
+    @Test
+    @DisplayName("시기 메타데이터가 있는 사진이 3장 미만이면 타임라인 최소 조건을 충족하지 못한다")
+    void hasEnoughPhotosForTimeline_requiresAtLeastThreePhotos() {
+        assertThat(album.hasEnoughPhotosForTimeline()).isFalse();
+
+        addPhoto("hash-1", "uploader", LocalDateTime.now());
+        addPhoto("hash-2", "uploader", LocalDateTime.now());
+        assertThat(album.hasEnoughPhotosForTimeline()).isFalse();
+
+        addPhoto("hash-3", "uploader", LocalDateTime.now());
+        assertThat(album.hasEnoughPhotosForTimeline()).isTrue();
     }
 
     @Test

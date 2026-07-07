@@ -57,6 +57,7 @@ haemi:
     max-photos-per-upload: 30
     max-photo-size-mb: 20
     min-photos-for-ai: 5
+    sync-low-battery-threshold: 20
   ai:
     rotation-days: 7
   notification:

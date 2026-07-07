@@ -5,6 +5,7 @@ import java.util.List;
 public record UpdatePhotoMemoCommand(
         String albumId,
         String photoId,
+        String requestingMemberId,
         String timePeriod,
         String locationText,
         String memo,

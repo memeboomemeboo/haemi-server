@@ -5,7 +5,10 @@ import java.util.List;
 public record TimelineResult(
         String albumId,
         List<TimelineGroup> groups,
-        int totalCount
+        int totalCount,
+        boolean editable,
+        boolean belowMinimumPhotoThreshold,
+        String guideMessage
 ) {
     public record TimelineGroup(
             String period,          // "2024년 봄", "날짜 미상" 등
