@@ -25,7 +25,7 @@ jobs:
               echo "❌ 잘못된 커밋 메시지: \"$MSG\""
               FAILED=1
             fi
-          done < <(git log origin/${{ github.base_ref }}..HEAD --format="%s")
+          done < <(git log origin/${{ github.base_ref }}..HEAD --no-merges --format="%s")
 
           if [ "$FAILED" -eq 1 ]; then
             echo ""
