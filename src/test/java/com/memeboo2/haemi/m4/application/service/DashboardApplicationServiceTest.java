@@ -89,6 +89,7 @@ class DashboardApplicationServiceTest {
         UUID albumId = UUID.randomUUID();
         Album album = Album.create("elder-1", "group-1", "family-1");
         album.inviteMember("family-2");
+        album.acceptInvite("family-2");
         List<CognitiveDailyMetric> current = metrics(albumId, 0.8, 20.0, "FAMILY");
         List<CognitiveDailyMetric> previous = metrics(albumId, 0.6, 25.0, "PORTRAIT");
         when(metricRepository.findByElderIdAndDateBetween(anyString(), any(), any()))

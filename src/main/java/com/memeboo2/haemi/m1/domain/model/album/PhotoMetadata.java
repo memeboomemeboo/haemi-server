@@ -45,6 +45,11 @@ public class PhotoMetadata {
         return new PhotoMetadata(shotAt, latitude, longitude, null, null, null);
     }
 
+    // 모든 필드가 null이라 Hibernate가 임베더블을 null로 되돌렸을 때 사용하는 빈 값
+    public static PhotoMetadata empty() {
+        return new PhotoMetadata(null, null, null, null, null, null);
+    }
+
     public PhotoMetadata withMemo(String timePeriod, String locationText, String memo) {
         if (memo != null && memo.length() > 200) {
             throw new MemoLengthExceededException(memo.length());

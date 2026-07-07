@@ -81,7 +81,7 @@ public class ReminiscenceApplicationService {
                 AlbumId.of(albumId), slides, questions, quizzes);
         reminiscenceContentRepository.save(content);
 
-        notificationPort.sendToGroup(album.getMemberIds(),
+        notificationPort.sendToGroup(album.getAllMemberIds(),
                 "오늘의 회상",
                 "오늘의 회상 콘텐츠가 준비되었습니다.");
 
