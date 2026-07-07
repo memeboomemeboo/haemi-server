@@ -26,7 +26,9 @@ public class Photo {
     @Embedded
     private PhotoFile file;
 
+    // 모든 필드가 null이면 Hibernate가 임베더블 자체를 null로 되돌리므로, 조회 시 항상 빈 값으로 정규화한다
     @Embedded
+    @Getter(AccessLevel.NONE)
     private PhotoMetadata metadata;
 
     @ElementCollection(fetch = FetchType.EAGER)
@@ -68,6 +70,10 @@ public class Photo {
 
     public PhotoId getPhotoId() {
         return PhotoId.of(id);
+    }
+
+    public PhotoMetadata getMetadata() {
+        return metadata != null ? metadata : PhotoMetadata.empty();
     }
 
     void updateMemo(String timePeriod, String locationText, String memo) {
