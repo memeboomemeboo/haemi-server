@@ -55,6 +55,16 @@ public class Elder {
     @Column(name = "personalization_level", nullable = false)
     private int personalizationLevel;
 
+    // 사별 생명주기 (F0-05)
+    @Column(name = "bereavement_requested_at")
+    private LocalDateTime bereavementRequestedAt;
+
+    @Column(name = "bereaved_at")
+    private LocalDateTime bereavedAt;
+
+    @Column(name = "silent_until")
+    private LocalDateTime silentUntil;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -106,12 +116,87 @@ public class Elder {
         touch();
     }
 
-    public void changeStatus(ElderStatus status) {
-        if (status == null) {
+    // ── 일반 상태 전이 (생존 상태 간) ──
+    public void transitionTo(ElderStatus target) {
+        if (target == null) {
             throw new M0ValidationException("어르신 상태는 필수예요.");
         }
-        this.status = status;
+        if (target == ElderStatus.DECEASED) {
+            throw new M0ValidationException("사별 처리는 2단계 확인(requestBereavement→confirmBereavement)으로만 가능해요.");
+        }
+        if (!status.canTransitionTo(target)) {
+            throw new M0ValidationException("허용되지 않은 상태 전이예요: " + status + " → " + target);
+        }
+        this.status = target;
         touch();
+    }
+
+    // ── 사별 처리 1단계: 요청(2단계 확인 대기) ──
+    public void requestBereavement(LocalDateTime now) {
+        if (status == ElderStatus.DECEASED || status == ElderStatus.MEMORIAL) {
+            throw new M0ValidationException("이미 사별 처리된 어르신이에요.");
+        }
+        this.bereavementRequestedAt = now;
+        touch();
+    }
+
+    // ── 사별 처리 2단계: 확정 → DECEASED, 무음기간 시작 ──
+    public void confirmBereavement(LocalDateTime now, int silentDays) {
+        if (bereavementRequestedAt == null) {
+            throw new M0ValidationException("사별 확정 전에 요청(1단계)이 필요해요.");
+        }
+        if (!status.canTransitionTo(ElderStatus.DECEASED)) {
+            throw new M0ValidationException("현재 상태에서 사별 처리할 수 없어요: " + status);
+        }
+        this.status = ElderStatus.DECEASED;
+        this.bereavedAt = now;
+        this.silentUntil = now.plusDays(silentDays);
+        this.bereavementRequestedAt = null;
+        touch();
+    }
+
+    // ── 48시간 내 사별 오등록 복구 → ACTIVE ──
+    public void recoverFromBereavement(LocalDateTime now, int recoveryWindowHours) {
+        if (status != ElderStatus.DECEASED) {
+            throw new M0ValidationException("사별 상태에서만 복구할 수 있어요.");
+        }
+        if (bereavedAt == null || now.isAfter(bereavedAt.plusHours(recoveryWindowHours))) {
+            throw new M0ValidationException("사별 오등록 복구 기간(" + recoveryWindowHours + "시간)이 지났어요.");
+        }
+        this.status = ElderStatus.ACTIVE;
+        this.bereavedAt = null;
+        this.silentUntil = null;
+        touch();
+    }
+
+    // ── 무음기간 경과 후 memorial 기억 보관함으로 봉인 ──
+    public void enshrineMemorial(LocalDateTime now) {
+        if (status != ElderStatus.DECEASED) {
+            throw new M0ValidationException("사별 상태에서만 memorial로 전환할 수 있어요.");
+        }
+        if (isInSilentPeriod(now)) {
+            throw new M0ValidationException("무음기간이 끝난 뒤에 memorial로 전환할 수 있어요.");
+        }
+        this.status = ElderStatus.MEMORIAL;
+        touch();
+    }
+
+    // ── 발송 파이프라인 최종 상태 검증 (EX-F005-01): 생존·비무음일 때만 발송 ──
+    public boolean isDispatchable(LocalDateTime now) {
+        return (status == ElderStatus.ACTIVE || status == ElderStatus.DECLINING)
+                && !isInSilentPeriod(now);
+    }
+
+    public boolean isInSilentPeriod(LocalDateTime now) {
+        return silentUntil != null && now.isBefore(silentUntil);
+    }
+
+    public boolean isMemorialArchiveOnly() {
+        return status == ElderStatus.MEMORIAL;
+    }
+
+    public boolean isBereavementPending() {
+        return bereavementRequestedAt != null;
     }
 
     public double calculateCompleteness(Collection<LifeStory> lifeStories) {
