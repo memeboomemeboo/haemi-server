@@ -3,7 +3,10 @@ package com.memeboo2.haemi.m0.application.service;
 import com.memeboo2.haemi.m0.domain.model.Elder;
 import com.memeboo2.haemi.m0.domain.model.M0NotFoundException;
 import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
+import com.memeboo2.haemi.m0.domain.port.ElderContentContextPort;
 import com.memeboo2.haemi.m0.domain.repository.ElderRepository;
+import com.memeboo2.haemi.m0.domain.repository.LifeStoryRepository;
+import com.memeboo2.haemi.m0.domain.repository.SensitiveTopicRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,14 +17,26 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class ElderReferenceService implements ElderAccessPort {
+public class ElderReferenceService implements ElderAccessPort, ElderContentContextPort {
 
     private final ElderRepository elders;
+    private final LifeStoryRepository lifeStories;
+    private final SensitiveTopicRepository sensitiveTopics;
 
     @Override
     public ElderAccessSnapshot getRequired(UUID elderId) {
         Elder elder = elders.findById(elderId).orElseThrow(() -> new M0NotFoundException("어르신 프로필"));
         return new ElderAccessSnapshot(elder.getId(), elder.getGroupId(), elder.getStatus(), elder.getAccessMode(),
                 elder.getPersonalizationLevel());
+    }
+
+    @Override
+    public ElderContentContext getContentContext(UUID elderId) {
+        Elder elder = elders.findById(elderId).orElseThrow(() -> new M0NotFoundException("어르신 프로필"));
+        var stories = lifeStories.findAllByElderId(elderId);
+        return new ElderContentContext(elder.getId(), elder.getGroupId(), elder.getPersonalizationLevel(),
+                elder.calculateCompleteness(stories),
+                stories.stream().map(story -> story.getValue()).toList(),
+                sensitiveTopics.findAllByElderId(elderId).stream().map(topic -> topic.getKeyword()).toList());
     }
 }

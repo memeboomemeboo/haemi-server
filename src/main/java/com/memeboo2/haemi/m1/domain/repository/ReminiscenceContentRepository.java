@@ -22,4 +22,6 @@ public interface ReminiscenceContentRepository {
     Set<UUID> findRecentlyUsedPhotoIds(AlbumId albumId, int days);
 
     List<ReminiscenceContent> findRecentByAlbumId(AlbumId albumId, int limit);
+
+    void invalidateByAlbumId(AlbumId albumId);
 }

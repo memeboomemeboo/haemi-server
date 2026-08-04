@@ -56,10 +56,13 @@ haemi:
     max-group-members: 10
     max-photos-per-upload: 30
     max-photo-size-mb: 20
-    min-photos-for-ai: 5
+    min-photos-for-ai: 20
     sync-low-battery-threshold: 20
   ai:
     rotation-days: 7
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.6-flash}
   notification:
     elder-daily-limit: 5
   jwt:
