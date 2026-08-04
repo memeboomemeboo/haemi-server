@@ -89,6 +89,16 @@ class ProductionSurfaceIntegrationTest {
     }
 
     @Test
+    void elderAccountCannotAccessFamilyAndInstitutionReports() throws Exception {
+        String elderToken = accessToken(MemberRole.ELDER);
+
+        mockMvc.perform(post("/api/v1/cognitive-dashboard/reports")
+                        .header("Authorization", "Bearer " + elderToken)
+                        .param("elderId", UUID.randomUUID().toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void walkRoutineApiAppliesDefaultTenMinuteTarget() throws Exception {
         String token = accessToken(MemberRole.FAMILY);
 
