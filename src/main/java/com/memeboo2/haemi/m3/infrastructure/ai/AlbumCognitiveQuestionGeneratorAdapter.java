@@ -63,77 +63,33 @@ public class AlbumCognitiveQuestionGeneratorAdapter implements CognitiveQuestion
 
     private TrainingQuestion createQuestion(QuestionType type, Photo photo, int difficultyLevel) {
         String questionId = "album-" + UUID.randomUUID();
-        String person = photo.getPersonTags().stream()
-                .map(tag -> tag.getMemberName())
-                .filter(this::hasText)
-                .findFirst()
-                .orElse("가족");
         PhotoMetadata metadata = photo.getMetadata();
         String location = metadata != null && hasText(metadata.getLocationText())
                 ? metadata.getLocationText()
                 : "집";
-        String timePeriod = resolveTimePeriod(metadata);
 
         return switch (type) {
-            case FAMILY_PHOTO_PUZZLE -> TrainingQuestion.withPhoto(
-                    questionId,
-                    type,
-                    "가족사진을 보고 이 사진이 언제의 추억인지 말씀해 주세요.",
-                    timePeriod,
-                    difficultyLevel,
-                    photo.getId()
-            );
-            case WORD_ASSOCIATION -> TrainingQuestion.of(
-                    questionId,
-                    type,
-                    "%s의 추억과 가장 잘 어울리는 단어를 골라주세요: 가족 / 날씨 / 숫자".formatted(timePeriod),
-                    "가족",
-                    difficultyLevel
-            );
-            case SEQUENCE_MEMORY -> TrainingQuestion.of(
-                    questionId,
-                    type,
-                    "다음 순서를 기억해 주세요: 사진, 가족, 미소. 두 번째 단어는 무엇인가요?",
-                    "가족",
-                    difficultyLevel
-            );
             case PERSON_RECALL -> TrainingQuestion.withPhoto(
                     questionId,
                     type,
-                    "사진 속 함께한 분의 이름은 무엇인가요?",
-                    person,
+                    "사진 속 함께한 분은 누구인지 편하게 이야기해 주세요.",
                     difficultyLevel,
                     photo.getId()
             );
             case PLACE_MATCH -> TrainingQuestion.withPhoto(
                     questionId,
                     type,
-                    "사진과 관련된 장소를 골라주세요: %s / 병원 / 공항".formatted(location),
-                    location,
+                    "이 사진은 어디에서 찍은 걸까요? %s에서의 추억을 떠올려 이야기해 주세요.".formatted(location),
                     difficultyLevel,
                     photo.getId()
             );
             case COLOR_SHAPE -> TrainingQuestion.of(
                     questionId,
                     type,
-                    "같은 모양을 찾아주세요: 동그라미 / 세모 / 네모. 공처럼 둥근 모양은 무엇인가요?",
-                    "동그라미",
+                    "사진 속에서 기억에 남는 색이나 모양이 있다면 이야기해 주세요.",
                     difficultyLevel
             );
         };
-    }
-
-    private String resolveTimePeriod(PhotoMetadata metadata) {
-        if (metadata == null) {
-            return "그때";
-        }
-        if (hasText(metadata.getTimePeriod())) {
-            return metadata.getTimePeriod();
-        }
-        if (metadata.getShotAt() != null) {
-            return metadata.getShotAt().getYear() + "년";
-        }
-        return "그때";
     }
 
     private boolean hasText(String value) {

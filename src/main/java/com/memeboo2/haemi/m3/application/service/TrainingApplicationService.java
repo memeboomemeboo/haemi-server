@@ -100,7 +100,7 @@ public class TrainingApplicationService {
 
         sessionRepository.save(session);
         String message = completionMessage(session, attempt);
-        return new AnswerResult(toResult(session), attempt.isCorrect(), message);
+        return new AnswerResult(toResult(session), attempt.isResponded(), message);
     }
 
     // F3-03: 손주 찬스 요청
@@ -194,7 +194,7 @@ public class TrainingApplicationService {
         DifficultyPolicy policy = loadPolicy(profile.getCurrentLevel());
         DifficultyAdjustment adjustment = profile.applySession(
                 session.getQuestionPerformances(),
-                session.getAccuracyRate(),
+                session.getResponseRate(),
                 session.getAverageResponseSeconds(),
                 policy
         );
@@ -234,15 +234,15 @@ public class TrainingApplicationService {
     }
 
     private String completedSpeech(CognitiveTrainingSession session) {
-        int accuracyPercent = (int) Math.round(session.getAccuracyRate() * 100);
-        return "오늘의 훈련을 모두 마쳤습니다. 정말 잘하셨어요. 정답률은 %d퍼센트입니다."
-                .formatted(accuracyPercent);
+        return "오늘의 회상을 모두 마쳤습니다. 좋은 이야기 많이 들려주셔서 고맙습니다.";
     }
 
     private String completionMessage(CognitiveTrainingSession session, QuestionAttempt attempt) {
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             return completedSpeech(session);
         }
-        return attempt.isCorrect() ? "잘하셨어요!" : "괜찮아요, 다음 문제를 풀어볼까요?";
+        return attempt.isResponded()
+                ? "이야기해 주셔서 고맙습니다. 다음 사진도 함께 볼까요?"
+                : "괜찮아요, 다음 사진을 함께 볼까요?";
     }
 }
