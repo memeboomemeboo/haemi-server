@@ -3,6 +3,13 @@ package com.memeboo2.haemi.m1.presentation.exception;
 import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
 import com.memeboo2.haemi.m1.application.service.ReminiscenceContentNotFoundException;
 import com.memeboo2.haemi.m1.domain.model.album.*;
+import com.memeboo2.haemi.m1.domain.model.memory.MemoryAccessDeniedException;
+import com.memeboo2.haemi.m1.domain.model.memory.MemoryContentRequiredException;
+import com.memeboo2.haemi.m1.domain.model.memory.MemoryModerationException;
+import com.memeboo2.haemi.m1.domain.model.memory.MemoryValidationException;
+import com.memeboo2.haemi.m1.application.service.MemoryNotFoundException;
+import com.memeboo2.haemi.m0.domain.model.M0AccessDeniedException;
+import com.memeboo2.haemi.m0.domain.model.M0NotFoundException;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +50,42 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ReminiscenceContentNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ApiResponse<Void> handleContentNotFound(ReminiscenceContentNotFoundException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(MemoryNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleMemoryNotFound(MemoryNotFoundException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(M0NotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleM0NotFound(M0NotFoundException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(M0AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleM0AccessDenied(M0AccessDeniedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(MemoryAccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleMemoryAccessDenied(MemoryAccessDeniedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(MemoryModerationException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ApiResponse<Void> handleMemoryModeration(MemoryModerationException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler({MemoryContentRequiredException.class, MemoryValidationException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleMemoryValidation(RuntimeException e) {
         return ApiResponse.error(e.getMessage());
     }
 

@@ -252,9 +252,9 @@ class TrainingApplicationServiceTest {
         );
 
         assertThat(result.session().status()).isEqualTo(TrainingSessionStatus.COMPLETED);
-        assertThat(result.message()).contains("정답률은 67퍼센트");
-        assertThat(result.session().speechGuide().text()).contains("정답률은 67퍼센트");
-        verify(speechSynthesis).synthesize(contains("정말 잘하셨어요"));
+        assertThat(result.message()).contains("오늘의 회상을 모두 마쳤습니다");
+        assertThat(result.session().speechGuide().text()).contains("고맙습니다");
+        verify(speechSynthesis).synthesize(contains("오늘의 회상을 모두 마쳤습니다"));
     }
 
     @Test
@@ -313,7 +313,7 @@ class TrainingApplicationServiceTest {
         CognitiveTrainingSession session = CognitiveTrainingSession.start(
                 elderId, album.getId(), StartMode.AUTO, 2, questions());
         questions().forEach(question ->
-                session.answer(question.getQuestionId(), question.getCorrectAnswer(), 10));
+                session.answer(question.getQuestionId(), "이야기", 10));
         return session;
     }
 
@@ -324,26 +324,26 @@ class TrainingApplicationServiceTest {
                 StartMode.AUTO,
                 2,
                 List.of(
-                        question("q1", QuestionType.WORD_ASSOCIATION, "a"),
-                        question("q2", QuestionType.PERSON_RECALL, "b"),
-                        question("q3", QuestionType.SEQUENCE_MEMORY, "c")
+                        question("q1", QuestionType.PERSON_RECALL),
+                        question("q2", QuestionType.PLACE_MATCH),
+                        question("q3", QuestionType.COLOR_SHAPE)
                 )
         );
     }
 
     private List<TrainingQuestion> questions() {
         return List.of(
-                TrainingQuestion.of("q1", QuestionType.WORD_ASSOCIATION,
-                        "첫 번째 질문", "정답1", 2),
-                TrainingQuestion.of("q2", QuestionType.PERSON_RECALL,
-                        "두 번째 질문", "정답2", 2),
-                TrainingQuestion.of("q3", QuestionType.SEQUENCE_MEMORY,
-                        "세 번째 질문", "정답3", 2)
+                TrainingQuestion.of("q1", QuestionType.PERSON_RECALL,
+                        "첫 번째 질문", 2),
+                TrainingQuestion.of("q2", QuestionType.PLACE_MATCH,
+                        "두 번째 질문", 2),
+                TrainingQuestion.of("q3", QuestionType.COLOR_SHAPE,
+                        "세 번째 질문", 2)
         );
     }
 
-    private TrainingQuestion question(String id, QuestionType type, String answer) {
-        return TrainingQuestion.of(id, type, "문제", answer, 2);
+    private TrainingQuestion question(String id, QuestionType type) {
+        return TrainingQuestion.of(id, type, "문제", 2);
     }
 
     private TrainingSpeech speech(String text) {

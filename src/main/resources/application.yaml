@@ -56,13 +56,19 @@ haemi:
     max-group-members: 10
     max-photos-per-upload: 30
     max-photo-size-mb: 20
-    min-photos-for-ai: 5
+    min-photos-for-ai: 20
     sync-low-battery-threshold: 20
   ai:
     rotation-days: 7
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.6-flash}
   notification:
     elder-daily-limit: 5
   jwt:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M
     refresh-token-validity: P14D
+  security:
+    # 개발 환경용 키. 운영 프로필은 ELDER_HEALTH_ENCRYPTION_KEY 없이는 기동하지 않는다.
+    elder-health-encryption-key: ${ELDER_HEALTH_ENCRYPTION_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}

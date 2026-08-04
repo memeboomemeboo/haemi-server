@@ -4,7 +4,10 @@ import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
+import com.memeboo2.haemi.m0.domain.model.ElderStatus;
+import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
+import com.memeboo2.haemi.m4.application.command.RecordReminiscenceMetricCommand;
 import com.memeboo2.haemi.m4.application.command.RecordCognitiveMetricCommand;
 import com.memeboo2.haemi.m4.application.command.UpdateAlertRecipientsCommand;
 import com.memeboo2.haemi.m4.application.dto.*;
@@ -44,6 +47,8 @@ public class DashboardApplicationService {
     private final PdfReportPort pdfReportPort;
     private final InstitutionDashboardExportPort institutionDashboardExportPort;
     private final NotificationPort notificationPort;
+    private final ElderAccessPort elderAccess;
+    private final ActivityChangeLanguagePolicy activityLanguage;
 
     @Transactional
     public CognitiveMetricResult recordMetric(RecordCognitiveMetricCommand command) {
@@ -79,6 +84,19 @@ public class DashboardApplicationService {
         metricRepository.save(metric);
     }
 
+    /** F4-01/F4-02가 쓰는 v3 회상 기록 집계 입력. */
+    @Transactional
+    public ReminiscenceMetricResult recordReminiscenceMetric(RecordReminiscenceMetricCommand command) {
+        LocalDate date = command.metricDate() == null ? LocalDate.now() : command.metricDate();
+        CognitiveDailyMetric metric = metricRepository.findByElderIdAndMetricDate(command.elderId(), date)
+                .orElseGet(() -> CognitiveDailyMetric.create(command.elderId(), parseAlbumId(command.albumId()),
+                        command.institutionId(), date, 0, 0.0, 0.0, 0, 0, null));
+        metric.updateReminiscenceSnapshot(command.institutionId(), command.sessionCount(), command.voiceDetectedCount(),
+                command.averageDwellMs(), command.hintPlaybackCount(), command.hintNoResponseCount(),
+                command.familyContributionCount(), command.topMemoryTopic(), command.topDwelledPhoto());
+        return ReminiscenceMetricResult.from(metricRepository.save(metric));
+    }
+
     @Transactional(readOnly = true)
     public List<CognitiveMetricResult> getMetrics(GetCognitiveMetricQuery query) {
         List<CognitiveDailyMetric> metrics = metricRepository.findByElderIdAndDateBetween(
@@ -89,9 +107,23 @@ public class DashboardApplicationService {
         return metrics.stream().map(CognitiveMetricResult::from).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ReminiscenceMetricResult> getReminiscenceMetrics(GetCognitiveMetricQuery query) {
+        List<CognitiveDailyMetric> metrics = metricRepository.findByElderIdAndDateBetween(
+                query.elderId(), query.from(), query.to());
+        if (metrics.isEmpty()) {
+            throw new CognitiveMetricNotFoundException(query.elderId());
+        }
+        return metrics.stream().map(ReminiscenceMetricResult::from).toList();
+    }
+
     // F4-01: 주간·월간 리포트 생성
     @Transactional
-    public CognitiveReportResult generateReport(GenerateCognitiveReportCommand command) {
+    public ReminiscenceReportResult generateReport(GenerateCognitiveReportCommand command) {
+        ElderAccessPort.ElderAccessSnapshot elder = loadElder(command.elderId());
+        if (elder.status() == ElderStatus.DECEASED) {
+            throw new ReportDeliveryBlockedException();
+        }
         LocalDate end = resolvePeriodEnd(command.period());
         LocalDate start = command.period() == ReportPeriod.WEEKLY
                 ? end.minusDays(6)
@@ -103,72 +135,56 @@ public class DashboardApplicationService {
             throw new DataInsufficientException();
         }
 
-        int participationCount = metrics.stream().mapToInt(CognitiveDailyMetric::getTrainingSessionCount).sum();
-        double avgAccuracy = metrics.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
-        double avgResponse = metrics.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0);
-        int memoryPosts = metrics.stream().mapToInt(CognitiveDailyMetric::getMemoryPostCount).sum();
-        int reminiscenceParticipationCount = metrics.stream()
-                .mapToInt(CognitiveDailyMetric::getReminiscenceReactionCount)
-                .sum();
-        String mostReactedPhotoType = metrics.stream()
-                .filter(metric -> metric.getMostReactedPhotoType() != null)
-                .filter(metric -> !metric.getMostReactedPhotoType().isBlank())
-                .collect(Collectors.groupingBy(
-                        CognitiveDailyMetric::getMostReactedPhotoType,
-                        LinkedHashMap::new,
-                        Collectors.summingInt(CognitiveDailyMetric::getReminiscenceReactionCount)
-                ))
-                .entrySet().stream()
-                .max(Map.Entry.<String, Integer>comparingByValue()
-                        .thenComparing(Map.Entry::getKey))
-                .map(Map.Entry::getKey)
-                .orElse(null);
-
-        long periodDays = ChronoUnit.DAYS.between(start, end) + 1;
-        LocalDate previousEnd = start.minusDays(1);
-        LocalDate previousStart = previousEnd.minusDays(periodDays - 1);
-        List<CognitiveDailyMetric> previousMetrics = metricRepository.findByElderIdAndDateBetween(
-                command.elderId(), previousStart, previousEnd);
-        double previousAccuracy = previousMetrics.stream()
-                .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
-                .average()
-                .orElse(avgAccuracy);
-        double previousResponse = previousMetrics.stream()
-                .mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds)
-                .average()
-                .orElse(avgResponse);
-        double accuracyChange = avgAccuracy - previousAccuracy;
-        double responseChange = avgResponse - previousResponse;
-
-        String summary = buildChangeSummary(
-                start, end, avgAccuracy, avgResponse, accuracyChange, responseChange,
-                previousMetrics.isEmpty());
+        ReportMode mode = elder.status() == ElderStatus.DECLINING
+                ? ReportMode.MEMORY_FOCUSED : ReportMode.STANDARD;
+        int daysTogether = (int) metrics.stream()
+                .filter(CognitiveDailyMetric::participated)
+                .map(CognitiveDailyMetric::getMetricDate)
+                .distinct()
+                .count();
+        if (daysTogether == 0) {
+            throw new DataInsufficientException("이번 기간에는 회상 기록이 없어 리포트를 보내지 않아요.");
+        }
+        List<String> topics = topValues(metrics, CognitiveDailyMetric::getTopMemoryTopic);
+        List<String> topPhotos = topValues(metrics, CognitiveDailyMetric::getTopDwelledPhoto);
+        int voiceResponses = metrics.stream().mapToInt(CognitiveDailyMetric::getVoiceDetectedCount).sum();
+        int familyContributions = metrics.stream().mapToInt(CognitiveDailyMetric::getMemoryPostCount).sum();
+        List<CognitiveDailyMetric> previousMetrics = mode == ReportMode.STANDARD
+                ? previousPeriodMetrics(command.elderId(), start, end) : List.of();
+        String activityMessage = mode == ReportMode.STANDARD
+                ? buildActivityMessage(daysTogether, previousMetrics) : null;
+        String summary = buildReminiscenceSummary(mode, daysTogether, topics, voiceResponses, familyContributions);
+        activityLanguage.requireSafe(summary);
+        if (activityMessage != null) {
+            activityLanguage.requireSafe(activityMessage);
+        }
         UUID albumId = resolveAlbumId(command, metrics);
-        List<ReportTrendPoint> trend = metrics.stream()
-                .sorted(Comparator.comparing(CognitiveDailyMetric::getMetricDate))
-                .map(metric -> new ReportTrendPoint(
-                        metric.getMetricDate(), metric.getTrainingAccuracyRate()))
-                .toList();
-        CognitiveReport report = CognitiveReport.create(
-                command.elderId(),
-                albumId,
-                command.period(), start, end, participationCount, avgAccuracy,
-                avgResponse, memoryPosts, reminiscenceParticipationCount,
-                mostReactedPhotoType, accuracyChange, responseChange, trend,
-                summary, command.deliveryMethod());
+        CognitiveReport report = CognitiveReport.createReminiscence(command.elderId(), albumId, command.period(),
+                start, end, mode, daysTogether, topics, topPhotos, voiceResponses, familyContributions,
+                activityMessage, summary, command.deliveryMethod());
         String pdfKey = pdfReportPort.generatePdf(report);
         report.assignPdfKey(pdfKey);
+
+        // 발송 직전 상태를 다시 읽어 사별 후 발송과 declining 상태의 standard 리포트를 막는다.
+        ElderAccessPort.ElderAccessSnapshot finalElder = loadElder(command.elderId());
+        if (finalElder.status() == ElderStatus.DECEASED) {
+            throw new ReportDeliveryBlockedException();
+        }
+        if (finalElder.status() == ElderStatus.DECLINING && report.getReportMode() != ReportMode.MEMORY_FOCUSED) {
+            report.changeToMemoryFocused();
+            report.assignPdfKey(pdfReportPort.generatePdf(report));
+        }
         CognitiveReport saved = reportRepository.save(report);
 
         sendReportNotification(saved);
-        return CognitiveReportResult.from(saved);
+        return ReminiscenceReportResult.from(saved);
     }
 
     @Transactional
-    public CognitiveReportResult markReportViewed(String reportId) {
+    public ReminiscenceReportResult markReportViewed(String reportId) {
         CognitiveReport report = loadReport(reportId);
         report.markViewed(LocalDateTime.now());
-        return CognitiveReportResult.from(reportRepository.save(report));
+        return ReminiscenceReportResult.from(reportRepository.save(report));
     }
 
     @Transactional(readOnly = true)
@@ -197,67 +213,63 @@ public class DashboardApplicationService {
 
     @Transactional
     public List<CognitiveAlertResult> detectEarlyAlerts(String elderId) {
+        ElderAccessPort.ElderAccessSnapshot elder = loadElder(elderId);
+        if (!elder.isElderFacingDeliveryAllowed()) {
+            return List.of();
+        }
         AlertRecipientSetting recipients = loadAlertRecipients(elderId);
+        // Stage 2 검증 전에는 기관 담당자에게만 활동 안내를 보낸다.
+        Set<String> deliveryRecipients = recipients.getInstitutionManagerMemberIds();
+        if (deliveryRecipients.isEmpty()) {
+            return List.of();
+        }
         LocalDate today = LocalDate.now();
-        List<CognitiveDailyMetric> recent = metricRepository.findByElderIdAndDateBetween(
-                elderId, today.minusDays(6), today);
-        if (recent.size() < 7) {
+        List<CognitiveDailyMetric> history = metricRepository.findByElderIdAndDateBetween(
+                elderId, today.minusDays(13), today).stream()
+                .sorted(Comparator.comparing(CognitiveDailyMetric::getMetricDate))
+                .toList();
+        if (history.size() < 14) {
             throw new DataInsufficientException();
         }
         if (alertRepository.findLatestByElderIdSince(elderId, LocalDateTime.now().minusDays(7)).isPresent()) {
             return List.of();
         }
 
-        List<CognitiveChangeAlert> alerts = new ArrayList<>();
-        if (recent.stream().noneMatch(CognitiveDailyMetric::participated)) {
-            alerts.add(createAlert(recent.get(0), AlertType.NO_PARTICIPATION_7_DAYS,
-                    "최근 7일 동안 세션 참여가 없습니다. 의료 진단이 아니며, 생활 패턴 변화를 함께 확인해주세요.",
-                    recipients));
-            return alerts.stream().map(CognitiveAlertResult::from).toList();
+        List<CognitiveDailyMetric> previousWeek = history.subList(0, 7);
+        List<CognitiveDailyMetric> currentWeek = history.subList(7, 14);
+        List<CognitiveDailyMetric> lastThreeDays = currentWeek.subList(4, 7);
+        CognitiveDailyMetric representative = currentWeek.getFirst();
+
+        if (currentWeek.subList(2, 7).stream().noneMatch(CognitiveDailyMetric::participated)) {
+            return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.NO_REMINISCENCE_5_DAYS,
+                    "최근 5일 동안 회상을 열어보신 기록이 없어요. 전화 한 번 드려보시는 건 어떠실까요?",
+                    deliveryRecipients)));
         }
 
-        List<CognitiveDailyMetric> previous = metricRepository.findByElderIdAndDateBetween(
-                elderId, today.minusDays(13), today.minusDays(7));
-        if (previous.size() >= 7) {
-            double previousAccuracy = previous.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
-            double previousResponse = previous.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0);
-            List<CognitiveDailyMetric> lastThreeDays = recent.stream()
-                    .filter(metric -> !metric.getMetricDate().isBefore(today.minusDays(2)))
-                    .sorted(Comparator.comparing(CognitiveDailyMetric::getMetricDate))
-                    .toList();
-
-            if (lastThreeDays.size() == 3
-                    && previousAccuracy > 0
-                    && lastThreeDays.stream().allMatch(
-                    metric -> metric.participated()
-                            && previousAccuracy - metric.getTrainingAccuracyRate() >= 0.20)) {
-                double recentAccuracy = lastThreeDays.stream()
-                        .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
-                        .average()
-                        .orElse(0.0);
-                alerts.add(createAlert(recent.get(0), AlertType.ACCURACY_DROP,
-                        "정답률이 전주 대비 %.1f%%p 하락한 상태가 3일간 지속되었습니다. 의료 진단이 아니며, 컨디션과 환경 변화를 확인해주세요."
-                                .formatted((previousAccuracy - recentAccuracy) * 100),
-                        recipients));
-                return alerts.stream().map(CognitiveAlertResult::from).toList();
-            }
-            if (lastThreeDays.size() == 3
-                    && previousResponse > 0
-                    && lastThreeDays.stream().allMatch(
-                    metric -> metric.participated()
-                            && metric.getAverageResponseSeconds() >= previousResponse * 1.5)) {
-                double recentResponse = lastThreeDays.stream()
-                        .mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds)
-                        .average()
-                        .orElse(0.0);
-                alerts.add(createAlert(recent.get(0), AlertType.RESPONSE_TIME_INCREASE,
-                        "평균 반응 시간이 전주 대비 %.1f%% 증가한 상태가 3일간 지속되었습니다. 의료 진단이 아니며, 최근 생활 변화를 확인해주세요."
-                                .formatted(((recentResponse / previousResponse) - 1.0) * 100),
-                        recipients));
-            }
+        double previousVoiceRate = voiceRate(previousWeek);
+        if (previousVoiceRate > 0 && lastThreeDays.stream()
+                .allMatch(metric -> dailyVoiceRate(metric) <= previousVoiceRate * 0.6)) {
+            return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.VOICE_ACTIVITY_DROP,
+                    "최근 며칠 사이 목소리가 담긴 회상 기록이 줄었어요. 컨디션과 환경을 함께 살펴봐 주세요.",
+                    deliveryRecipients)));
         }
 
-        return alerts.stream().map(CognitiveAlertResult::from).toList();
+        double previousDwell = previousWeek.stream().mapToDouble(CognitiveDailyMetric::getAverageDwellMs)
+                .filter(value -> value > 0).average().orElse(0.0);
+        if (previousDwell > 0 && lastThreeDays.stream()
+                .allMatch(metric -> metric.getAverageDwellMs() > 0 && metric.getAverageDwellMs() <= previousDwell * 0.5)) {
+            return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.DWELL_TIME_DROP,
+                    "요즘 사진을 함께 보는 시간이 줄었어요. 좋아하시는 사진으로 이야기를 시작해보셔도 좋아요.",
+                    deliveryRecipients)));
+        }
+
+        if (lastThreeDays.stream().allMatch(metric -> metric.getHintPlaybackCount() > 0
+                && metric.getHintNoResponseCount() / (double) metric.getHintPlaybackCount() >= 0.8)) {
+            return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.HINT_NO_RESPONSE_HIGH,
+                    "한마디를 들으신 뒤에도 조용한 시간이 길었어요. 다음 회상에는 더 익숙한 사진을 골라보셔도 좋아요.",
+                    deliveryRecipients)));
+        }
+        return List.of();
     }
 
     // F4-03: 기관 관리자 포털 조회
@@ -338,12 +350,13 @@ public class DashboardApplicationService {
     }
 
     private CognitiveChangeAlert createAlert(CognitiveDailyMetric metric, AlertType type,
-                                             String message, AlertRecipientSetting recipients) {
+                                             String message, Set<String> recipients) {
+        String safeMessage = message + " 이 안내는 앱 사용 기록에 기반한 것으로, 건강 상태에 대한 의학적 판단이 아닙니다.";
+        activityLanguage.requireSafe(safeMessage);
         CognitiveChangeAlert alert = CognitiveChangeAlert.create(
-                metric.getElderId(), metric.getAlbumId(), type, message + " 대응 가이드: " + GUIDE_LINK, GUIDE_LINK);
+                metric.getElderId(), metric.getAlbumId(), type, safeMessage + " 안내: " + GUIDE_LINK, GUIDE_LINK);
         CognitiveChangeAlert saved = alertRepository.save(alert);
-        notificationPort.sendToGroup(
-                recipients.recipientMemberIds(), "인지 변화 알림", saved.getMessage());
+        notificationPort.sendToGroup(recipients, "어르신 소식이에요", saved.getMessage());
         return saved;
     }
 
@@ -360,24 +373,86 @@ public class DashboardApplicationService {
         return today.minusMonths(1).with(TemporalAdjusters.lastDayOfMonth());
     }
 
-    private String buildChangeSummary(LocalDate start, LocalDate end,
-                                      double avgAccuracy, double avgResponse,
-                                      double accuracyChange, double responseChange,
-                                      boolean noPreviousData) {
-        if (noPreviousData) {
-            return "%s ~ %s 평균 정답률 %.1f%%, 평균 반응 시간 %.1f초입니다. 비교할 이전 기간 데이터가 없습니다."
-                    .formatted(start, end, avgAccuracy * 100, avgResponse);
+    private List<CognitiveDailyMetric> previousPeriodMetrics(String elderId, LocalDate start, LocalDate end) {
+        long periodDays = ChronoUnit.DAYS.between(start, end) + 1;
+        LocalDate previousEnd = start.minusDays(1);
+        return metricRepository.findByElderIdAndDateBetween(elderId,
+                previousEnd.minusDays(periodDays - 1), previousEnd);
+    }
+
+    private List<String> topValues(List<CognitiveDailyMetric> metrics,
+                                   java.util.function.Function<CognitiveDailyMetric, String> extractor) {
+        return metrics.stream()
+                .map(extractor)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.groupingBy(value -> value, LinkedHashMap::new, Collectors.counting()))
+                .entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+                        .thenComparing(Map.Entry::getKey))
+                .limit(3)
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    private String buildReminiscenceSummary(ReportMode mode, int daysTogether, List<String> topics,
+                                            int voiceResponses, int familyContributions) {
+        String topic = topics.isEmpty() ? "사진과 함께한 이야기" : String.join(", ", topics);
+        if (mode == ReportMode.MEMORY_FOCUSED) {
+            return "이번 기간에 함께한 %d일의 회상 기록을 모았어요. %s에 관한 이야기가 남아 있어요."
+                    .formatted(daysTogether, topic);
         }
-        return "%s ~ %s 평균 정답률 %.1f%%(%+.1f%%p), 평균 반응 시간 %.1f초(%+.1f초)입니다."
-                .formatted(start, end, avgAccuracy * 100, accuracyChange * 100,
-                        avgResponse, responseChange);
+        return "이번 기간에 %d일 함께 회상했어요. %s 이야기가 자주 이어졌고, 가족이 남긴 기록은 %d건이에요. 목소리가 담긴 반응은 %d건이에요."
+                .formatted(daysTogether, topic, familyContributions, voiceResponses);
+    }
+
+    private String buildActivityMessage(int currentDays, List<CognitiveDailyMetric> previousMetrics) {
+        if (previousMetrics.isEmpty()) {
+            return "이전 기간과 비교할 기록이 더 쌓이면 함께한 날의 변화를 알려드릴게요.";
+        }
+        int previousDays = (int) previousMetrics.stream().filter(CognitiveDailyMetric::participated)
+                .map(CognitiveDailyMetric::getMetricDate).distinct().count();
+        int difference = currentDays - previousDays;
+        if (difference > 0) {
+            return "지난 기간보다 함께한 날이 %d일 늘었어요.".formatted(difference);
+        }
+        if (difference < 0) {
+            return "지난 기간보다 함께한 날이 %d일 줄었어요.".formatted(Math.abs(difference));
+        }
+        return "지난 기간과 함께한 날 수가 같아요.";
+    }
+
+    private double voiceRate(List<CognitiveDailyMetric> metrics) {
+        int sessions = metrics.stream().mapToInt(CognitiveDailyMetric::getTrainingSessionCount).sum();
+        return sessions == 0 ? 0.0
+                : metrics.stream().mapToInt(CognitiveDailyMetric::getVoiceDetectedCount).sum() / (double) sessions;
+    }
+
+    private double dailyVoiceRate(CognitiveDailyMetric metric) {
+        return metric.getTrainingSessionCount() == 0 ? 0.0
+                : metric.getVoiceDetectedCount() / (double) metric.getTrainingSessionCount();
+    }
+
+    private ElderAccessPort.ElderAccessSnapshot loadElder(String elderId) {
+        try {
+            return elderAccess.getRequired(UUID.fromString(elderId));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("어르신 ID는 UUID 형식이어야 해요.");
+        }
+    }
+
+    private UUID parseAlbumId(String albumId) {
+        if (albumId == null || albumId.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(albumId);
     }
 
     private UUID resolveAlbumId(GenerateCognitiveReportCommand command,
                                 List<CognitiveDailyMetric> metrics) {
-        if (command.albumId() != null && !command.albumId().isBlank()) {
-            return UUID.fromString(command.albumId());
-        }
+        UUID supplied = parseAlbumId(command.albumId());
+        if (supplied != null) return supplied;
         return metrics.stream()
                 .map(CognitiveDailyMetric::getAlbumId)
                 .filter(Objects::nonNull)
@@ -396,17 +471,17 @@ public class DashboardApplicationService {
                     .map(Album::getMemberIds)
                     .forEach(recipients::addAll);
         }
-        String body = report.getChangeSummary();
+        String body = report.getChangeSummary() + " " + ReminiscenceReportResult.MEDICAL_DISCLAIMER;
         if (report.getDeliveryMethod() == ReportDeliveryMethod.EMAIL
                 || report.getDeliveryMethod() == ReportDeliveryMethod.IN_APP_AND_EMAIL) {
             body = "이메일 발송 연동 전까지 앱 내 알림으로 제공됩니다. " + body;
         }
         if (recipients.isEmpty()) {
-            log.warn("인지 리포트 알림 대상 없음: reportId={}, elderId={}",
+            log.warn("회상 리포트 알림 대상 없음: reportId={}, elderId={}",
                     report.getId(), report.getElderId());
             return;
         }
-        notificationPort.sendToGroup(recipients, "인지 리포트가 생성되었습니다", body);
+        notificationPort.sendToGroup(recipients, "회상 기록이 준비되었어요", body);
     }
 
     private CognitiveReport loadReport(String reportId) {

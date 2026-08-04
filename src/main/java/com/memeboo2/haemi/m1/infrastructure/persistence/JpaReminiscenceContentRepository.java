@@ -13,8 +13,10 @@ public interface JpaReminiscenceContentRepository extends JpaRepository<Reminisc
 
     Optional<ReminiscenceContent> findByAlbumIdAndGeneratedDate(UUID albumId, LocalDate generatedDate);
 
-    @Query("SELECT rc FROM ReminiscenceContent rc WHERE rc.albumId = :albumId ORDER BY rc.generatedAt DESC LIMIT :limit")
+    @Query("SELECT rc FROM ReminiscenceContent rc WHERE rc.albumId = :albumId ORDER BY rc.generatedAt DESC")
     List<ReminiscenceContent> findRecentByAlbumId(UUID albumId, int limit);
+
+    void deleteAllByAlbumId(UUID albumId);
 
     @Query("""
             SELECT DISTINCT s.photoId
@@ -25,12 +27,4 @@ public interface JpaReminiscenceContentRepository extends JpaRepository<Reminisc
             """)
     List<UUID> findRecentlyUsedPhotoIds(UUID albumId, LocalDate since);
 
-    @Query("""
-            SELECT DISTINCT q.photoId
-            FROM ReminiscenceContent rc
-            JOIN rc.quizItems q
-            WHERE rc.albumId = :albumId
-              AND rc.generatedDate >= :since
-            """)
-    List<UUID> findRecentlyUsedQuizPhotoIds(UUID albumId, LocalDate since);
 }

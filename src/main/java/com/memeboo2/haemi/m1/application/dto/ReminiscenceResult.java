@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m1.application.dto;
 
+import com.memeboo2.haemi.m1.domain.model.reminiscence.CardType;
 import com.memeboo2.haemi.m1.domain.model.reminiscence.ReactionType;
 import com.memeboo2.haemi.m1.domain.model.reminiscence.ReminiscenceContent;
 
@@ -13,33 +14,21 @@ public record ReminiscenceResult(
         String albumId,
         LocalDate generatedDate,
         LocalDateTime generatedAt,
-        List<SlideCardResult> slideCards,
-        List<QuestionCardResult> questionCards,
-        List<QuizItemResult> quizItems,
+        List<CardResult> cards,
         ReactionType elderReaction
 ) {
-    public record SlideCardResult(UUID photoId, int sequence, String caption) {}
-    public record QuestionCardResult(String questionText, int sequence) {}
-    public record QuizItemResult(UUID photoId, String quizText, String answer, int sequence) {}
+    public record CardResult(UUID photoId, int sequence, CardType cardType, String promptText) {}
 
     public static ReminiscenceResult from(ReminiscenceContent content) {
-        List<SlideCardResult> slides = content.getSlideCards().stream()
-                .map(s -> new SlideCardResult(s.getPhotoId(), s.getSequence(), s.getCaption()))
-                .toList();
-        List<QuestionCardResult> questions = content.getQuestionCards().stream()
-                .map(q -> new QuestionCardResult(q.getQuestionText(), q.getSequence()))
-                .toList();
-        List<QuizItemResult> quizzes = content.getQuizItems().stream()
-                .map(q -> new QuizItemResult(q.getPhotoId(), q.getQuizText(), q.getAnswer(), q.getSequence()))
+        List<CardResult> cards = content.getSlideCards().stream()
+                .map(s -> new CardResult(s.getPhotoId(), s.getSequence(), s.getCardType(), s.getCaption()))
                 .toList();
         return new ReminiscenceResult(
                 content.getId().toString(),
                 content.getAlbumId().toString(),
                 content.getGeneratedDate(),
                 content.getGeneratedAt(),
-                slides,
-                questions,
-                quizzes,
+                cards,
                 content.getElderReaction()
         );
     }

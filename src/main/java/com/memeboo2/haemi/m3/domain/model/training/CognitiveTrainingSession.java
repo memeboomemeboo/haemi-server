@@ -120,7 +120,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
 
         QuestionAttempt attempt = QuestionAttempt.of(
-                questionId, submittedAnswer, question.isCorrect(submittedAnswer), responseSeconds);
+                questionId, submittedAnswer, hasResponse(submittedAnswer), responseSeconds);
         attempts.add(attempt);
         currentQuestionIndex++;
 
@@ -139,6 +139,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .orElseThrow(TrainingSessionAlreadyCompletedException::new);
         QuestionAttempt attempt = QuestionAttempt.of(
                 question.getQuestionId(), null, false, 61);
+        // 손주 찬스 만료 후 넘긴 문제는 무응답으로 기록
         attempts.add(attempt);
         currentQuestionIndex++;
         if (currentQuestionIndex >= questions.size()) {
@@ -216,10 +217,10 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return previousStatus != lastChanceStatus;
     }
 
-    public double getAccuracyRate() {
+    public double getResponseRate() {
         if (attempts.isEmpty()) return 0.0;
-        long correct = attempts.stream().filter(QuestionAttempt::isCorrect).count();
-        return (double) correct / attempts.size();
+        long responded = attempts.stream().filter(QuestionAttempt::isResponded).count();
+        return (double) responded / attempts.size();
     }
 
     public double getAverageResponseSeconds() {
@@ -229,12 +230,12 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .orElse(0.0);
     }
 
-    public int getCorrectCount() {
-        return (int) attempts.stream().filter(QuestionAttempt::isCorrect).count();
+    public int getRespondedCount() {
+        return (int) attempts.stream().filter(QuestionAttempt::isResponded).count();
     }
 
-    public int getWrongCount() {
-        return attempts.size() - getCorrectCount();
+    public int getNoResponseCount() {
+        return attempts.size() - getRespondedCount();
     }
 
     public TrainingSessionId getSessionId() {
@@ -263,9 +264,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                     }
                     return new QuestionPerformance(
                             attempt.getQuestionId(),
-                            question.getPatternKey(),
                             question.getType(),
-                            attempt.isCorrect(),
+                            attempt.isResponded(),
                             attempt.isTimeout()
                     );
                 })
@@ -280,7 +280,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             registerEvent(new GrandchildChanceUnusedBadgeAwardedEvent(id, elderId, albumId, completedAt));
         }
         registerEvent(new TrainingSessionCompletedEvent(
-                id, elderId, albumId, sessionDate, getAccuracyRate(),
+                id, elderId, albumId, sessionDate, getResponseRate(),
                 getAverageResponseSeconds(), attempts.size(), completedAt));
     }
 
@@ -306,5 +306,9 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     private static int clampLevel(int level) {
         return Math.max(1, Math.min(5, level));
+    }
+
+    private static boolean hasResponse(String submittedAnswer) {
+        return submittedAnswer != null && !submittedAnswer.isBlank();
     }
 }
