@@ -19,7 +19,7 @@ public record TrainingSessionResult(
         QuestionResult currentQuestion,
         List<QuestionResult> questions,
         List<AttemptResult> attempts,
-        double accuracyRate,
+        double responseRate,
         double averageResponseSeconds,
         SpeechGuideResult speechGuide,
         String lastHintResponder,
@@ -62,7 +62,7 @@ public record TrainingSessionResult(
     public record AttemptResult(
             String questionId,
             String submittedAnswer,
-            boolean correct,
+            boolean responded,
             int responseSeconds,
             LocalDateTime answeredAt
     ) {}
@@ -75,7 +75,7 @@ public record TrainingSessionResult(
                 .toList();
         List<AttemptResult> attempts = session.getAttempts().stream()
                 .map(a -> new AttemptResult(a.getQuestionId(), a.getSubmittedAnswer(),
-                        a.isCorrect(), a.getResponseSeconds(), a.getAnsweredAt()))
+                        a.isResponded(), a.getResponseSeconds(), a.getAnsweredAt()))
                 .toList();
         QuestionResult current = session.currentQuestion()
                 .map(q -> new QuestionResult(q.getQuestionId(), q.getType(),
@@ -95,7 +95,7 @@ public record TrainingSessionResult(
                 current,
                 questions,
                 attempts,
-                session.getAccuracyRate(),
+                session.getResponseRate(),
                 session.getAverageResponseSeconds(),
                 SpeechGuideResult.from(speech),
                 session.getLastHintResponder(),

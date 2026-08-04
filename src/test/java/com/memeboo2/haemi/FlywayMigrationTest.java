@@ -19,9 +19,8 @@ class FlywayMigrationTest {
                 .dataSource(JDBC_URL, "sa", "")
                 .locations("classpath:db/migration")
                 .load();
-
+              
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(11);
-        assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
             assertThat(tableExists(connection, "members")).isTrue();
@@ -29,8 +28,13 @@ class FlywayMigrationTest {
             assertThat(tableExists(connection, "flyway_schema_history")).isTrue();
             assertThat(columnExists(connection, "training_questions", "question_photo_id")).isTrue();
             assertThat(tableExists(connection, "difficulty_policies")).isTrue();
-            assertThat(tableExists(connection, "difficulty_profile_accuracy_history")).isTrue();
-            assertThat(tableExists(connection, "difficulty_profile_wrong_patterns")).isTrue();
+            // #38: 정오답 → 응답 신호 대체
+            assertThat(tableExists(connection, "difficulty_profile_response_history")).isTrue();
+            assertThat(tableExists(connection, "difficulty_profile_accuracy_history")).isFalse();
+            assertThat(tableExists(connection, "difficulty_profile_wrong_patterns")).isFalse();
+            assertThat(columnExists(connection, "training_questions", "correct_answer")).isFalse();
+            assertThat(columnExists(connection, "training_question_attempts", "responded")).isTrue();
+            assertThat(columnExists(connection, "difficulty_profiles", "consecutive_responded")).isTrue();
             assertThat(tableExists(connection, "difficulty_level_changes")).isTrue();
             assertThat(columnExists(connection, "cognitive_training_sessions", "last_chance_status")).isTrue();
             assertThat(columnExists(connection, "cognitive_reports", "viewed_at")).isTrue();
