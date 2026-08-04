@@ -76,6 +76,11 @@ haemi:
     retention-days: 7
     cleanup-cron: "0 0 4 * * *"
     time-zone: Asia/Seoul
+  elder:
+    bereavement:
+      # 사별 확정 후 무음기간 / 오등록 복구 허용 시간
+      silent-days: 7
+      recovery-window-hours: 48
   jwt:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M
