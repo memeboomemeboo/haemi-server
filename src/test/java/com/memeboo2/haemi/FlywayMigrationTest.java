@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FlywayMigrationTest {
 
     private static final String JDBC_URL = """
-            jdbc:h2:mem:flyway-migration;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+            jdbc:h2:mem:flyway-migration;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=MEMORY;DB_CLOSE_DELAY=-1
             """.trim();
 
     @Test
@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(8);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(12);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -47,6 +47,15 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "album_members", "status")).isTrue();
             assertThat(columnExists(connection, "album_members", "invited_at")).isTrue();
             assertThat(tableExists(connection, "photo_sync_logs")).isTrue();
+            assertThat(tableExists(connection, "family_groups")).isTrue();
+            assertThat(tableExists(connection, "elders")).isTrue();
+            assertThat(tableExists(connection, "persons")).isTrue();
+            assertThat(tableExists(connection, "photo_persons")).isTrue();
+            assertThat(columnExists(connection, "reminiscence_slides", "safety_passed")).isTrue();
+            assertThat(tableExists(connection, "memory")).isTrue();
+            assertThat(tableExists(connection, "memory_media")).isTrue();
+            assertThat(columnExists(connection, "cognitive_reports", "report_mode")).isTrue();
+            assertThat(columnExists(connection, "cognitive_daily_metrics", "voice_detected_count")).isTrue();
         }
     }
 

@@ -4,4 +4,8 @@ public class DataInsufficientException extends RuntimeException {
     public DataInsufficientException() {
         super("데이터가 충분히 쌓이면 리포트가 제공됩니다(7일 이상 필요).");
     }
+
+    public DataInsufficientException(String message) {
+        super(message);
+    }
 }

@@ -50,6 +50,24 @@ public class CognitiveDailyMetric {
     @Column(name = "most_reacted_photo_type")
     private String mostReactedPhotoType;
 
+    @Column(name = "voice_detected_count", nullable = false)
+    private int voiceDetectedCount;
+
+    @Column(name = "average_dwell_ms", nullable = false)
+    private double averageDwellMs;
+
+    @Column(name = "hint_playback_count", nullable = false)
+    private int hintPlaybackCount;
+
+    @Column(name = "hint_no_response_count", nullable = false)
+    private int hintNoResponseCount;
+
+    @Column(name = "top_memory_topic", length = 100)
+    private String topMemoryTopic;
+
+    @Column(name = "top_dwelled_photo", length = 255)
+    private String topDwelledPhoto;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
@@ -70,6 +88,10 @@ public class CognitiveDailyMetric {
         metric.reminiscenceReactionCount = Math.max(reminiscenceReactionCount, 0);
         metric.memoryPostCount = Math.max(memoryPostCount, 0);
         metric.mostReactedPhotoType = mostReactedPhotoType;
+        metric.voiceDetectedCount = 0;
+        metric.averageDwellMs = 0.0;
+        metric.hintPlaybackCount = 0;
+        metric.hintNoResponseCount = 0;
         metric.updatedAt = LocalDateTime.now();
         return metric;
     }
@@ -103,7 +125,26 @@ public class CognitiveDailyMetric {
         return trainingSessionCount > 0 || reminiscenceReactionCount > 0 || memoryPostCount > 0;
     }
 
+    public void updateReminiscenceSnapshot(String institutionId, int sessionCount, int voiceDetectedCount,
+                                           double averageDwellMs, int hintPlaybackCount, int hintNoResponseCount,
+                                           int familyContributionCount, String topMemoryTopic, String topDwelledPhoto) {
+        this.institutionId = institutionId;
+        this.trainingSessionCount = Math.max(sessionCount, 0);
+        this.voiceDetectedCount = Math.max(voiceDetectedCount, 0);
+        this.averageDwellMs = Math.max(averageDwellMs, 0.0);
+        this.hintPlaybackCount = Math.max(hintPlaybackCount, 0);
+        this.hintNoResponseCount = Math.min(this.hintPlaybackCount, Math.max(hintNoResponseCount, 0));
+        this.memoryPostCount = Math.max(familyContributionCount, 0);
+        this.topMemoryTopic = blankToNull(topMemoryTopic);
+        this.topDwelledPhoto = blankToNull(topDwelledPhoto);
+        this.updatedAt = LocalDateTime.now();
+    }
+
     private static double clampRate(double rate) {
         return Math.max(0.0, Math.min(1.0, rate));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }
