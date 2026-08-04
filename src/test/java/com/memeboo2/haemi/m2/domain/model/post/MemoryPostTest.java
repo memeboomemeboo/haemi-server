@@ -78,23 +78,23 @@ class MemoryPostTest {
         MemoryPost post = draft();
         post.toggleLike("member-2");
 
-        post.submitElderReply(ReplyType.SHORT_TEXT, "반가워");
+        post.submitElderReply(ReplyType.VOICE, "반가워요");
 
         assertThat(post.hasElderReply()).isTrue();
         assertThat(post.getPopularityScore()).isEqualTo(4);
-        assertThatThrownBy(() -> post.submitElderReply(ReplyType.IMAGE, "image-key"))
+        assertThatThrownBy(() -> post.submitElderReply(ReplyType.EMOJI, "❤️"))
                 .isInstanceOf(AlreadyRepliedException.class);
     }
 
     @Test
-    @DisplayName("답변 유형별 글자 수와 빈 내용을 검증한다")
+    @DisplayName("답변 유형별 내용을 검증한다: 빈 음성·초과 음성·미지원 이모지")
     void elderReply_validatesContent() {
-        assertThatThrownBy(() -> ElderReply.of(ReplyType.SHORT_TEXT, " "))
+        assertThatThrownBy(() -> ElderReply.of(ReplyType.VOICE, " "))
                 .isInstanceOf(EmptyReplyContentException.class);
-        assertThatThrownBy(() -> ElderReply.of(ReplyType.SHORT_TEXT, "가".repeat(101)))
+        assertThatThrownBy(() -> ElderReply.of(ReplyType.VOICE, "가".repeat(301)))
                 .isInstanceOf(ReplyContentTooLongException.class);
-        assertThatThrownBy(() -> ElderReply.of(ReplyType.POEM, "가".repeat(201)))
-                .isInstanceOf(ReplyContentTooLongException.class);
+        assertThatThrownBy(() -> ElderReply.of(ReplyType.EMOJI, "🐶"))
+                .isInstanceOf(InvalidHeartEmojiException.class);
     }
 
     @Test

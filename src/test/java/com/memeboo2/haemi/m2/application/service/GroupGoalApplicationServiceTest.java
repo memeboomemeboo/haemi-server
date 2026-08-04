@@ -94,7 +94,7 @@ class GroupGoalApplicationServiceTest {
         loved.toggleLike("m2");
         loved.toggleLike("m3");
         MemoryPost replied = publishedPost("member-2", "김철수", "아들", "어르신 답변 있는 추억");
-        replied.submitElderReply(ReplyType.SHORT_TEXT, "고맙다");
+        replied.submitElderReply(ReplyType.VOICE, "고맙다");
         replied.toggleLike("m4");
 
         when(postRepository.findPublishedByAlbumIdAndPeriod(eq(albumId), any(), any()))
