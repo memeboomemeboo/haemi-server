@@ -64,7 +64,9 @@ haemi:
       api-key: ${GEMINI_API_KEY:}
       model: ${GEMINI_MODEL:gemini-3.6-flash}
   notification:
-    elder-daily-limit: 5
+    elder-daily-limit: 3
+    elder-quiet-hours-start: 21
+    elder-quiet-hours-end: 8
   jwt:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M

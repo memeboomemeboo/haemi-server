@@ -7,6 +7,9 @@ import com.memeboo2.haemi.m2.application.dto.FeedResult;
 import com.memeboo2.haemi.m2.application.dto.MemoryPostResult;
 import com.memeboo2.haemi.m2.application.query.GeneratePoemDraftQuery;
 import com.memeboo2.haemi.m2.application.query.GetFeedQuery;
+import com.memeboo2.haemi.m2.domain.model.notification.ElderNotificationPolicy;
+import com.memeboo2.haemi.m2.domain.model.notification.NotificationDecision;
+import com.memeboo2.haemi.m2.domain.model.notification.QuietHours;
 import com.memeboo2.haemi.m2.domain.model.post.*;
 import com.memeboo2.haemi.m2.domain.port.AiPoemGeneratorPort;
 import com.memeboo2.haemi.m2.domain.port.ContentFilterPort;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -36,8 +40,20 @@ public class MemoryPostApplicationService {
     private final SttPort sttPort;
     private final NotificationPort notificationPort;
 
-    @Value("${haemi.notification.elder-daily-limit:5}")
+    // F2-01: 어르신 알림 정책 — 일일 한도(기본 3회) + 야간 차단(기본 21시~08시)
+    @Value("${haemi.notification.elder-daily-limit:3}")
     private int elderDailyLimit;
+
+    @Value("${haemi.notification.elder-quiet-hours-start:21}")
+    private int quietHoursStart;
+
+    @Value("${haemi.notification.elder-quiet-hours-end:8}")
+    private int quietHoursEnd;
+
+    private ElderNotificationPolicy notificationPolicy() {
+        return new ElderNotificationPolicy(
+                elderDailyLimit, new QuietHours(quietHoursStart, quietHoursEnd));
+    }
 
     // F2-01: 추억글 작성 (임시저장 or 즉시게시)
     @Transactional
@@ -105,16 +121,28 @@ public class MemoryPostApplicationService {
         return MemoryPostResult.from(post);
     }
 
-    // F2-02: 어르신 알림 수신 처리 (이벤트 리스너에서 호출)
+    // F2-01: 어르신 추억 알림 수신 처리 (이벤트 리스너에서 호출)
+    // 일일 3회 한도 + 야간 21:00~08:00 차단 + 발송 직전 상태 검증.
+    // 사별·입원 상태 차단(EX-F201-05)은 어르신 상태 머신(#36) 의존이라 여기서 다루지 않는다(#50 이월).
     @Transactional
     public void handleElderNotification(String postId, UUID albumId, Set<String> elderMemberIds) {
-        int todayCount = postRepository.countTodayNotificationsSentToElder(albumId);
-        if (todayCount >= elderDailyLimit) {
-            log.info("일일 알림 한도 초과, 저녁 요약 큐로 이동: albumId={}", albumId);
-            // 실제로는 저녁 요약 큐에 추가
+        // 발송 직전 상태 검증: 글이 존재하고 게시 상태여야 한다.
+        MemoryPost post = postRepository.findById(MemoryPostId.of(postId)).orElse(null);
+        if (post == null || post.getStatus() != PostStatus.PUBLISHED) {
+            log.info("발송 직전 상태 검증 실패로 알림 생략: postId={}, status={}",
+                    postId, post != null ? post.getStatus() : "NOT_FOUND");
             return;
         }
-        MemoryPost post = loadPostOrThrow(postId);
+
+        int todayCount = postRepository.countTodayNotificationsSentToElder(albumId);
+        NotificationDecision decision = notificationPolicy().decide(todayCount, LocalTime.now());
+        if (decision.blocked()) {
+            log.info("어르신 알림 차단({}) → 저녁 요약으로 이월: albumId={}, postId={}",
+                    decision.reason(), albumId, postId);
+            // 차단분은 EveningNotificationScheduler의 저녁 요약으로 묶여 전달된다.
+            return;
+        }
+
         String preview = buildPreview(post);
         String title   = post.getAuthorInfo().getMemberName() + "("
                 + post.getAuthorInfo().getRelation() + ")님의 추억글";
