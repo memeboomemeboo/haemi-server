@@ -71,6 +71,11 @@ haemi:
     # 배치 순서: 08:00 콘텐츠 → 08:45 선다운로드 → 09:00 알림
     cron: "0 45 8 * * *"
     time-zone: Asia/Seoul
+  offline:
+    # 오프라인 결과 로컬 큐 보관 정책
+    retention-days: 7
+    cleanup-cron: "0 0 4 * * *"
+    time-zone: Asia/Seoul
   jwt:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M
