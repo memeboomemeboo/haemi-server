@@ -35,7 +35,7 @@ class DifficultyPolicyTest {
                 28.0,
                 0.85,
                 0.35,
-                EnumSet.of(QuestionType.PERSON_RECALL, QuestionType.WORD_ASSOCIATION),
+                EnumSet.of(QuestionType.PERSON_RECALL, QuestionType.PLACE_MATCH),
                 "expert@haemi.kr",
                 reviewedDate
         );
@@ -55,7 +55,7 @@ class DifficultyPolicyTest {
                 25.0,
                 0.3,
                 0.4,
-                Set.of(QuestionType.WORD_ASSOCIATION, QuestionType.PERSON_RECALL),
+                Set.of(QuestionType.PLACE_MATCH, QuestionType.PERSON_RECALL),
                 "expert",
                 LocalDate.now()
         )).isInstanceOf(IllegalArgumentException.class);
@@ -64,7 +64,7 @@ class DifficultyPolicyTest {
                 25.0,
                 0.8,
                 0.4,
-                Set.of(QuestionType.WORD_ASSOCIATION),
+                Set.of(QuestionType.PERSON_RECALL),
                 "expert",
                 LocalDate.now()
         )).isInstanceOf(IllegalArgumentException.class);

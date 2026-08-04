@@ -28,30 +28,23 @@ public class DifficultyProfile {
     @Column(name = "current_level", nullable = false)
     private int currentLevel;
 
-    @Column(name = "consecutive_correct", nullable = false)
-    private int consecutiveCorrect;
+    @Column(name = "consecutive_responded", nullable = false)
+    private int consecutiveResponded;
 
-    @Column(name = "consecutive_wrong", nullable = false)
-    private int consecutiveWrong;
+    @Column(name = "consecutive_no_response", nullable = false)
+    private int consecutiveNoResponse;
 
     @Column(name = "last_avg_response_seconds")
     private double lastAverageResponseSeconds;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
-            name = "difficulty_profile_accuracy_history",
+            name = "difficulty_profile_response_history",
             joinColumns = @JoinColumn(name = "profile_id")
     )
     @OrderColumn(name = "history_order")
-    @Column(name = "accuracy_rate", nullable = false)
-    private List<Double> recentAccuracyRates = new ArrayList<>();
-
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "difficulty_profile_wrong_patterns",
-            joinColumns = @JoinColumn(name = "profile_id")
-    )
-    private List<WrongAnswerPattern> wrongAnswerPatterns = new ArrayList<>();
+    @Column(name = "response_rate", nullable = false)
+    private List<Double> recentResponseRates = new ArrayList<>();
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
@@ -61,14 +54,14 @@ public class DifficultyProfile {
         profile.id = UUID.randomUUID();
         profile.elderId = elderId;
         profile.currentLevel = 2;
-        profile.consecutiveCorrect = 0;
-        profile.consecutiveWrong = 0;
+        profile.consecutiveResponded = 0;
+        profile.consecutiveNoResponse = 0;
         profile.updatedAt = LocalDateTime.now();
         return profile;
     }
 
     public DifficultyAdjustment applySession(List<QuestionPerformance> performances,
-                                             double accuracyRate,
+                                             double responseRate,
                                              double averageResponseSeconds,
                                              DifficultyPolicy policy) {
         int previousLevel = currentLevel;
@@ -76,36 +69,29 @@ public class DifficultyProfile {
             return adjustment(previousLevel, false);
         }
 
-        Double previousAccuracy = recentAccuracyRates.isEmpty()
+        Double previousResponseRate = recentResponseRates.isEmpty()
                 ? null
-                : recentAccuracyRates.getLast();
-        appendAccuracy(accuracyRate);
-        boolean extremeScore = previousAccuracy != null
-                && Math.abs(clampRate(accuracyRate) - previousAccuracy) >= EXTREME_SCORE_GAP;
+                : recentResponseRates.getLast();
+        appendResponseRate(responseRate);
+        boolean extremeScore = previousResponseRate != null
+                && Math.abs(clampRate(responseRate) - previousResponseRate) >= EXTREME_SCORE_GAP;
 
         for (QuestionPerformance performance : performances) {
-            if (performance.correct() && !performance.timeout()) {
-                consecutiveCorrect++;
-                consecutiveWrong = 0;
-                findPattern(performance.patternKey())
-                        .ifPresent(pattern -> pattern.reset(performance.questionId()));
+            if (performance.responded() && !performance.timeout()) {
+                consecutiveResponded++;
+                consecutiveNoResponse = 0;
             } else {
-                consecutiveWrong++;
-                consecutiveCorrect = 0;
-                findPattern(performance.patternKey())
-                        .ifPresentOrElse(
-                                pattern -> pattern.recordFailure(performance.questionId()),
-                                () -> wrongAnswerPatterns.add(WrongAnswerPattern.firstFailure(performance))
-                        );
+                consecutiveNoResponse++;
+                consecutiveResponded = 0;
             }
         }
         this.lastAverageResponseSeconds = Math.max(averageResponseSeconds, 0.0);
 
         boolean timeout = performances.stream().anyMatch(QuestionPerformance::timeout);
-        boolean enoughHistoryForOutlier = recentAccuracyRates.size() == MOVING_AVERAGE_WINDOW;
+        boolean enoughHistoryForOutlier = recentResponseRates.size() == MOVING_AVERAGE_WINDOW;
         double movingAverage = getThreeSessionMovingAverage();
-        boolean decreaseSignal = consecutiveWrong >= 3;
-        boolean increaseSignal = consecutiveCorrect >= 3
+        boolean decreaseSignal = consecutiveNoResponse >= 3;
+        boolean increaseSignal = consecutiveResponded >= 3
                 && lastAverageResponseSeconds <= policy.getMaxAverageResponseSeconds();
 
         if (extremeScore && !timeout) {
@@ -132,61 +118,40 @@ public class DifficultyProfile {
     }
 
     public List<QuestionType> recommendQuestionTypes(DifficultyPolicy policy) {
-        Set<QuestionType> recommended = new LinkedHashSet<>();
-        wrongAnswerPatterns.stream()
-                .filter(WrongAnswerPattern::isRepeated)
-                .map(WrongAnswerPattern::getQuestionType)
-                .filter(policy.getQuestionTypes()::contains)
-                .forEach(recommended::add);
-        recommended.addAll(policy.getQuestionTypes());
-        return List.copyOf(recommended);
+        return List.copyOf(policy.getQuestionTypes());
     }
 
     public double getThreeSessionMovingAverage() {
-        return recentAccuracyRates.stream()
+        return recentResponseRates.stream()
                 .mapToDouble(Double::doubleValue)
                 .average()
                 .orElse(0.0);
     }
 
-    public List<Double> getRecentAccuracyRates() {
-        return Collections.unmodifiableList(recentAccuracyRates);
+    public List<Double> getRecentResponseRates() {
+        return Collections.unmodifiableList(recentResponseRates);
     }
 
-    public List<WrongAnswerPattern> getWrongAnswerPatterns() {
-        return Collections.unmodifiableList(wrongAnswerPatterns);
-    }
-
-    private void appendAccuracy(double accuracyRate) {
-        recentAccuracyRates.add(clampRate(accuracyRate));
-        if (recentAccuracyRates.size() > MOVING_AVERAGE_WINDOW) {
-            recentAccuracyRates.removeFirst();
+    private void appendResponseRate(double responseRate) {
+        recentResponseRates.add(clampRate(responseRate));
+        if (recentResponseRates.size() > MOVING_AVERAGE_WINDOW) {
+            recentResponseRates.removeFirst();
         }
     }
 
-    private Optional<WrongAnswerPattern> findPattern(String patternKey) {
-        return wrongAnswerPatterns.stream()
-                .filter(pattern -> pattern.getPatternKey().equals(patternKey))
-                .findFirst();
-    }
-
     private DifficultyAdjustment adjustment(int previousLevel, boolean extremeScore) {
-        List<String> repeatedWrongQuestionIds = wrongAnswerPatterns.stream()
-                .filter(WrongAnswerPattern::isRepeated)
-                .map(WrongAnswerPattern::getLastQuestionId)
-                .toList();
         return new DifficultyAdjustment(
                 previousLevel,
                 currentLevel,
                 getThreeSessionMovingAverage(),
                 extremeScore,
-                repeatedWrongQuestionIds
+                List.of()
         );
     }
 
     private void resetStreaks() {
-        consecutiveWrong = 0;
-        consecutiveCorrect = 0;
+        consecutiveNoResponse = 0;
+        consecutiveResponded = 0;
     }
 
     private static double clampRate(double rate) {

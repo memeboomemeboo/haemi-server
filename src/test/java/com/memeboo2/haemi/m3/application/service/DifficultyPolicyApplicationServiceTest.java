@@ -50,7 +50,7 @@ class DifficultyPolicyApplicationServiceTest {
                 27.0,
                 0.85,
                 0.35,
-                EnumSet.of(QuestionType.PERSON_RECALL, QuestionType.WORD_ASSOCIATION),
+                EnumSet.of(QuestionType.PERSON_RECALL, QuestionType.PLACE_MATCH),
                 "expert@haemi.kr",
                 LocalDate.of(2026, 7, 6)
         ));
