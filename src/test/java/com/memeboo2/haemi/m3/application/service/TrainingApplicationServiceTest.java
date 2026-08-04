@@ -8,6 +8,7 @@ import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.AnswerTrainingQuestionCommand;
 import com.memeboo2.haemi.m3.application.command.RequestGrandchildChanceCommand;
 import com.memeboo2.haemi.m3.application.command.ProvideHintCommand;
+import com.memeboo2.haemi.m3.application.command.RecordNoResponseCommand;
 import com.memeboo2.haemi.m3.application.command.StartTrainingSessionCommand;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
 import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
@@ -283,6 +284,24 @@ class TrainingApplicationServiceTest {
                     assertThat(changed.currentLevel()).isEqualTo(3);
                     assertThat(changed.elderId()).isEqualTo("elder-profile-1");
                 });
+    }
+
+    @Test
+    @DisplayName("무응답 진행 서비스는 세션을 저장하고 회상 타이밍 기본값을 노출한다")
+    void recordNoResponse_savesAndExposesRecallTiming() {
+        CognitiveTrainingSession session = session();
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any(CognitiveTrainingSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.recordNoResponse(
+                new RecordNoResponseCommand(session.getId().toString(), "q1"));
+
+        assertThat(result.currentQuestion().questionId()).isEqualTo("q2");
+        assertThat(result.recallTiming().hintDelaySeconds()).isEqualTo(4);
+        assertThat(result.recallTiming().autoPlayDelaySeconds()).isEqualTo(7);
+        assertThat(result.recallTiming().noResponseAllowanceSeconds()).isEqualTo(60);
+        verify(sessionRepository).save(session);
     }
 
     private void prepareStart(Album album) {

@@ -25,6 +25,11 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     private static final int MAX_CHANCE_PER_SESSION = 2;
     private static final int GRANDCHILD_CHANCE_RESPONSE_LIMIT_MINUTES = 30;
 
+    // F3-01 회상 세션 타이밍 (클라이언트 재생/힌트 노출 기준)
+    public static final int HINT_DELAY_SECONDS = 4;
+    public static final int AUTO_PLAY_DELAY_SECONDS = 7;
+    public static final int NO_RESPONSE_ALLOWANCE_SECONDS = 60;
+
     @Id
     @Column(columnDefinition = "uuid")
     private UUID id;
@@ -124,6 +129,25 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         attempts.add(attempt);
         currentQuestionIndex++;
 
+        if (currentQuestionIndex >= questions.size()) {
+            complete();
+        }
+        return attempt;
+    }
+
+    // F3-01: 60초 무응답 허용 — 발화 없이 다음 사진으로 진행 (손주 찬스 게이팅과 무관)
+    public QuestionAttempt recordNoResponse(String questionId) {
+        if (status == TrainingSessionStatus.COMPLETED) {
+            throw new TrainingSessionAlreadyCompletedException();
+        }
+        expireGrandchildChanceIfNeeded(LocalDateTime.now());
+        TrainingQuestion question = currentQuestion()
+                .filter(q -> q.getQuestionId().equals(questionId))
+                .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
+        QuestionAttempt attempt = QuestionAttempt.of(
+                question.getQuestionId(), null, false, NO_RESPONSE_ALLOWANCE_SECONDS);
+        attempts.add(attempt);
+        currentQuestionIndex++;
         if (currentQuestionIndex >= questions.size()) {
             complete();
         }

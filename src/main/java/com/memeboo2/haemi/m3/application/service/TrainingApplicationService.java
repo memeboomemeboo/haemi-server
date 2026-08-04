@@ -128,6 +128,18 @@ public class TrainingApplicationService {
         return toResult(session);
     }
 
+    // F3-01: 60초 무응답 허용 — 발화 없이 다음 사진으로 진행
+    @Transactional
+    public TrainingSessionResult recordNoResponse(RecordNoResponseCommand command) {
+        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        session.recordNoResponse(command.questionId());
+        if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
+            adjustDifficulty(session);
+        }
+        sessionRepository.save(session);
+        return toResult(session);
+    }
+
     @Transactional
     public TrainingSessionResult passQuestion(PassTrainingQuestionCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());

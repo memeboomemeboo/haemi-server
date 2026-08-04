@@ -22,6 +22,7 @@ public record TrainingSessionResult(
         double responseRate,
         double averageResponseSeconds,
         SpeechGuideResult speechGuide,
+        RecallTiming recallTiming,
         String lastHintResponder,
         String lastHintText,
         GrandchildChanceStatus lastChanceStatus,
@@ -55,6 +56,20 @@ public record TrainingSessionResult(
                     speech.locale(),
                     speech.speechRate(),
                     true
+            );
+        }
+    }
+
+    public record RecallTiming(
+            int hintDelaySeconds,
+            int autoPlayDelaySeconds,
+            int noResponseAllowanceSeconds
+    ) {
+        public static RecallTiming defaults() {
+            return new RecallTiming(
+                    CognitiveTrainingSession.HINT_DELAY_SECONDS,
+                    CognitiveTrainingSession.AUTO_PLAY_DELAY_SECONDS,
+                    CognitiveTrainingSession.NO_RESPONSE_ALLOWANCE_SECONDS
             );
         }
     }
@@ -98,6 +113,7 @@ public record TrainingSessionResult(
                 session.getResponseRate(),
                 session.getAverageResponseSeconds(),
                 SpeechGuideResult.from(speech),
+                RecallTiming.defaults(),
                 session.getLastHintResponder(),
                 session.getLastHintText(),
                 session.getLastChanceStatus(),

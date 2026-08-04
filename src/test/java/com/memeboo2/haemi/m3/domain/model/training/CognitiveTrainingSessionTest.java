@@ -306,6 +306,40 @@ class CognitiveTrainingSessionTest {
                 .containsExactlyInAnyOrderElementsOf(policy.getQuestionTypes());
     }
 
+    @Test
+    @DisplayName("60초 무응답 허용: 발화 없이 다음 문제로 진행하고 무응답으로 기록한다")
+    void recordNoResponse_advancesWithoutResponse() {
+        CognitiveTrainingSession session = session(2);
+
+        QuestionAttempt attempt = session.recordNoResponse("q1");
+
+        assertThat(attempt.isResponded()).isFalse();
+        assertThat(attempt.isTimeout()).isFalse();
+        assertThat(attempt.getResponseSeconds())
+                .isEqualTo(CognitiveTrainingSession.NO_RESPONSE_ALLOWANCE_SECONDS);
+        assertThat(session.getCurrentQuestionIndex()).isEqualTo(1);
+        assertThat(session.getStatus()).isEqualTo(TrainingSessionStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("무응답 진행은 현재 문제에만 허용하며 마지막 문제면 세션을 완료한다")
+    void recordNoResponse_validatesCurrentAndCompletes() {
+        CognitiveTrainingSession session = session(2);
+
+        assertThatThrownBy(() -> session.recordNoResponse("q2"))
+                .isInstanceOf(TrainingQuestionNotFoundException.class);
+
+        session.recordNoResponse("q1");
+        session.answer("q2", "이야기", 10);
+        session.recordNoResponse("q3");
+
+        assertThat(session.getStatus()).isEqualTo(TrainingSessionStatus.COMPLETED);
+        assertThat(session.getRespondedCount()).isEqualTo(1);
+        assertThat(session.getNoResponseCount()).isEqualTo(2);
+        assertThatThrownBy(() -> session.recordNoResponse("q3"))
+                .isInstanceOf(TrainingSessionAlreadyCompletedException.class);
+    }
+
     private CognitiveTrainingSession session() {
         return CognitiveTrainingSession.start(
                 "elder-1",

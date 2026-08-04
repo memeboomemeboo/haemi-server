@@ -49,8 +49,8 @@ public class TrainingController {
     }
 
     @Operation(
-            summary = "문제 답변 제출 [F3-01/F3-02]",
-            description = "정오답과 반응 시간을 기록합니다. 세션 완료 시 난이도 프로필을 자동 조정합니다."
+            summary = "발화 응답 제출 [F3-01/F3-02]",
+            description = "어르신의 발화(음성 응답)와 반응 시간을 기록합니다. 세션 완료 시 난이도 프로필을 자동 조정합니다."
     )
     @PostMapping("/{sessionId}/answers")
     public ApiResponse<AnswerResult> answer(
@@ -58,6 +58,19 @@ public class TrainingController {
             @Valid @RequestBody AnswerTrainingQuestionRequest request) {
         return ApiResponse.ok(trainingService.answerQuestion(new AnswerTrainingQuestionCommand(
                 sessionId, request.questionId(), request.submittedAnswer(), request.responseSeconds())));
+    }
+
+    @Operation(
+            summary = "무응답 진행 [F3-01]",
+            description = "60초 무응답 허용 후 발화 없이 다음 사진으로 진행합니다. 손주 찬스 상태와 무관합니다."
+    )
+    @PostMapping("/{sessionId}/no-response")
+    public ApiResponse<TrainingSessionResult> recordNoResponse(
+            @PathVariable String sessionId,
+            @Valid @RequestBody RecordNoResponseRequest request) {
+        TrainingSessionResult result = trainingService.recordNoResponse(
+                new RecordNoResponseCommand(sessionId, request.questionId()));
+        return ApiResponse.ok(result, "다음 사진으로 넘어갑니다.");
     }
 
     @Operation(
