@@ -19,7 +19,7 @@ public class ElderReply {
     @Column(name = "reply_type")
     private ReplyType replyType;
 
-    // 시 내용(200자), 짧은 글(100자), 이미지 storageKey, 이모지 코드 등
+    // VOICE: STT 전사 텍스트(최대 300자), EMOJI: 마음 이모지 코드
     @Column(name = "reply_content", length = 300)
     private String content;
 
@@ -37,15 +37,17 @@ public class ElderReply {
         return new ElderReply(replyType, content, LocalDateTime.now());
     }
 
+    private static final int MAX_VOICE_LEN = 300;
+
     private static void validateContent(ReplyType type, String content) {
         if (content == null || content.isBlank()) {
             throw new EmptyReplyContentException();
         }
-        if (type == ReplyType.POEM && content.length() > 200) {
-            throw new ReplyContentTooLongException("시는 최대 200자까지 가능합니다.");
+        if (type == ReplyType.VOICE && content.length() > MAX_VOICE_LEN) {
+            throw new ReplyContentTooLongException("음성 답변은 최대 300자까지 가능합니다.");
         }
-        if (type == ReplyType.SHORT_TEXT && content.length() > 100) {
-            throw new ReplyContentTooLongException("짧은 글은 최대 100자까지 가능합니다.");
+        if (type == ReplyType.EMOJI && !HeartEmoji.isValidCode(content)) {
+            throw new InvalidHeartEmojiException(content);
         }
     }
 }
