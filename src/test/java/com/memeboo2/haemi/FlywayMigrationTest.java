@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FlywayMigrationTest {
 
     private static final String JDBC_URL = """
-            jdbc:h2:mem:flyway-migration;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+            jdbc:h2:mem:flyway-migration;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=MEMORY;DB_CLOSE_DELAY=-1
             """.trim();
 
     @Test
