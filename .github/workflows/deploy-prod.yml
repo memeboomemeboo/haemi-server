@@ -45,15 +45,40 @@ jobs:
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ELDER_HEALTH_ENCRYPTION_KEY: ${{ secrets.ELDER_HEALTH_ENCRYPTION_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.6-flash
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
+          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL
           command_timeout: 10m
           script: |
             set -eu
             cd ~/haemi
+
+            save_env() {
+              name="$1"
+              value="$2"
+              temporary_env="$(mktemp)"
+              if [ -f .env ]; then
+                grep -v "^${name}=" .env > "$temporary_env" || true
+              fi
+              printf '%s=%s\n' "$name" "$value" >> "$temporary_env"
+              chmod 600 "$temporary_env"
+              mv "$temporary_env" .env
+            }
+
+            test -n "$ELDER_HEALTH_ENCRYPTION_KEY" || {
+              echo "ELDER_HEALTH_ENCRYPTION_KEY GitHub Secret이 필요합니다." >&2
+              exit 1
+            }
+            save_env ELDER_HEALTH_ENCRYPTION_KEY "$ELDER_HEALTH_ENCRYPTION_KEY"
+            save_env GEMINI_API_KEY "$GEMINI_API_KEY"
+            save_env GEMINI_MODEL "$GEMINI_MODEL"
 
             if grep -q '^IMAGE_TAG=' .env; then
               sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env
