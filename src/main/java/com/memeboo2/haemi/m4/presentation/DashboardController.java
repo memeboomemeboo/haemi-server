@@ -2,7 +2,7 @@ package com.memeboo2.haemi.m4.presentation;
 
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
-import com.memeboo2.haemi.m4.application.command.RecordCognitiveMetricCommand;
+import com.memeboo2.haemi.m4.application.command.RecordReminiscenceMetricCommand;
 import com.memeboo2.haemi.m4.application.command.UpdateAlertRecipientsCommand;
 import com.memeboo2.haemi.m4.application.dto.*;
 import com.memeboo2.haemi.m4.application.query.GetCognitiveMetricQuery;
@@ -23,39 +23,41 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.util.List;
 
-@Tag(name = "M4-Dashboard", description = "F4-01 인지 리포트 / F4-02 조기 알림 / F4-03 기관 관리자 포털")
+@Tag(name = "M4-Dashboard", description = "F4-01 회상 리포트 / F4-02 활동 변화 안내 / F4-03 기관 관리자 포털")
 @RestController
 @RequestMapping("/api/v1/cognitive-dashboard")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('FAMILY', 'INSTITUTION_ADMIN')")
 public class DashboardController {
 
     private final DashboardApplicationService dashboardService;
 
-    @Operation(summary = "인지 변화 일별 지표 기록 [F4-01]")
+    @Operation(summary = "회상 기록 일별 집계 [F4-01]", description = "발화 감지·사진 체류·힌트 반응과 가족 기록만 집계하며 음성 내용과 정오답은 저장하지 않습니다.")
     @PostMapping("/metrics")
-    public ApiResponse<CognitiveMetricResult> recordMetric(@RequestBody RecordCognitiveMetricCommand command) {
-        return ApiResponse.ok(dashboardService.recordMetric(command), "지표가 기록되었습니다.");
+    public ApiResponse<ReminiscenceMetricResult> recordMetric(@RequestBody RecordReminiscenceMetricCommand command) {
+        return ApiResponse.ok(dashboardService.recordReminiscenceMetric(command), "회상 기록이 집계되었습니다.");
     }
 
-    @Operation(summary = "인지 변화 지표 조회 [F4-01]")
+    @Operation(summary = "회상 기록 일별 조회 [F4-01]")
     @GetMapping("/metrics")
-    public ApiResponse<List<CognitiveMetricResult>> getMetrics(
+    public ApiResponse<List<ReminiscenceMetricResult>> getMetrics(
             @RequestParam String elderId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ApiResponse.ok(dashboardService.getMetrics(new GetCognitiveMetricQuery(elderId, from, to)));
+        return ApiResponse.ok(dashboardService.getReminiscenceMetrics(new GetCognitiveMetricQuery(elderId, from, to)));
     }
 
     @Operation(
-            summary = "주간·월간 인지 리포트 생성 [F4-01]",
-            description = "7일 이상 누적 데이터가 있을 때 리포트와 PDF 키를 생성합니다."
+            summary = "주간·월간 회상 리포트 생성 [F4-01]",
+            description = "7일 이상 누적된 회상 기록을 템플릿으로 정리합니다. 점수·정답률·예측은 포함하지 않습니다."
     )
     @PostMapping("/reports")
-    public ApiResponse<CognitiveReportResult> generateReport(
+    public ApiResponse<ReminiscenceReportResult> generateReport(
             @RequestParam String elderId,
             @RequestParam(required = false) String albumId,
             @RequestParam(defaultValue = "WEEKLY") ReportPeriod period,
@@ -64,13 +66,13 @@ public class DashboardController {
                 new GenerateCognitiveReportCommand(elderId, albumId, period, deliveryMethod)));
     }
 
-    @Operation(summary = "인지 리포트 열람 기록 [F4-01]")
+    @Operation(summary = "회상 리포트 열람 기록 [F4-01]")
     @PostMapping("/reports/{reportId}/viewed")
-    public ApiResponse<CognitiveReportResult> markReportViewed(@PathVariable String reportId) {
+    public ApiResponse<ReminiscenceReportResult> markReportViewed(@PathVariable String reportId) {
         return ApiResponse.ok(dashboardService.markReportViewed(reportId), "리포트 열람 시각이 기록되었습니다.");
     }
 
-    @Operation(summary = "인지 리포트 PDF 다운로드 [F4-01]")
+    @Operation(summary = "회상 리포트 PDF 다운로드 [F4-01]")
     @GetMapping("/reports/{reportId}/pdf")
     public ResponseEntity<Resource> downloadReportPdf(@PathVariable String reportId) {
         var report = dashboardService.getReport(reportId);
@@ -83,15 +85,15 @@ public class DashboardController {
     }
 
     @Operation(
-            summary = "인지 상태 변화 조기 알림 검사 [F4-02]",
-            description = "7일 미참여, 정답률 20% 이상 하락, 반응 시간 50% 이상 증가를 검사합니다."
+            summary = "활동 변화 안내 검사 [F4-02]",
+            description = "5일 미참여, 발화 감지·사진 체류·힌트 반응의 지속 변화를 확인합니다. 건강 상태를 판단하지 않습니다."
     )
     @PostMapping("/alerts/detect")
     public ApiResponse<List<CognitiveAlertResult>> detectAlerts(@RequestParam String elderId) {
         return ApiResponse.ok(dashboardService.detectEarlyAlerts(elderId));
     }
 
-    @Operation(summary = "인지 변화 알림 수신자 설정 [F4-02]")
+    @Operation(summary = "활동 변화 안내 수신자 설정 [F4-02]")
     @PutMapping("/alerts/recipients/{elderId}")
     public ApiResponse<AlertRecipientSettingResult> updateAlertRecipients(
             @PathVariable String elderId,
@@ -105,7 +107,7 @@ public class DashboardController {
                 )), "알림 수신자가 설정되었습니다.");
     }
 
-    @Operation(summary = "인지 변화 알림 수신자 조회 [F4-02]")
+    @Operation(summary = "활동 변화 안내 수신자 조회 [F4-02]")
     @GetMapping("/alerts/recipients/{elderId}")
     public ApiResponse<AlertRecipientSettingResult> getAlertRecipients(
             @PathVariable String elderId

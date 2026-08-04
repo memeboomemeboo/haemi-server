@@ -84,6 +84,28 @@ public class CognitiveReport {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "report_mode", nullable = false)
+    private ReportMode reportMode;
+
+    @Column(name = "days_together", nullable = false)
+    private int daysTogether;
+
+    @Column(name = "remembered_topics", length = 1000)
+    private String rememberedTopics;
+
+    @Column(name = "top_dwelled_photos", length = 1000)
+    private String topDwelledPhotos;
+
+    @Column(name = "voice_response_count", nullable = false)
+    private int voiceResponseCount;
+
+    @Column(name = "family_contribution_count", nullable = false)
+    private int familyContributionCount;
+
+    @Column(name = "activity_message", length = 1000)
+    private String activityMessage;
+
     public static CognitiveReport create(String elderId, UUID albumId, ReportPeriod period,
                                          LocalDate periodStart, LocalDate periodEnd,
                                          int participationCount, double averageAccuracyRate,
@@ -114,6 +136,29 @@ public class CognitiveReport {
         report.changeSummary = changeSummary;
         report.deliveryMethod = deliveryMethod;
         report.createdAt = LocalDateTime.now();
+        report.reportMode = ReportMode.STANDARD;
+        report.daysTogether = participationCount;
+        report.voiceResponseCount = 0;
+        report.familyContributionCount = memoryPostCount;
+        return report;
+    }
+
+    public static CognitiveReport createReminiscence(String elderId, UUID albumId, ReportPeriod period,
+                                                      LocalDate periodStart, LocalDate periodEnd, ReportMode reportMode,
+                                                      int daysTogether, List<String> rememberedTopics,
+                                                      List<String> topDwelledPhotos, int voiceResponseCount,
+                                                      int familyContributionCount, String activityMessage,
+                                                      String summary, ReportDeliveryMethod deliveryMethod) {
+        CognitiveReport report = create(elderId, albumId, period, periodStart, periodEnd,
+                daysTogether, 0.0, 0.0, familyContributionCount, voiceResponseCount,
+                null, 0.0, 0.0, List.of(), summary, deliveryMethod);
+        report.reportMode = reportMode;
+        report.daysTogether = Math.max(daysTogether, 0);
+        report.rememberedTopics = join(rememberedTopics);
+        report.topDwelledPhotos = join(topDwelledPhotos);
+        report.voiceResponseCount = Math.max(voiceResponseCount, 0);
+        report.familyContributionCount = Math.max(familyContributionCount, 0);
+        report.activityMessage = activityMessage;
         return report;
     }
 
@@ -132,5 +177,20 @@ public class CognitiveReport {
 
     public List<ReportTrendPoint> getAccuracyTrend() {
         return Collections.unmodifiableList(accuracyTrend);
+    }
+
+    public void changeToMemoryFocused() {
+        reportMode = ReportMode.MEMORY_FOCUSED;
+        activityMessage = null;
+    }
+
+    private static String join(List<String> values) {
+        return values == null ? null : values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .limit(3)
+                .reduce((left, right) -> left + "|" + right)
+                .orElse(null);
     }
 }

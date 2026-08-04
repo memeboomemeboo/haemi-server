@@ -1,7 +1,8 @@
 package com.memeboo2.haemi.m4.domain.model.dashboard;
 
 public enum AlertType {
-    NO_PARTICIPATION_7_DAYS,
-    ACCURACY_DROP,
-    RESPONSE_TIME_INCREASE
+    NO_REMINISCENCE_5_DAYS,
+    VOICE_ACTIVITY_DROP,
+    DWELL_TIME_DROP,
+    HINT_NO_RESPONSE_HIGH
 }
