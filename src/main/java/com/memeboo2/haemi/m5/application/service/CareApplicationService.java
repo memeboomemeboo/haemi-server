@@ -143,7 +143,7 @@ public class CareApplicationService {
     @Transactional
     public void processDueReminders(LocalDateTime now) {
         voiceAlarmRepository.findAllActive().forEach(alarm -> processVoiceAlarm(alarm, now));
-        walkRoutineRepository.findAllActive().forEach(routine -> processWalkRoutine(routine, now));
+        // F5-02 산책 알림은 보류(#47): 스케줄러에서 산책 루틴을 처리하지 않는다.
     }
 
     @Transactional(readOnly = true)
@@ -194,24 +194,6 @@ public class CareApplicationService {
                     "알람 무응답",
                     "어르신이 알람을 10분 동안 확인하지 않았습니다.");
         }
-    }
-
-    private void processWalkRoutine(WalkRoutine routine, LocalDateTime now) {
-        if (!routine.shouldRemind(now)) {
-            return;
-        }
-        WeatherCondition condition = weatherPort.currentCondition(routine.getElderId());
-        routine.markReminded(now);
-        walkRoutineRepository.save(routine);
-        if (condition == WeatherCondition.CLEAR) {
-            notificationPort.sendToMember(routine.getElderId(),
-                    "10분 산책 시간이에요",
-                    "가볍게 걸으며 오늘의 산책을 시작해 보세요.");
-            return;
-        }
-        notificationPort.sendToMember(routine.getElderId(),
-                "오늘은 실내 운동을 해봐요",
-                "날씨가 좋지 않아 안전한 실내 활동을 안내합니다.");
     }
 
     private Set<String> familyMemberIds(String groupId) {
