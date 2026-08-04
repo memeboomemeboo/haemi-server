@@ -302,6 +302,23 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
+    @DisplayName("사전 적립형 손주 한마디: 대기 없이 즉시 제공하고 찬스를 소진한다")
+    void serveAccruedHint_appliesImmediatelyAndConsumesChance() {
+        CognitiveTrainingSession session = session();
+
+        int remaining = session.serveAccruedHint("그때 바닷가 기억나세요?", "지민");
+
+        assertThat(remaining).isEqualTo(1);
+        assertThat(session.getLastChanceStatus()).isEqualTo(GrandchildChanceStatus.ANSWERED);
+        assertThat(session.getLastHintText()).isEqualTo("그때 바닷가 기억나세요?");
+        assertThat(session.getLastHintResponder()).isEqualTo("지민");
+
+        session.serveAccruedHint("두 번째 힌트", "지호");
+        assertThatThrownBy(() -> session.serveAccruedHint("세 번째 힌트", "지수"))
+                .isInstanceOf(GrandchildChanceExhaustedException.class);
+    }
+
+    @Test
     @DisplayName("60초 무응답 허용: 발화 없이 다음 문제로 진행하고 무응답으로 기록한다")
     void recordNoResponse_advancesWithoutResponse() {
         CognitiveTrainingSession session = session(2);
