@@ -54,10 +54,11 @@ public class OpenApiConfig {
                         new Tag().name("M1-Reminiscence").description("F1-05 AI 회상 콘텐츠 자동 생성"),
                         new Tag().name("M2-Post").description("F2-01 가족 추억글 작성·수정·삭제 / F2-02 어르신 답변 / F2-03 AI 시 초안"),
                         new Tag().name("M2-Feed").description("F2-04 추억글 피드 조회 (최신·인기·기간 정렬)"),
-                        new Tag().name("M2-Ranking").description("F2-05 가족 인기 랭킹 & 뱃지 시스템"),
-                        new Tag().name("M3-Training").description("F3-01 일일 인지 훈련 / F3-02 난이도 적응 / F3-03 손주 찬스"),
+                        new Tag().name("M2-GroupGoal").description("F1-03-A 그룹 협력 목표 (개인 순위 없는 공동 목표·하이라이트 카드)"),
+                        new Tag().name("M3-Training").description("F3-01 회상 세션 / F3-02 발화 기반 개인화 / F3-03 손주 한마디"),
+                        new Tag().name("M3-Hint").description("F3-03 손주 한마디 사전 적립"),
                         new Tag().name("M4-Dashboard").description("F4-01 인지 리포트 / F4-02 조기 알림 / F4-03 기관 관리자 포털"),
-                        new Tag().name("M5-Care").description("F5-01 손주 목소리 알람 / F5-02 하루 10분 산책 유도")
+                        new Tag().name("M5-Care").description("F5-01 손주 목소리 알람 (F5-02 산책 유도는 보류)")
                 ))
                 .components(new Components()
                         .addSecuritySchemes("Bearer Token", new SecurityScheme()

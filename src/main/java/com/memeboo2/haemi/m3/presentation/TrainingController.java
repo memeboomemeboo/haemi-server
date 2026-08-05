@@ -4,6 +4,7 @@ import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m3.application.command.*;
 import com.memeboo2.haemi.m3.application.dto.AnswerResult;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
+import com.memeboo2.haemi.m3.application.dto.HintServeResult;
 import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
 import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.application.service.TrainingApplicationService;
@@ -49,8 +50,8 @@ public class TrainingController {
     }
 
     @Operation(
-            summary = "문제 답변 제출 [F3-01/F3-02]",
-            description = "정오답과 반응 시간을 기록합니다. 세션 완료 시 난이도 프로필을 자동 조정합니다."
+            summary = "발화 응답 제출 [F3-01/F3-02]",
+            description = "어르신의 발화(음성 응답)와 반응 시간을 기록합니다. 세션 완료 시 난이도 프로필을 자동 조정합니다."
     )
     @PostMapping("/{sessionId}/answers")
     public ApiResponse<AnswerResult> answer(
@@ -61,9 +62,38 @@ public class TrainingController {
     }
 
     @Operation(
-            summary = "손주 찬스 요청 [F3-03]",
-            description = "세션당 최대 2회까지 가족에게 힌트를 요청합니다."
+            summary = "무응답 진행 [F3-01]",
+            description = "60초 무응답 허용 후 발화 없이 다음 사진으로 진행합니다. 손주 찬스 상태와 무관합니다."
     )
+    @PostMapping("/{sessionId}/no-response")
+    public ApiResponse<TrainingSessionResult> recordNoResponse(
+            @PathVariable String sessionId,
+            @Valid @RequestBody RecordNoResponseRequest request) {
+        TrainingSessionResult result = trainingService.recordNoResponse(
+                new RecordNoResponseCommand(sessionId, request.questionId()));
+        return ApiResponse.ok(result, "다음 사진으로 넘어갑니다.");
+    }
+
+    @Operation(
+            summary = "손주 한마디 즉시 제공 [F3-03]",
+            description = """
+                    사전 적립된 손주 한마디를 대기 없이 즉시 제공합니다.
+                    L1(사진 특정) → L2(어르신 일반) → L3(시스템 기본) 순으로 폴백하며, 항상 하나는 제공됩니다.
+                    세션당 최대 2회까지 사용할 수 있습니다.
+                    """
+    )
+    @PostMapping("/{sessionId}/hints/served")
+    public ApiResponse<HintServeResult> serveHint(@PathVariable String sessionId) {
+        HintServeResult result = trainingService.serveGrandchildHint(
+                new ServeGrandchildHintCommand(sessionId));
+        return ApiResponse.ok(result, "손주 한마디를 들려드립니다.");
+    }
+
+    @Operation(
+            summary = "손주 찬스 요청 [F3-03] (deprecated)",
+            description = "실시간 소진형 요청. 사전 적립형(POST /{sessionId}/hints/served)으로 대체 예정입니다."
+    )
+    @Deprecated
     @PostMapping("/{sessionId}/chances")
     public ApiResponse<ChanceResult> requestChance(
             @PathVariable String sessionId,

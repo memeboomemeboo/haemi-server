@@ -13,7 +13,6 @@ public record TrainingSessionResult(
         LocalDate sessionDate,
         StartMode startMode,
         TrainingSessionStatus status,
-        int difficultyLevel,
         int currentQuestionIndex,
         int remainingChanceCount,
         QuestionResult currentQuestion,
@@ -22,6 +21,7 @@ public record TrainingSessionResult(
         double responseRate,
         double averageResponseSeconds,
         SpeechGuideResult speechGuide,
+        RecallTiming recallTiming,
         String lastHintResponder,
         String lastHintText,
         GrandchildChanceStatus lastChanceStatus,
@@ -33,11 +33,11 @@ public record TrainingSessionResult(
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
+    // F3-02: 난이도 레벨은 어르신·가족에게 노출하지 않는다 (EX-F302-07)
     public record QuestionResult(
             String questionId,
             QuestionType type,
             String prompt,
-            int difficultyLevel,
             String photoId
     ) {}
 
@@ -59,6 +59,20 @@ public record TrainingSessionResult(
         }
     }
 
+    public record RecallTiming(
+            int hintDelaySeconds,
+            int autoPlayDelaySeconds,
+            int noResponseAllowanceSeconds
+    ) {
+        public static RecallTiming defaults() {
+            return new RecallTiming(
+                    CognitiveTrainingSession.HINT_DELAY_SECONDS,
+                    CognitiveTrainingSession.AUTO_PLAY_DELAY_SECONDS,
+                    CognitiveTrainingSession.NO_RESPONSE_ALLOWANCE_SECONDS
+            );
+        }
+    }
+
     public record AttemptResult(
             String questionId,
             String submittedAnswer,
@@ -70,7 +84,7 @@ public record TrainingSessionResult(
     public static TrainingSessionResult from(CognitiveTrainingSession session, TrainingSpeech speech) {
         List<QuestionResult> questions = session.getQuestions().stream()
                 .map(q -> new QuestionResult(q.getQuestionId(), q.getType(),
-                        q.getPrompt(), q.getDifficultyLevel(),
+                        q.getPrompt(),
                         q.getPhotoId() == null ? null : q.getPhotoId().toString()))
                 .toList();
         List<AttemptResult> attempts = session.getAttempts().stream()
@@ -79,7 +93,7 @@ public record TrainingSessionResult(
                 .toList();
         QuestionResult current = session.currentQuestion()
                 .map(q -> new QuestionResult(q.getQuestionId(), q.getType(),
-                        q.getPrompt(), q.getDifficultyLevel(),
+                        q.getPrompt(),
                         q.getPhotoId() == null ? null : q.getPhotoId().toString()))
                 .orElse(null);
         return new TrainingSessionResult(
@@ -89,7 +103,6 @@ public record TrainingSessionResult(
                 session.getSessionDate(),
                 session.getStartMode(),
                 session.getStatus(),
-                session.getDifficultyLevel(),
                 session.getCurrentQuestionIndex(),
                 session.getRemainingChanceCount(),
                 current,
@@ -98,6 +111,7 @@ public record TrainingSessionResult(
                 session.getResponseRate(),
                 session.getAverageResponseSeconds(),
                 SpeechGuideResult.from(speech),
+                RecallTiming.defaults(),
                 session.getLastHintResponder(),
                 session.getLastHintText(),
                 session.getLastChanceStatus(),

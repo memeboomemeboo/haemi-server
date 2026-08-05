@@ -8,8 +8,7 @@ public record ReplyToPostCommand(
         String postId,
         String elderId,
         ReplyType replyType,
-        String textContent,             // POEM, SHORT_TEXT 일 때
-        InputStream voiceInputStream,   // STT 변환 원본 (선택)
-        String voiceContentType,
-        String imageKeyOrEmoji          // IMAGE 유형일 때
+        String heartEmojiCode,          // EMOJI 유형일 때 마음 이모지 코드
+        InputStream voiceInputStream,   // VOICE 유형일 때 STT 변환 원본
+        String voiceContentType
 ) {}

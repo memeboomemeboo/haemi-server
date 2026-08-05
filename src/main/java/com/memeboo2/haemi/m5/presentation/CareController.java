@@ -18,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 
-@Tag(name = "M5-Care", description = "F5-01 손주 목소리 알람 / F5-02 하루 10분 산책 유도")
+@Tag(name = "M5-Care", description = "F5-01 손주 목소리 알람 (F5-02 산책 유도는 보류)")
 @RestController
 @RequestMapping("/api/v1/care")
 @RequiredArgsConstructor
@@ -46,6 +46,24 @@ public class CareController {
         return ApiResponse.ok(result, "알람이 설정되었습니다.");
     }
 
+    @Operation(
+            summary = "목소리 알람 로테이션 음성 추가 [F5-01]",
+            description = "여러 가족의 음성을 추가하면 발송마다 순차적으로 로테이션됩니다."
+    )
+    @PostMapping(value = "/voice-alarms/{alarmId}/voices", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<VoiceAlarmResult> addAlarmVoice(
+            @PathVariable String alarmId,
+            @RequestPart("data") @Valid AddAlarmVoiceRequest request,
+            @Parameter(description = "가족 음성 녹음 파일")
+            @RequestPart("voice") MultipartFile voice) throws IOException {
+        VoiceAlarmResult result = careService.addAlarmVoice(new AddAlarmVoiceCommand(
+                alarmId, request.elderId(),
+                voice != null ? voice.getInputStream() : null,
+                voice != null ? voice.getOriginalFilename() : null,
+                voice != null ? voice.getContentType() : null));
+        return ApiResponse.ok(result, "로테이션 음성이 추가되었습니다.");
+    }
+
     @Operation(summary = "손주 목소리 알람 목록 조회 [F5-01]")
     @GetMapping("/voice-alarms")
     public ApiResponse<List<VoiceAlarmResult>> getVoiceAlarms(@RequestParam String elderId) {
@@ -61,34 +79,6 @@ public class CareController {
                 new AcknowledgeVoiceAlarmCommand(alarmId, elderId)), "확인되었습니다.");
     }
 
-    @Operation(summary = "산책 루틴 설정 [F5-02]")
-    @PostMapping("/walk-routines")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<WalkRoutineResult> createWalkRoutine(
-            @Valid @RequestBody CreateWalkRoutineRequest request) {
-        return ApiResponse.ok(careService.createWalkRoutine(new CreateWalkRoutineCommand(
-                request.elderId(), request.groupId(), request.morningTime(),
-                request.afternoonTime(), request.targetMinutes())), "산책 루틴이 설정되었습니다.");
-    }
-
-    @Operation(summary = "산책 시작 [F5-02]")
-    @PostMapping("/walk-routines/{routineId}/start")
-    public ApiResponse<WalkRecordResult> startWalk(@PathVariable String routineId) {
-        return ApiResponse.ok(careService.startWalk(new StartWalkCommand(routineId)));
-    }
-
-    @Operation(summary = "산책 완료 [F5-02]")
-    @PostMapping("/walk-records/{walkRecordId}/complete")
-    public ApiResponse<WalkRecordResult> completeWalk(
-            @PathVariable String walkRecordId,
-            @Valid @RequestBody CompleteWalkRequest request) {
-        return ApiResponse.ok(careService.completeWalk(new CompleteWalkCommand(
-                walkRecordId, request.durationMinutes(), request.stepCount())), "잘 하셨어요!");
-    }
-
-    @Operation(summary = "주간 산책 달성률 조회 [F5-02]")
-    @GetMapping("/walk-records/weekly-summary")
-    public ApiResponse<WeeklyWalkSummaryResult> getWeeklySummary(@RequestParam String elderId) {
-        return ApiResponse.ok(careService.getWeeklyWalkSummary(elderId));
-    }
+    // F5-02 산책(WalkRoutine) 기능 보류(#47): 도메인·서비스·테이블은 보존하되
+    // 외부 엔드포인트는 비활성화한다. 재개 시 산책 엔드포인트를 다시 노출하면 된다.
 }
