@@ -159,23 +159,20 @@ public class MemoryPostApplicationService {
     }
 
     // F2-03: 어르신 답변 — STT 변환 후 시/짧은 글
+    // F2-02: 어르신 답변 — 음성(STT) 또는 마음 이모지. 텍스트 직접 입력은 받지 않으며 즉시 전송된다.
     @Transactional
     public MemoryPostResult replyToPost(ReplyToPostCommand command) {
         MemoryPost post = loadPostOrThrow(command.postId());
 
-        String content = command.textContent();
-
-        // 음성 입력이 있으면 STT 변환
-        if (command.voiceInputStream() != null
-                && (command.replyType() == ReplyType.POEM
-                    || command.replyType() == ReplyType.SHORT_TEXT)) {
-            content = sttPort.transcribe(command.voiceInputStream(), command.voiceContentType());
-        }
-
-        // IMAGE 유형이면 storageKey 또는 이모지 코드를 content로
-        if (command.replyType() == ReplyType.IMAGE) {
-            content = command.imageKeyOrEmoji();
-        }
+        String content = switch (command.replyType()) {
+            case VOICE -> {
+                if (command.voiceInputStream() == null) {
+                    throw new EmptyReplyContentException();
+                }
+                yield sttPort.transcribe(command.voiceInputStream(), command.voiceContentType());
+            }
+            case EMOJI -> HeartEmoji.fromCode(command.heartEmojiCode()).getCode();
+        };
 
         post.submitElderReply(command.replyType(), content);
         postRepository.save(post);

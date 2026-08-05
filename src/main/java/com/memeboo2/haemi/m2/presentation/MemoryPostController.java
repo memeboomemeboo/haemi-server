@@ -113,15 +113,13 @@ public class MemoryPostController {
     }
 
     @Operation(
-            summary = "어르신 추억글 답변 [F2-03]",
+            summary = "어르신 추억글 답변 [F2-02]",
             description = """
-                    어르신이 받은 추억글에 시·이미지·짧은 글로 답변합니다.
-                    음성 파일을 첨부하면 STT 변환 후 텍스트로 저장됩니다.
+                    어르신이 받은 추억글에 음성 또는 마음 이모지로 답변합니다. 텍스트 직접 입력은 제공하지 않으며 즉시 전송됩니다.
 
                     **답변 유형:**
-                    - `POEM`: 시 (최대 200자)
-                    - `SHORT_TEXT`: 짧은 글 (최대 100자)
-                    - `IMAGE`: 이미지 storageKey 또는 이모지 코드
+                    - `VOICE`: 음성 파일 첨부 → STT 변환 후 텍스트로 저장 (권장·1순위)
+                    - `EMOJI`: 마음 이모지 6종(❤️ 🤗 😊 🥹 🙏 🥰) 중 하나
                     """
     )
     @ApiResponses({
@@ -136,15 +134,14 @@ public class MemoryPostController {
             @PathVariable String albumId,
             @PathVariable String postId,
             @RequestPart("data") @Valid ReplyToPostRequest request,
-            @Parameter(description = "음성 입력 파일 (STT 변환, 선택)")
+            @Parameter(description = "음성 입력 파일 (VOICE 유형일 때 STT 변환)")
             @RequestPart(value = "voice", required = false) MultipartFile voice) throws IOException {
 
         MemoryPostResult result = postService.replyToPost(new ReplyToPostCommand(
                 postId, request.elderId(), request.replyType(),
-                request.textContent(),
+                request.heartEmojiCode(),
                 voice != null ? voice.getInputStream() : null,
-                voice != null ? voice.getContentType() : null,
-                request.imageKeyOrEmoji()
+                voice != null ? voice.getContentType() : null
         ));
         return ApiResponse.ok(result, "답장을 보냈습니다.");
     }
