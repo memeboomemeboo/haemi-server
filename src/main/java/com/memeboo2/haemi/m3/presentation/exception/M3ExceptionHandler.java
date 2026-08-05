@@ -26,6 +26,24 @@ public class M3ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler(SessionStartBlockedByElderStatusException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleElderStatusBlocked(SessionStartBlockedByElderStatusException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(GrandchildChanceDiscontinuedException.class)
+    @ResponseStatus(HttpStatus.GONE)
+    public ApiResponse<Void> handleChanceDiscontinued(GrandchildChanceDiscontinuedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(HintAccrualAccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleHintAccrualAccessDenied(HintAccrualAccessDeniedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler({
             GrandchildChanceExhaustedException.class,
             GrandchildChanceExpiredException.class,

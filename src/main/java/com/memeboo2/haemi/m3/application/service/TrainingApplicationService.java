@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.application.service;
 
+import com.memeboo2.haemi.m0.domain.port.ElderMembershipQuery;
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
@@ -31,6 +33,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -45,12 +48,18 @@ public class TrainingApplicationService {
     private final CognitiveQuestionGeneratorPort questionGeneratorPort;
     private final TrainingSpeechSynthesisPort speechSynthesisPort;
     private final ApplicationEventPublisher eventPublisher;
+    private final ElderStatusQuery elderStatusQuery;
+    private final ElderMembershipQuery elderMembershipQuery;
 
     private static final int MIN_PHOTO_COUNT = 5;
 
     // F3-01: 일일 인지 훈련 세션 시작
     @Transactional
     public TrainingSessionResult startSession(StartTrainingSessionCommand command) {
+        // EX-F301-10: 사별/입원 등 부적합 상태면 세션 개시를 차단한다
+        if (!elderStatusQuery.isDispatchable(command.elderId())) {
+            throw new SessionStartBlockedByElderStatusException(command.elderId());
+        }
         var todaySession = sessionRepository.findByElderIdAndSessionDate(command.elderId(), LocalDate.now());
         if (todaySession.isPresent()) {
             CognitiveTrainingSession existing = todaySession.get();
@@ -113,6 +122,10 @@ public class TrainingApplicationService {
     // F3-03: 손주 한마디 사전 적립 (메모/온보딩/주간리마인더/반응 유도 4개 경로)
     @Transactional
     public AccruedHintResult accrueHint(AccrueHintCommand command) {
+        // 요청자가 해당 어르신의 가족 그룹 구성원인지 검증 (타 그룹 적립 차단)
+        if (!elderMembershipQuery.isActiveGroupMember(command.elderId(), parseMemberId(command.authorMemberId()))) {
+            throw new HintAccrualAccessDeniedException();
+        }
         AccruedHint hint = AccruedHint.accrue(
                 command.elderId(), command.photoId(), command.personName(), command.source(),
                 command.authorMemberId(), command.authorName(), command.text());
@@ -136,15 +149,10 @@ public class TrainingApplicationService {
         return new HintServeResult(toResult(session), resolved.tier(), resolved.text(), remaining);
     }
 
-    // F3-03: (deprecated) 실시간 소진형 손주 찬스 요청 — 사전 적립형(serveGrandchildHint)로 대체 예정
+    // F3-03: 실시간 소진형 손주 찬스는 폐기됨(P4/v3.0). 사전 적립형(serveGrandchildHint)만 사용한다.
     @Transactional
     public ChanceResult requestGrandchildChance(RequestGrandchildChanceCommand command) {
-        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
-        Album album = albumRepository.findById(AlbumId.of(session.getAlbumId()))
-                .orElseThrow(() -> new AlbumNotFoundException(session.getAlbumId().toString()));
-        int remaining = session.requestGrandchildChance(album.getMemberIds());
-        sessionRepository.save(session);
-        return new ChanceResult(command.sessionId(), remaining, "가족에게 힌트를 요청했습니다.");
+        throw new GrandchildChanceDiscontinuedException();
     }
 
     // F3-03: 가족 힌트 전달
@@ -182,6 +190,17 @@ public class TrainingApplicationService {
         }
         sessionRepository.save(session);
         return toResult(session);
+    }
+
+    private static UUID parseMemberId(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(memberId);
+        } catch (IllegalArgumentException invalidUuid) {
+            return null;
+        }
     }
 
     private CognitiveTrainingSession loadSessionOrThrow(String sessionId) {
