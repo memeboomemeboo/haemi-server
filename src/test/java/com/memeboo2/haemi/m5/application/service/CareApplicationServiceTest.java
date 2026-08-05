@@ -16,12 +16,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
+
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +38,9 @@ class CareApplicationServiceTest {
     @Mock WeatherPort weatherPort;
     @Mock NotificationPort notificationPort;
     @Mock AlbumRepository albumRepository;
+    @Mock ElderStatusQuery elderStatusQuery;
+
+    private static final String ELDER_ID = UUID.randomUUID().toString();
 
     CareApplicationService service;
 
@@ -41,7 +48,7 @@ class CareApplicationServiceTest {
     void setUp() {
         service = new CareApplicationService(
                 voiceAlarmRepository, walkRoutineRepository, walkRecordRepository,
-                storagePort, weatherPort, notificationPort, albumRepository);
+                storagePort, weatherPort, notificationPort, albumRepository, elderStatusQuery);
     }
 
     @Test
@@ -49,20 +56,21 @@ class CareApplicationServiceTest {
     void processDueReminders_sendsAlarmAndNoResponseToAlbumMembers() {
         LocalDateTime due = LocalDateTime.of(2026, 7, 6, 9, 0);
         VoiceAlarm alarm = VoiceAlarm.create(
-                "elder-1", "group-1", AlarmType.MEDICATION,
+                ELDER_ID, "group-1", AlarmType.MEDICATION,
                 LocalTime.of(9, 0), "voice-key", RepeatRule.DAILY);
         Album album = Album.create("elder-1", "group-1", "family-1");
         album.inviteMember("family-2");
         album.acceptInvite("family-2");
         when(voiceAlarmRepository.findAllActive()).thenReturn(List.of(alarm));
         when(albumRepository.findByGroupId("group-1")).thenReturn(Optional.of(album));
+        when(elderStatusQuery.isDispatchable(anyString())).thenReturn(true);
 
         service.processDueReminders(due);
         service.processDueReminders(due.plusMinutes(10));
         service.processDueReminders(due.plusMinutes(11));
 
         verify(notificationPort).sendToMember(
-                "elder-1", "약 드실 시간이에요", "가족의 목소리 알람이 도착했어요.");
+                ELDER_ID, "약 드실 시간이에요", "가족의 목소리 알람이 도착했어요.");
         verify(notificationPort, times(1)).sendToGroup(
                 album.getMemberIds(), "알람 무응답",
                 "어르신이 알람을 10분 동안 확인하지 않았습니다.");
@@ -73,12 +81,13 @@ class CareApplicationServiceTest {
     void processDueReminders_excludesPendingInvitee() {
         LocalDateTime due = LocalDateTime.of(2026, 7, 6, 9, 0);
         VoiceAlarm alarm = VoiceAlarm.create(
-                "elder-1", "group-1", AlarmType.MEDICATION,
+                ELDER_ID, "group-1", AlarmType.MEDICATION,
                 LocalTime.of(9, 0), "voice-key", RepeatRule.DAILY);
         Album album = Album.create("elder-1", "group-1", "family-1");
         album.inviteMember("family-2"); // 아직 수락 전(PENDING)
         when(voiceAlarmRepository.findAllActive()).thenReturn(List.of(alarm));
         when(albumRepository.findByGroupId("group-1")).thenReturn(Optional.of(album));
+        when(elderStatusQuery.isDispatchable(anyString())).thenReturn(true);
 
         service.processDueReminders(due);
         service.processDueReminders(due.plusMinutes(10));

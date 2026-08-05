@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m5.application.service;
 
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
@@ -34,6 +35,7 @@ public class CareApplicationService {
     private final WeatherPort weatherPort;
     private final NotificationPort notificationPort;
     private final AlbumRepository albumRepository;
+    private final ElderStatusQuery elderStatusQuery;
 
     // F5-01: 손주 목소리 알람 생성
     @Transactional
@@ -172,9 +174,15 @@ public class CareApplicationService {
 
     private void processVoiceAlarm(VoiceAlarm alarm, LocalDateTime now) {
         if (alarm.shouldTrigger(now)) {
-            // 발송 직전 상태 검증 (사별/입원·작고 가족 음성 차단은 #36/#50)
+            // 발송 직전 어르신 상태 검증 (EX-F501-06): 사별/입원/무음기간이면 발송 생략
+            if (!elderStatusQuery.isDispatchable(alarm.getElderId())) {
+                log.info("어르신 상태 검증 실패로 알람 발송 생략: alarmId={}, elderId={}",
+                        alarm.getId(), alarm.getElderId());
+                return;
+            }
+            // 알람 자체의 발송 가능 여부 검증 (작고 가족 음성 등)
             if (!alarm.isDispatchable()) {
-                log.info("발송 직전 상태 검증 실패로 알람 발송 생략: alarmId={}", alarm.getId());
+                log.info("발송 직전 알람 상태 검증 실패로 발송 생략: alarmId={}", alarm.getId());
                 return;
             }
             alarm.markTriggered(now);

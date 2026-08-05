@@ -33,4 +33,29 @@ public class ElderStatusQueryAdapter implements ElderStatusQuery {
                 .map(elder -> elder.isDispatchable(LocalDateTime.now()))
                 .orElse(false);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isDispatchable(String elderId) {
+        if (elderId == null || elderId.isBlank()) {
+            return false;
+        }
+        try {
+            return isDispatchable(UUID.fromString(elderId));
+        } catch (IllegalArgumentException invalidUuid) {
+            // 유효한 UUID가 아니면 안전하게 발송 불가로 처리한다
+            return false;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isGroupDispatchable(UUID groupId) {
+        if (groupId == null) {
+            return true;
+        }
+        return elders.findByGroupId(groupId)
+                .map(elder -> elder.isDispatchable(LocalDateTime.now()))
+                .orElse(true); // 그룹↔어르신 매핑 미확립 시 기존 동작 보존(fail-open)
+    }
 }
