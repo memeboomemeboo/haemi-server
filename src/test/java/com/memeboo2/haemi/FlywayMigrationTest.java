@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(16);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(17);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -68,6 +68,9 @@ class FlywayMigrationTest {
             // #43: 그룹 협력 목표 (랭킹 대체)
             assertThat(tableExists(connection, "group_goals")).isTrue();
             assertThat(tableExists(connection, "group_goal_participants")).isTrue();
+            // #46: 목소리 알람 음성 로테이션
+            assertThat(tableExists(connection, "voice_alarm_voices")).isTrue();
+            assertThat(columnExists(connection, "voice_alarms", "voice_rotation_index")).isTrue();
         }
     }
 

@@ -4,6 +4,7 @@ import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m5.domain.model.care.AlarmTimeDuplicatedException;
 import com.memeboo2.haemi.m5.domain.model.care.AlarmAccessDeniedException;
 import com.memeboo2.haemi.m5.domain.model.care.AlarmNotAwaitingResponseException;
+import com.memeboo2.haemi.m5.domain.model.care.EmptyAlarmVoiceException;
 import com.memeboo2.haemi.m5.domain.model.care.VoiceAlarmNotFoundException;
 import com.memeboo2.haemi.m5.domain.model.care.WalkCompletionUnavailableException;
 import com.memeboo2.haemi.m5.domain.model.care.WalkRoutineNotFoundException;
@@ -32,6 +33,12 @@ public class M5ExceptionHandler {
     })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleDuplicated(AlarmTimeDuplicatedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(EmptyAlarmVoiceException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleEmptyVoice(EmptyAlarmVoiceException e) {
         return ApiResponse.error(e.getMessage());
     }
 }

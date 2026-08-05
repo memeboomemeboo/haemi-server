@@ -60,6 +60,29 @@ public class CareApplicationService {
         return VoiceAlarmResult.from(voiceAlarmRepository.save(alarm));
     }
 
+    // F5-01: 로테이션용 가족 음성 추가
+    @Transactional
+    public VoiceAlarmResult addAlarmVoice(AddAlarmVoiceCommand command) {
+        VoiceAlarm alarm = voiceAlarmRepository.findById(UUID.fromString(command.alarmId()))
+                .orElseThrow(() -> new VoiceAlarmNotFoundException(command.alarmId()));
+        if (!alarm.getElderId().equals(command.elderId())) {
+            throw new AlarmAccessDeniedException();
+        }
+        if (command.voiceInputStream() == null) {
+            throw new EmptyAlarmVoiceException();
+        }
+        String voiceKey;
+        try {
+            voiceKey = storagePort.store(command.voiceInputStream(),
+                    command.voiceFilename() != null ? command.voiceFilename() : "voice-alarm.m4a",
+                    command.voiceContentType());
+        } catch (Exception e) {
+            throw new IllegalStateException("음성 저장에 실패했습니다.", e);
+        }
+        alarm.addVoice(voiceKey);
+        return VoiceAlarmResult.from(voiceAlarmRepository.save(alarm));
+    }
+
     @Transactional(readOnly = true)
     public List<VoiceAlarmResult> getVoiceAlarms(String elderId) {
         return voiceAlarmRepository.findActiveByElderId(elderId).stream()
@@ -139,6 +162,7 @@ public class CareApplicationService {
 
     private String acknowledgementMessage(AlarmType type) {
         return switch (type) {
+            case REMINISCENCE -> "회상 알람을 확인하셨어요.";
             case MEDICATION -> "약을 드셨어요.";
             case WATER -> "물을 드셨어요.";
             case WALK -> "산책 알람을 확인하셨어요.";
@@ -148,13 +172,19 @@ public class CareApplicationService {
 
     private void processVoiceAlarm(VoiceAlarm alarm, LocalDateTime now) {
         if (alarm.shouldTrigger(now)) {
+            // 발송 직전 상태 검증 (사별/입원·작고 가족 음성 차단은 #36/#50)
+            if (!alarm.isDispatchable()) {
+                log.info("발송 직전 상태 검증 실패로 알람 발송 생략: alarmId={}", alarm.getId());
+                return;
+            }
             alarm.markTriggered(now);
-            voiceAlarmRepository.save(alarm);
             notificationPort.sendToMember(alarm.getElderId(),
                     alarmTitle(alarm.getAlarmType()),
                     alarm.usesTtsFallback()
                             ? "가족이 설정한 알람이에요. 화면의 안내 문구를 읽어드릴게요."
                             : "가족의 목소리 알람이 도착했어요.");
+            alarm.rotateVoice(); // 다음 발송을 위해 로테이션
+            voiceAlarmRepository.save(alarm);
         }
 
         if (alarm.isNoResponseDue(now)) {
@@ -196,6 +226,7 @@ public class CareApplicationService {
 
     private String alarmTitle(AlarmType type) {
         return switch (type) {
+            case REMINISCENCE -> "가족의 회상 목소리 알람이에요";
             case MEDICATION -> "약 드실 시간이에요";
             case WATER -> "물 드실 시간이에요";
             case WALK -> "산책할 시간이에요";

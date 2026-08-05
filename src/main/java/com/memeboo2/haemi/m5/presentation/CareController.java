@@ -46,6 +46,24 @@ public class CareController {
         return ApiResponse.ok(result, "알람이 설정되었습니다.");
     }
 
+    @Operation(
+            summary = "목소리 알람 로테이션 음성 추가 [F5-01]",
+            description = "여러 가족의 음성을 추가하면 발송마다 순차적으로 로테이션됩니다."
+    )
+    @PostMapping(value = "/voice-alarms/{alarmId}/voices", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<VoiceAlarmResult> addAlarmVoice(
+            @PathVariable String alarmId,
+            @RequestPart("data") @Valid AddAlarmVoiceRequest request,
+            @Parameter(description = "가족 음성 녹음 파일")
+            @RequestPart("voice") MultipartFile voice) throws IOException {
+        VoiceAlarmResult result = careService.addAlarmVoice(new AddAlarmVoiceCommand(
+                alarmId, request.elderId(),
+                voice != null ? voice.getInputStream() : null,
+                voice != null ? voice.getOriginalFilename() : null,
+                voice != null ? voice.getContentType() : null));
+        return ApiResponse.ok(result, "로테이션 음성이 추가되었습니다.");
+    }
+
     @Operation(summary = "손주 목소리 알람 목록 조회 [F5-01]")
     @GetMapping("/voice-alarms")
     public ApiResponse<List<VoiceAlarmResult>> getVoiceAlarms(@RequestParam String elderId) {
