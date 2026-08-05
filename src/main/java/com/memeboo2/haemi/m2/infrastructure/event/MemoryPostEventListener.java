@@ -1,7 +1,6 @@
 package com.memeboo2.haemi.m2.infrastructure.event;
 
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
-import com.memeboo2.haemi.m2.domain.event.BadgeAwardedEvent;
 import com.memeboo2.haemi.m2.domain.event.ElderRepliedEvent;
 import com.memeboo2.haemi.m2.domain.event.MemoryPostPublishedEvent;
 import com.memeboo2.haemi.m2.domain.model.post.MemoryPost;
@@ -49,16 +48,4 @@ public class MemoryPostEventListener {
         );
     }
 
-    // F2-04: 뱃지 수여 → 그룹 전체 알림
-    @Async
-    @EventListener
-    public void onBadgeAwarded(BadgeAwardedEvent event) {
-        log.info("[EVENT] 뱃지 수여: member={}, badge={}",
-                event.memberName(), event.badgeGrade().getLabel());
-        notificationPort.sendToGroup(
-                Set.of("family-group"),
-                "🏅 뱃지 획득!",
-                event.memberName() + "님이 '" + event.badgeGrade().getLabel() + "' 뱃지를 획득했습니다!"
-        );
-    }
 }
