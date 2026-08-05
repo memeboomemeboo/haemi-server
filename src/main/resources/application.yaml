@@ -81,6 +81,10 @@ haemi:
       # 사별 확정 후 무음기간 / 오등록 복구 허용 시간
       silent-days: 7
       recovery-window-hours: 48
+  eventlog:
+    # 06:00 일일 이벤트 집계
+    aggregate-cron: "0 0 6 * * *"
+    time-zone: Asia/Seoul
   jwt:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M

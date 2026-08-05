@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(19);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(20);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -77,6 +77,9 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "elders", "bereaved_at")).isTrue();
             assertThat(columnExists(connection, "elders", "silent_until")).isTrue();
             assertThat(columnExists(connection, "elders", "bereavement_requested_at")).isTrue();
+            // #37: 이벤트 로깅 파이프라인
+            assertThat(tableExists(connection, "logged_events")).isTrue();
+            assertThat(tableExists(connection, "event_collection_consent")).isTrue();
         }
     }
 
