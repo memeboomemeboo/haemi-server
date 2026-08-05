@@ -37,6 +37,7 @@ class MemoryPostApplicationServiceTest {
     @Mock AiPoemGeneratorPort aiPoemGeneratorPort;
     @Mock SttPort sttPort;
     @Mock NotificationPort notificationPort;
+    @Mock com.memeboo2.haemi.m0.domain.port.ElderStatusQuery elderStatusQuery;
 
     MemoryPostApplicationService service;
 
@@ -47,7 +48,8 @@ class MemoryPostApplicationServiceTest {
     void setUp() {
         service = new MemoryPostApplicationService(
                 postRepository, photoStoragePort, contentFilterPort,
-                aiPoemGeneratorPort, sttPort, notificationPort);
+                aiPoemGeneratorPort, sttPort, notificationPort, elderStatusQuery);
+        lenient().when(elderStatusQuery.isGroupDispatchable(any())).thenReturn(true);
         ReflectionTestUtils.setField(service, "elderDailyLimit", 3);
         // 야간 창을 빈 구간(0==0)으로 두어 시각과 무관하게 결정되도록 한다.
         ReflectionTestUtils.setField(service, "quietHoursStart", 0);
@@ -93,6 +95,19 @@ class MemoryPostApplicationServiceTest {
         when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.of(draft));
 
         service.handleElderNotification(draft.getPostId().toString(), albumId, elders);
+
+        verify(notificationPort, never()).sendToGroup(anySet(), anyString(), anyString());
+        verify(postRepository, never()).countTodayNotificationsSentToElder(any());
+    }
+
+    @Test
+    @DisplayName("EX-F201-05: 사별/입원 등 발송 불가 상태면 추억 알림을 발송하지 않는다")
+    void skipsWhenElderNotDispatchable() {
+        MemoryPost post = publishedPost();
+        when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.of(post));
+        when(elderStatusQuery.isGroupDispatchable(albumId)).thenReturn(false);
+
+        service.handleElderNotification(post.getPostId().toString(), albumId, elders);
 
         verify(notificationPort, never()).sendToGroup(anySet(), anyString(), anyString());
         verify(postRepository, never()).countTodayNotificationsSentToElder(any());

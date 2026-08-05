@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m2.application.service;
 
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
 import com.memeboo2.haemi.m2.application.command.*;
@@ -39,6 +40,7 @@ public class MemoryPostApplicationService {
     private final AiPoemGeneratorPort aiPoemGeneratorPort;
     private final SttPort sttPort;
     private final NotificationPort notificationPort;
+    private final ElderStatusQuery elderStatusQuery;
 
     // F2-01: 어르신 알림 정책 — 일일 한도(기본 3회) + 야간 차단(기본 21시~08시)
     @Value("${haemi.notification.elder-daily-limit:3}")
@@ -123,7 +125,7 @@ public class MemoryPostApplicationService {
 
     // F2-01: 어르신 추억 알림 수신 처리 (이벤트 리스너에서 호출)
     // 일일 3회 한도 + 야간 21:00~08:00 차단 + 발송 직전 상태 검증.
-    // 사별·입원 상태 차단(EX-F201-05)은 어르신 상태 머신(#36) 의존이라 여기서 다루지 않는다(#50 이월).
+    // 사별·입원 상태 차단(EX-F201-05): 그룹↔어르신 매핑이 확립되면 자동 활성화(fail-open seam).
     @Transactional
     public void handleElderNotification(String postId, UUID albumId, Set<String> elderMemberIds) {
         // 발송 직전 상태 검증: 글이 존재하고 게시 상태여야 한다.
@@ -131,6 +133,13 @@ public class MemoryPostApplicationService {
         if (post == null || post.getStatus() != PostStatus.PUBLISHED) {
             log.info("발송 직전 상태 검증 실패로 알림 생략: postId={}, status={}",
                     postId, post != null ? post.getStatus() : "NOT_FOUND");
+            return;
+        }
+
+        // EX-F201-05: 사별/입원/무음기간 어르신에게는 추억 알림을 발송하지 않는다.
+        // (albumId↔그룹 매핑이 없으면 fail-open으로 기존 동작 보존)
+        if (!elderStatusQuery.isGroupDispatchable(albumId)) {
+            log.info("어르신 상태 검증 실패로 추억 알림 생략: postId={}, albumId={}", postId, albumId);
             return;
         }
 
