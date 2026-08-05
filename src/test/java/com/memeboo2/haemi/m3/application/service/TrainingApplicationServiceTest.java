@@ -11,6 +11,7 @@ import com.memeboo2.haemi.m3.application.command.ProvideHintCommand;
 import com.memeboo2.haemi.m3.application.command.RecordNoResponseCommand;
 import com.memeboo2.haemi.m3.application.command.StartTrainingSessionCommand;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
+import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
 import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
@@ -266,8 +267,11 @@ class TrainingApplicationServiceTest {
         session.answer("q1", "정답1", 10);
         session.answer("q2", "정답2", 10);
         when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        // 상향 2주기 규칙: 직전 세션에서 이미 1주기 충족한 상태로 설정
+        DifficultyProfile profile = DifficultyProfile.defaultFor("elder-profile-1");
+        ReflectionTestUtils.setField(profile, "increaseEligibleSessions", 1);
         when(profileRepository.findByElderId("elder-profile-1"))
-                .thenReturn(Optional.of(DifficultyProfile.defaultFor("elder-profile-1")));
+                .thenReturn(Optional.of(profile));
 
         service.answerQuestion(new AnswerTrainingQuestionCommand(
                 session.getId().toString(),
@@ -302,6 +306,18 @@ class TrainingApplicationServiceTest {
         assertThat(result.recallTiming().autoPlayDelaySeconds()).isEqualTo(7);
         assertThat(result.recallTiming().noResponseAllowanceSeconds()).isEqualTo(60);
         verify(sessionRepository).save(session);
+    }
+
+    @Test
+    @DisplayName("EX-F302-07: 세션 응답 DTO는 난이도 레벨을 어르신·가족에게 노출하지 않는다")
+    void sessionResult_doesNotExposeDifficultyLevel() {
+        assertThat(java.util.Arrays.stream(TrainingSessionResult.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("difficultyLevel");
+        assertThat(java.util.Arrays.stream(
+                        TrainingSessionResult.QuestionResult.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("difficultyLevel");
     }
 
     private void prepareStart(Album album) {
