@@ -43,6 +43,17 @@ jobs:
             --push \
             .
 
+      - name: Sync Compose manifest to EC2
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: "compose.yaml"
+          target: /home/${{ secrets.EC2_USERNAME }}/haemi
+          overwrite: true
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -59,9 +70,6 @@ jobs:
           script: |
             set -eu
             cd ~/haemi
-
-            git fetch origin main
-            git checkout --detach "${{ github.sha }}"
 
             save_env() {
               name="$1"
