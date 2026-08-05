@@ -5,9 +5,15 @@ import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.*;
+import com.memeboo2.haemi.m3.application.dto.AccruedHintResult;
 import com.memeboo2.haemi.m3.application.dto.AnswerResult;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
+import com.memeboo2.haemi.m3.application.dto.HintServeResult;
 import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
+import com.memeboo2.haemi.m3.domain.model.hint.AccruedHint;
+import com.memeboo2.haemi.m3.domain.model.hint.HintBankResolver;
+import com.memeboo2.haemi.m3.domain.model.hint.ResolvedHint;
+import com.memeboo2.haemi.m3.domain.repository.AccruedHintRepository;
 import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
@@ -35,6 +41,7 @@ public class TrainingApplicationService {
     private final DifficultyProfileRepository profileRepository;
     private final DifficultyPolicyRepository policyRepository;
     private final AlbumRepository albumRepository;
+    private final AccruedHintRepository accruedHintRepository;
     private final CognitiveQuestionGeneratorPort questionGeneratorPort;
     private final TrainingSpeechSynthesisPort speechSynthesisPort;
     private final ApplicationEventPublisher eventPublisher;
@@ -103,7 +110,33 @@ public class TrainingApplicationService {
         return new AnswerResult(toResult(session), attempt.isResponded(), message);
     }
 
-    // F3-03: 손주 찬스 요청
+    // F3-03: 손주 한마디 사전 적립 (메모/온보딩/주간리마인더/반응 유도 4개 경로)
+    @Transactional
+    public AccruedHintResult accrueHint(AccrueHintCommand command) {
+        AccruedHint hint = AccruedHint.accrue(
+                command.elderId(), command.photoId(), command.personName(), command.source(),
+                command.authorMemberId(), command.authorName(), command.text());
+        return AccruedHintResult.from(accruedHintRepository.save(hint));
+    }
+
+    // F3-03: 적립 힌트 즉시 제공 (L1 사진특정 → L2 어르신일반 → L3 시스템기본)
+    @Transactional
+    public HintServeResult serveGrandchildHint(ServeGrandchildHintCommand command) {
+        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        var photoId = session.currentQuestion()
+                .map(TrainingQuestion::getPhotoId)
+                .orElse(null);
+        var l1 = photoId == null
+                ? java.util.Optional.<AccruedHint>empty()
+                : accruedHintRepository.findLatestActiveByPhoto(session.getElderId(), photoId);
+        var l2 = accruedHintRepository.findLatestActiveGeneral(session.getElderId());
+        ResolvedHint resolved = HintBankResolver.resolve(l1, l2);
+        int remaining = session.serveAccruedHint(resolved.text(), resolved.responderName());
+        sessionRepository.save(session);
+        return new HintServeResult(toResult(session), resolved.tier(), resolved.text(), remaining);
+    }
+
+    // F3-03: (deprecated) 실시간 소진형 손주 찬스 요청 — 사전 적립형(serveGrandchildHint)로 대체 예정
     @Transactional
     public ChanceResult requestGrandchildChance(RequestGrandchildChanceCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());

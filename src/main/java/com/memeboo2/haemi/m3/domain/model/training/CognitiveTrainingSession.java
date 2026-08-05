@@ -196,6 +196,25 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return getRemainingChanceCount();
     }
 
+    // F3-03: 사전 적립형 손주 한마디 — 대기 없이 즉시 제공 (찬스 2회 준수)
+    public int serveAccruedHint(String hintText, String responderName) {
+        if (status == TrainingSessionStatus.COMPLETED) {
+            throw new TrainingSessionAlreadyCompletedException();
+        }
+        if (hintText == null || hintText.isBlank()) {
+            throw new IllegalArgumentException("힌트 내용이 없습니다.");
+        }
+        currentQuestion().orElseThrow(TrainingSessionAlreadyCompletedException::new);
+        if (chanceUsedCount >= MAX_CHANCE_PER_SESSION) {
+            throw new GrandchildChanceExhaustedException();
+        }
+        chanceUsedCount++;
+        lastChanceStatus = GrandchildChanceStatus.ANSWERED;
+        this.lastHintText = hintText;
+        this.lastHintResponder = responderName;
+        return getRemainingChanceCount();
+    }
+
     public void applyHint(String responderName, String hintText) {
         applyHint(responderName, hintText, LocalDateTime.now());
     }

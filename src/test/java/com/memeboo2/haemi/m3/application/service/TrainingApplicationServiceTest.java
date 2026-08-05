@@ -48,6 +48,7 @@ class TrainingApplicationServiceTest {
     @Mock DifficultyProfileRepository profileRepository;
     @Mock DifficultyPolicyRepository policyRepository;
     @Mock AlbumRepository albumRepository;
+    @Mock com.memeboo2.haemi.m3.domain.repository.AccruedHintRepository accruedHintRepository;
     @Mock CognitiveQuestionGeneratorPort questionGenerator;
     @Mock TrainingSpeechSynthesisPort speechSynthesis;
     @Mock ApplicationEventPublisher eventPublisher;
@@ -61,6 +62,7 @@ class TrainingApplicationServiceTest {
                 profileRepository,
                 policyRepository,
                 albumRepository,
+                accruedHintRepository,
                 questionGenerator,
                 speechSynthesis,
                 eventPublisher
@@ -305,6 +307,43 @@ class TrainingApplicationServiceTest {
         assertThat(result.recallTiming().hintDelaySeconds()).isEqualTo(4);
         assertThat(result.recallTiming().autoPlayDelaySeconds()).isEqualTo(7);
         assertThat(result.recallTiming().noResponseAllowanceSeconds()).isEqualTo(60);
+        verify(sessionRepository).save(session);
+    }
+
+    @Test
+    @DisplayName("손주 한마디 적립: 적립 경로와 함께 저장하고 tier를 판정한다")
+    void accrueHint_savesWithSourceAndTier() {
+        when(accruedHintRepository.save(any(com.memeboo2.haemi.m3.domain.model.hint.AccruedHint.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.accrueHint(new com.memeboo2.haemi.m3.application.command.AccrueHintCommand(
+                "elder-1", UUID.randomUUID(), "손녀",
+                com.memeboo2.haemi.m3.domain.model.hint.AccrualSource.MEMO,
+                "m1", "지민", "그때 바닷가 기억나세요?"));
+
+        assertThat(result.source())
+                .isEqualTo(com.memeboo2.haemi.m3.domain.model.hint.AccrualSource.MEMO);
+        assertThat(result.tier()).isEqualTo(com.memeboo2.haemi.m3.domain.model.hint.HintTier.L1);
+        assertThat(result.text()).isEqualTo("그때 바닷가 기억나세요?");
+    }
+
+    @Test
+    @DisplayName("적립 힌트가 없으면 L3 시스템 기본 문구를 즉시 제공한다")
+    void serveHint_fallsBackToL3WhenBankEmpty() {
+        CognitiveTrainingSession session = session();
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any(CognitiveTrainingSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(accruedHintRepository.findLatestActiveGeneral("elder-1")).thenReturn(Optional.empty());
+
+        var result = service.serveGrandchildHint(
+                new com.memeboo2.haemi.m3.application.command.ServeGrandchildHintCommand(
+                        session.getId().toString()));
+
+        assertThat(result.servedTier())
+                .isEqualTo(com.memeboo2.haemi.m3.domain.model.hint.HintTier.L3);
+        assertThat(result.remainingChanceCount()).isEqualTo(1);
+        assertThat(result.session().lastChanceStatus()).isEqualTo(GrandchildChanceStatus.ANSWERED);
         verify(sessionRepository).save(session);
     }
 
