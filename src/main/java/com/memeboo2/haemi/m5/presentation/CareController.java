@@ -18,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 
-@Tag(name = "M5-Care", description = "F5-01 손주 목소리 알람 / F5-02 하루 10분 산책 유도")
+@Tag(name = "M5-Care", description = "F5-01 손주 목소리 알람 (F5-02 산책 유도는 보류)")
 @RestController
 @RequestMapping("/api/v1/care")
 @RequiredArgsConstructor
@@ -79,34 +79,6 @@ public class CareController {
                 new AcknowledgeVoiceAlarmCommand(alarmId, elderId)), "확인되었습니다.");
     }
 
-    @Operation(summary = "산책 루틴 설정 [F5-02]")
-    @PostMapping("/walk-routines")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<WalkRoutineResult> createWalkRoutine(
-            @Valid @RequestBody CreateWalkRoutineRequest request) {
-        return ApiResponse.ok(careService.createWalkRoutine(new CreateWalkRoutineCommand(
-                request.elderId(), request.groupId(), request.morningTime(),
-                request.afternoonTime(), request.targetMinutes())), "산책 루틴이 설정되었습니다.");
-    }
-
-    @Operation(summary = "산책 시작 [F5-02]")
-    @PostMapping("/walk-routines/{routineId}/start")
-    public ApiResponse<WalkRecordResult> startWalk(@PathVariable String routineId) {
-        return ApiResponse.ok(careService.startWalk(new StartWalkCommand(routineId)));
-    }
-
-    @Operation(summary = "산책 완료 [F5-02]")
-    @PostMapping("/walk-records/{walkRecordId}/complete")
-    public ApiResponse<WalkRecordResult> completeWalk(
-            @PathVariable String walkRecordId,
-            @Valid @RequestBody CompleteWalkRequest request) {
-        return ApiResponse.ok(careService.completeWalk(new CompleteWalkCommand(
-                walkRecordId, request.durationMinutes(), request.stepCount())), "잘 하셨어요!");
-    }
-
-    @Operation(summary = "주간 산책 달성률 조회 [F5-02]")
-    @GetMapping("/walk-records/weekly-summary")
-    public ApiResponse<WeeklyWalkSummaryResult> getWeeklySummary(@RequestParam String elderId) {
-        return ApiResponse.ok(careService.getWeeklyWalkSummary(elderId));
-    }
+    // F5-02 산책(WalkRoutine) 기능 보류(#47): 도메인·서비스·테이블은 보존하되
+    // 외부 엔드포인트는 비활성화한다. 재개 시 산책 엔드포인트를 다시 노출하면 된다.
 }

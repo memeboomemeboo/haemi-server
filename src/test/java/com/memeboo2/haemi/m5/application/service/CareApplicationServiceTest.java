@@ -55,7 +55,6 @@ class CareApplicationServiceTest {
         album.inviteMember("family-2");
         album.acceptInvite("family-2");
         when(voiceAlarmRepository.findAllActive()).thenReturn(List.of(alarm));
-        when(walkRoutineRepository.findAllActive()).thenReturn(List.of());
         when(albumRepository.findByGroupId("group-1")).thenReturn(Optional.of(album));
 
         service.processDueReminders(due);
@@ -79,7 +78,6 @@ class CareApplicationServiceTest {
         Album album = Album.create("elder-1", "group-1", "family-1");
         album.inviteMember("family-2"); // 아직 수락 전(PENDING)
         when(voiceAlarmRepository.findAllActive()).thenReturn(List.of(alarm));
-        when(walkRoutineRepository.findAllActive()).thenReturn(List.of());
         when(albumRepository.findByGroupId("group-1")).thenReturn(Optional.of(album));
 
         service.processDueReminders(due);
@@ -91,21 +89,6 @@ class CareApplicationServiceTest {
                 "어르신이 알람을 10분 동안 확인하지 않았습니다.");
     }
 
-    @Test
-    @DisplayName("산책 예약 시각의 날씨가 좋지 않으면 어르신에게 실내 활동을 안내한다")
-    void processDueReminders_usesIndoorFallbackForSevereWeather() {
-        LocalDateTime due = LocalDateTime.of(2026, 7, 6, 9, 0);
-        WalkRoutine routine = WalkRoutine.create(
-                "elder-1", "group-1", LocalTime.of(9, 0), null, 10);
-        when(voiceAlarmRepository.findAllActive()).thenReturn(List.of());
-        when(walkRoutineRepository.findAllActive()).thenReturn(List.of(routine));
-        when(weatherPort.currentCondition("elder-1")).thenReturn(WeatherCondition.RAIN);
-
-        service.processDueReminders(due);
-        service.processDueReminders(due.plusSeconds(30));
-
-        verify(notificationPort, times(1)).sendToMember(
-                "elder-1", "오늘은 실내 운동을 해봐요",
-                "날씨가 좋지 않아 안전한 실내 활동을 안내합니다.");
-    }
+    // F5-02 산책 알림 보류(#47): 스케줄러 산책 처리 및 관련 검증은 제거됨.
+    // 산책 서비스 로직(createWalkRoutine/startWalk/completeWalk)은 보존되어 별도로 검증된다.
 }
