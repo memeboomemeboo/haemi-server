@@ -60,6 +60,9 @@ jobs:
             set -eu
             cd ~/haemi
 
+            git fetch origin main
+            git checkout --detach "${{ github.sha }}"
+
             save_env() {
               name="$1"
               value="$2"
@@ -97,4 +100,18 @@ jobs:
 
             docker compose pull app
             docker compose up -d
+
+            health_url="http://127.0.0.1:${APP_PORT_VALUE}/actuator/health"
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --show-error --max-time 3 "$health_url"; then
+                break
+              fi
+              if [ "$attempt" -eq 30 ]; then
+                docker compose ps
+                docker compose logs --tail=200 app
+                exit 1
+              fi
+              sleep 2
+            done
+
             docker image prune -f
