@@ -85,6 +85,11 @@ haemi:
     # 06:00 일일 이벤트 집계
     aggregate-cron: "0 0 6 * * *"
     time-zone: Asia/Seoul
+  access-mode:
+    # 14일 주기 재평가 (제안만)
+    review-interval-days: 14
+    review-cron: "0 30 6 * * *"
+    time-zone: Asia/Seoul
   jwt:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M
