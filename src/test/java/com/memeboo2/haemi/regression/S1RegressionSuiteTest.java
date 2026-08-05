@@ -1,5 +1,8 @@
 package com.memeboo2.haemi.regression;
 
+import com.memeboo2.haemi.m0.domain.model.Elder;
+import com.memeboo2.haemi.m0.domain.model.Gender;
+import com.memeboo2.haemi.m0.domain.model.ResidenceType;
 import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
 import com.memeboo2.haemi.m3.domain.model.hint.AccrualSource;
 import com.memeboo2.haemi.m3.domain.model.hint.AccruedHint;
@@ -9,6 +12,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.RecordComponent;
+import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
@@ -66,18 +70,25 @@ class S1RegressionSuiteTest {
 
             assertThat(hint.isActive()).isFalse();
         }
+
+        @Test
+        @DisplayName("EX-F005-01: 사별 확정 후 어르신은 발송 최종 검증에서 제외된다 (#36으로 활성화)")
+        void ex_f005_01_notDispatchableAfterBereavement() {
+            Elder elder = Elder.create(UUID.randomUUID(), null, "김어르신", 1945,
+                    Gender.FEMALE, ResidenceType.HOME_WITH_FAMILY);
+            LocalDateTime now = LocalDateTime.of(2026, 8, 5, 10, 0);
+            assertThat(elder.isDispatchable(now)).isTrue();
+
+            elder.requestBereavement(now);
+            elder.confirmBereavement(now, 7);
+
+            assertThat(elder.isDispatchable(now)).isFalse();
+        }
     }
 
     @Nested
     @DisplayName("#36 어르신 상태 머신 의존 (릴리스 게이트 대기)")
     class PendingElderStateMachine {
-
-        @Test
-        @Disabled(PENDING_36)
-        @DisplayName("EX-F005-01: 사별 등록 후에는 어떤 알림도 발송되지 않는다")
-        void ex_f005_01_noNotificationAfterBereavement() {
-            // seam: Elder.changeStatus(DECEASED) → 알림 발송 파이프라인 최종 상태 검증에서 차단
-        }
 
         @Test
         @Disabled(PENDING_36)
