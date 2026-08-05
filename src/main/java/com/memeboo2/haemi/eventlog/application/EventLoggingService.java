@@ -91,6 +91,6 @@ public class EventLoggingService {
         }
         return consents.findByElderId(elderId)
                 .map(EventCollectionConsent::isActive)
-                .orElse(true); // 기록 없으면 기본 수집 허용
+                .orElse(false); // F0-06: 수집 동의는 사전 조건 — 동의 레코드가 없으면 수집하지 않는다
     }
 }

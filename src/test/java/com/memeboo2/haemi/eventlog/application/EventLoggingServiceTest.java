@@ -42,9 +42,10 @@ class EventLoggingServiceTest {
     }
 
     @Test
-    @DisplayName("최초 이벤트는 수집되고 저장된다")
+    @DisplayName("동의한 어르신의 최초 이벤트는 수집되고 저장된다")
     void ingest_accepted() {
-        when(consents.findByElderId("elder-1")).thenReturn(Optional.empty());
+        when(consents.findByElderId("elder-1"))
+                .thenReturn(Optional.of(EventCollectionConsent.granted("elder-1")));
         when(events.existsByIdempotencyKey("k1")).thenReturn(false);
 
         EventIngestOutcome outcome = service.ingest(envelope("k1", "elder-1", EventType.SESSION_START));
@@ -54,9 +55,32 @@ class EventLoggingServiceTest {
     }
 
     @Test
+    @DisplayName("F0-06: 동의 레코드가 없으면 수집을 거부한다")
+    void ingest_rejectedWhenNoConsentRecord() {
+        when(consents.findByElderId("elder-1")).thenReturn(Optional.empty());
+
+        EventIngestOutcome outcome = service.ingest(envelope("k1", "elder-1", EventType.SESSION_START));
+
+        assertThat(outcome).isEqualTo(EventIngestOutcome.REJECTED_NO_CONSENT);
+        verify(events, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("어르신에 귀속되지 않은 시스템 이벤트는 동의와 무관하게 수집한다")
+    void ingest_acceptsSystemEventWithoutElder() {
+        when(events.existsByIdempotencyKey("k1")).thenReturn(false);
+
+        EventIngestOutcome outcome = service.ingest(envelope("k1", null, EventType.SESSION_START));
+
+        assertThat(outcome).isEqualTo(EventIngestOutcome.ACCEPTED);
+        verify(events).save(any(LoggedEvent.class));
+    }
+
+    @Test
     @DisplayName("중복 재전송은 멱등하게 무시한다")
     void ingest_duplicate() {
-        when(consents.findByElderId("elder-1")).thenReturn(Optional.empty());
+        when(consents.findByElderId("elder-1"))
+                .thenReturn(Optional.of(EventCollectionConsent.granted("elder-1")));
         when(events.existsByIdempotencyKey("k1")).thenReturn(true);
 
         EventIngestOutcome outcome = service.ingest(envelope("k1", "elder-1", EventType.SESSION_START));
@@ -81,7 +105,8 @@ class EventLoggingServiceTest {
     @Test
     @DisplayName("배치는 수집/중복/거부를 집계한다")
     void ingestBatch_counts() {
-        when(consents.findByElderId(any())).thenReturn(Optional.empty());
+        when(consents.findByElderId(any()))
+                .thenReturn(Optional.of(EventCollectionConsent.granted("elder-1")));
         when(events.existsByIdempotencyKey("a")).thenReturn(false);
         when(events.existsByIdempotencyKey("b")).thenReturn(true);
 
