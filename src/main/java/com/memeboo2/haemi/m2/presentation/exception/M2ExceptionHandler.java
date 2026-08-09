@@ -63,6 +63,12 @@ public class M2ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler(InvalidHeartEmojiException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleInvalidHeartEmoji(InvalidHeartEmojiException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler(PostDeleteForbiddenException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ApiResponse<Void> handleDeleteForbidden(PostDeleteForbiddenException e) {

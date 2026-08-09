@@ -1,12 +1,9 @@
 package com.memeboo2.haemi.m2.infrastructure.event;
 
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
-import com.memeboo2.haemi.m2.domain.event.BadgeAwardedEvent;
+import com.memeboo2.haemi.m2.application.service.MemoryPostApplicationService;
 import com.memeboo2.haemi.m2.domain.event.ElderRepliedEvent;
 import com.memeboo2.haemi.m2.domain.event.MemoryPostPublishedEvent;
-import com.memeboo2.haemi.m2.domain.model.post.MemoryPost;
-import com.memeboo2.haemi.m2.domain.repository.MemoryPostRepository;
-import com.memeboo2.haemi.m2.domain.model.post.MemoryPostId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -20,21 +17,19 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class MemoryPostEventListener {
 
-    private final NotificationPort notificationPort;
-    private final MemoryPostRepository postRepository;
+    // 실제로는 AlbumRepository에서 앨범의 어르신 멤버 ID를 조회한다(현재는 플레이스홀더).
+    private static final Set<String> ELDER_RECIPIENTS = Set.of("elder-device");
 
-    // F2-02: 추억글 게시 → 어르신 알림 (실제로는 AlbumRepository에서 elderMemberId 조회)
+    private final NotificationPort notificationPort;
+    private final MemoryPostApplicationService postService;
+
+    // F2-01: 추억글 게시 → 어르신 알림. 일일 한도·야간 차단·상태 검증은 정책이 적용된다.
     @Async
     @EventListener
     public void onPostPublished(MemoryPostPublishedEvent event) {
         log.info("[EVENT] 추억글 게시됨: postId={}, albumId={}", event.postId(), event.albumId());
-        // 알림은 MemoryPostApplicationService.handleElderNotification() 에서 한도 체크 후 처리
-        // 여기서는 간단하게 로그만 출력 (실제로는 어르신 멤버 ID를 조회해서 알림 발송)
-        notificationPort.sendToGroup(
-                Set.of("elder-device"),
-                event.authorInfo().getMemberName() + "(" + event.authorInfo().getRelation() + ")님의 추억글",
-                "새 추억글이 도착했습니다."
-        );
+        postService.handleElderNotification(
+                event.postId().toString(), event.albumId(), ELDER_RECIPIENTS);
     }
 
     // F2-03: 어르신 답변 → 가족 전체 알림
@@ -49,16 +44,4 @@ public class MemoryPostEventListener {
         );
     }
 
-    // F2-04: 뱃지 수여 → 그룹 전체 알림
-    @Async
-    @EventListener
-    public void onBadgeAwarded(BadgeAwardedEvent event) {
-        log.info("[EVENT] 뱃지 수여: member={}, badge={}",
-                event.memberName(), event.badgeGrade().getLabel());
-        notificationPort.sendToGroup(
-                Set.of("family-group"),
-                "🏅 뱃지 획득!",
-                event.memberName() + "님이 '" + event.badgeGrade().getLabel() + "' 뱃지를 획득했습니다!"
-        );
-    }
 }

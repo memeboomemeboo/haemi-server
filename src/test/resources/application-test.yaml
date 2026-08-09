@@ -12,3 +12,8 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+
+haemi:
+  security:
+    # 32-byte test-only AES key. Production must provide ELDER_HEALTH_ENCRYPTION_KEY.
+    elder-health-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

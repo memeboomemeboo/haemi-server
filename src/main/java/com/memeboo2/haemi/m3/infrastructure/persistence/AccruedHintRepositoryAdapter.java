@@ -1,0 +1,31 @@
+package com.memeboo2.haemi.m3.infrastructure.persistence;
+
+import com.memeboo2.haemi.m3.domain.model.hint.AccruedHint;
+import com.memeboo2.haemi.m3.domain.repository.AccruedHintRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+@RequiredArgsConstructor
+public class AccruedHintRepositoryAdapter implements AccruedHintRepository {
+
+    private final JpaAccruedHintRepository jpa;
+
+    @Override
+    public AccruedHint save(AccruedHint hint) {
+        return jpa.save(hint);
+    }
+
+    @Override
+    public Optional<AccruedHint> findLatestActiveByPhoto(String elderId, UUID photoId) {
+        return jpa.findFirstByElderIdAndPhotoIdAndActiveTrueOrderByCreatedAtDesc(elderId, photoId);
+    }
+
+    @Override
+    public Optional<AccruedHint> findLatestActiveGeneral(String elderId) {
+        return jpa.findFirstByElderIdAndPhotoIdIsNullAndActiveTrueOrderByCreatedAtDesc(elderId);
+    }
+}

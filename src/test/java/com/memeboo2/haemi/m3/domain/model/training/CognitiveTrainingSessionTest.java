@@ -53,7 +53,7 @@ class CognitiveTrainingSessionTest {
 
         assertThat(changed).isTrue();
         assertThat(session.isLastGrandchildChanceExpired()).isTrue();
-        assertThat(attempt.isCorrect()).isFalse();
+        assertThat(attempt.isResponded()).isFalse();
         assertThat(attempt.isTimeout()).isTrue();
         assertThat(session.getCurrentQuestionIndex()).isEqualTo(1);
     }
@@ -79,7 +79,7 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("손주 찬스를 쓰지 않고 훈련을 완료하면 미사용 완료 뱃지를 수여한다")
+    @DisplayName("손주 찬스를 쓰지 않고 회상을 완료하면 미사용 완료 뱃지를 수여한다")
     void complete_awardsChanceUnusedCompletionBadge() {
         CognitiveTrainingSession session = session();
 
@@ -92,7 +92,7 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("손주 찬스를 사용한 훈련 완료에는 미사용 완료 뱃지를 수여하지 않는다")
+    @DisplayName("손주 찬스를 사용한 회상 완료에는 미사용 완료 뱃지를 수여하지 않는다")
     void complete_doesNotAwardBadgeWhenChanceWasUsed() {
         CognitiveTrainingSession session = session();
 
@@ -124,45 +124,45 @@ class CognitiveTrainingSessionTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         List<TrainingQuestion> repeated = List.of(
-                question("q1", QuestionType.WORD_ASSOCIATION, "a"),
-                question("q2", QuestionType.WORD_ASSOCIATION, "b"),
-                question("q3", QuestionType.PERSON_RECALL, "c"));
+                question("q1", QuestionType.PERSON_RECALL),
+                question("q2", QuestionType.PERSON_RECALL),
+                question("q3", QuestionType.PLACE_MATCH));
         assertThatThrownBy(() -> CognitiveTrainingSession.start(
                 "elder", UUID.randomUUID(), StartMode.AUTO, 2, repeated))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    @DisplayName("현재 문제의 정답만 제출할 수 있고 정답은 공백과 대소문자를 무시한다")
-    void answer_validatesCurrentQuestionAndAnswer() {
+    @DisplayName("현재 문제에만 응답할 수 있고 발화가 있으면 응답으로 기록한다")
+    void answer_validatesCurrentQuestionAndRecordsResponse() {
         CognitiveTrainingSession session = session(2);
 
-        assertThatThrownBy(() -> session.answer("q2", "B", 10))
+        assertThatThrownBy(() -> session.answer("q2", "이야기", 10))
                 .isInstanceOf(TrainingQuestionNotFoundException.class);
 
-        QuestionAttempt attempt = session.answer("q1", "  A  ", 10);
-        assertThat(attempt.isCorrect()).isTrue();
+        QuestionAttempt attempt = session.answer("q1", "  손녀와 함께한 날  ", 10);
+        assertThat(attempt.isResponded()).isTrue();
         assertThat(session.currentQuestion()).get().extracting(TrainingQuestion::getQuestionId)
                 .isEqualTo("q2");
     }
 
     @Test
-    @DisplayName("마지막 문제에 답하면 세션을 완료하고 정확도와 평균 응답 시간을 계산한다")
+    @DisplayName("마지막 문제에 응답하면 세션을 완료하고 응답률과 평균 응답 시간을 계산한다")
     void answer_lastQuestionCompletesSession() {
         CognitiveTrainingSession session = session(2);
 
-        session.answer("q1", "a", 10);
-        session.answer("q2", "wrong", 20);
-        session.answer("q3", "c", 30);
+        session.answer("q1", "이야기", 10);
+        session.answer("q2", "", 20);
+        session.answer("q3", "추억", 30);
 
         assertThat(session.getStatus()).isEqualTo(TrainingSessionStatus.COMPLETED);
         assertThat(session.getCompletedAt()).isNotNull();
         assertThat(session.currentQuestion()).isEmpty();
-        assertThat(session.getCorrectCount()).isEqualTo(2);
-        assertThat(session.getWrongCount()).isEqualTo(1);
-        assertThat(session.getAccuracyRate()).isEqualTo(2.0 / 3.0);
+        assertThat(session.getRespondedCount()).isEqualTo(2);
+        assertThat(session.getNoResponseCount()).isEqualTo(1);
+        assertThat(session.getResponseRate()).isEqualTo(2.0 / 3.0);
         assertThat(session.getAverageResponseSeconds()).isEqualTo(20.0);
-        assertThatThrownBy(() -> session.answer("q3", "c", 10))
+        assertThatThrownBy(() -> session.answer("q3", "추억", 10))
                 .isInstanceOf(TrainingSessionAlreadyCompletedException.class);
     }
 
@@ -202,34 +202,36 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("빠른 정답 3회가 연속되면 난이도를 높인다")
-    void difficultyProfile_increasesAfterConsecutiveCorrectAnswers() {
+    @DisplayName("발화율 상향: 상향 기준을 2주기 연속 충족해야 난이도를 높인다")
+    void difficultyProfile_increasesOnlyAfterTwoQualifyingCycles() {
         DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
-
-        profile.applySession(
-                List.of(
-                        performance("q1", "p1", QuestionType.WORD_ASSOCIATION, true, false),
-                        performance("q2", "p2", QuestionType.PERSON_RECALL, true, false),
-                        performance("q3", "p3", QuestionType.SEQUENCE_MEMORY, true, false)
-                ),
-                1.0,
-                10.0,
-                DifficultyPolicy.defaultFor(2)
+        DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
+        List<QuestionPerformance> highResponse = List.of(
+                performance("q1", QuestionType.PERSON_RECALL, true, false),
+                performance("q2", QuestionType.PLACE_MATCH, true, false),
+                performance("q3", QuestionType.COLOR_SHAPE, true, false)
         );
 
+        DifficultyAdjustment first = profile.applySession(highResponse, 1.0, 10.0, policy);
+        assertThat(first.levelChanged()).isFalse();
+        assertThat(first.extremeScoreBuffered()).isTrue();
+        assertThat(profile.getCurrentLevel()).isEqualTo(2);
+
+        DifficultyAdjustment second = profile.applySession(highResponse, 1.0, 10.0, policy);
+        assertThat(second.levelChanged()).isTrue();
         assertThat(profile.getCurrentLevel()).isEqualTo(3);
-        assertThat(profile.getConsecutiveCorrect()).isZero();
+        assertThat(profile.getIncreaseEligibleSessions()).isZero();
     }
 
     @Test
-    @DisplayName("오답 3회 또는 시간 초과가 있으면 난이도를 낮춘다")
-    void difficultyProfile_decreasesAfterFailures() {
-        DifficultyProfile wrong = DifficultyProfile.defaultFor("elder-1");
-        wrong.applySession(
+    @DisplayName("발화율 하향: 발화율이 하향 기준 이하이거나 시간 초과면 그 세션에서 즉시 낮춘다")
+    void difficultyProfile_decreasesImmediately() {
+        DifficultyProfile lowResponse = DifficultyProfile.defaultFor("elder-1");
+        lowResponse.applySession(
                 List.of(
-                        performance("q1", "p1", QuestionType.WORD_ASSOCIATION, false, false),
-                        performance("q2", "p2", QuestionType.PERSON_RECALL, false, false),
-                        performance("q3", "p3", QuestionType.SEQUENCE_MEMORY, false, false)
+                        performance("q1", QuestionType.PERSON_RECALL, false, false),
+                        performance("q2", QuestionType.PLACE_MATCH, false, false),
+                        performance("q3", QuestionType.COLOR_SHAPE, false, false)
                 ),
                 0.0,
                 10.0,
@@ -238,53 +240,46 @@ class CognitiveTrainingSessionTest {
 
         DifficultyProfile timeout = DifficultyProfile.defaultFor("elder-2");
         timeout.applySession(
-                List.of(performance(
-                        "q1", "p1", QuestionType.WORD_ASSOCIATION, false, true)),
-                0.0,
+                List.of(performance("q1", QuestionType.PERSON_RECALL, true, true)),
+                1.0,
                 61.0,
                 DifficultyPolicy.defaultFor(2)
         );
 
-        assertThat(wrong.getCurrentLevel()).isEqualTo(1);
+        assertThat(lowResponse.getCurrentLevel()).isEqualTo(1);
         assertThat(timeout.getCurrentLevel()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("0%에서 100%로 급변한 두 번째 세션은 난이도를 즉시 높이지 않는다")
-    void difficultyProfile_buffersExtremeScoreUntilThreeSessionsExist() {
+    @DisplayName("중간대 발화율은 레벨을 유지하고 상향 연속 카운트를 초기화한다")
+    void difficultyProfile_middleZoneKeepsLevelAndResetsCycle() {
         DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
         DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
-        List<QuestionPerformance> neutral = List.of(
-                performance("q1", "p1", QuestionType.WORD_ASSOCIATION, true, false),
-                performance("q2", "p2", QuestionType.PERSON_RECALL, false, false),
-                performance("q3", "p3", QuestionType.SEQUENCE_MEMORY, true, false)
+        List<QuestionPerformance> perfs = List.of(
+                performance("q1", QuestionType.PERSON_RECALL, true, false),
+                performance("q2", QuestionType.PLACE_MATCH, true, false),
+                performance("q3", QuestionType.COLOR_SHAPE, true, false)
         );
 
-        profile.applySession(neutral, 0.0, 20.0, policy);
-        DifficultyAdjustment adjustment = profile.applySession(
-                List.of(
-                        performance("q4", "p4", QuestionType.WORD_ASSOCIATION, true, false),
-                        performance("q5", "p5", QuestionType.PERSON_RECALL, true, false),
-                        performance("q6", "p6", QuestionType.SEQUENCE_MEMORY, true, false)
-                ),
-                1.0,
-                10.0,
-                policy
-        );
+        // 상향 기준 1주기 충족 → 대기
+        profile.applySession(perfs, 1.0, 10.0, policy);
+        assertThat(profile.getIncreaseEligibleSessions()).isEqualTo(1);
 
-        assertThat(adjustment.extremeScoreBuffered()).isTrue();
+        // 중간대(0.4 초과, 0.8 미만) → 유지 + 카운트 초기화
+        DifficultyAdjustment middle = profile.applySession(perfs, 0.6, 10.0, policy);
+        assertThat(middle.levelChanged()).isFalse();
         assertThat(profile.getCurrentLevel()).isEqualTo(2);
-        assertThat(profile.getRecentAccuracyRates()).containsExactly(0.0, 1.0);
+        assertThat(profile.getIncreaseEligibleSessions()).isZero();
     }
 
     @Test
-    @DisplayName("정확도 이력은 최근 세 세션만 유지한다")
+    @DisplayName("응답률 이력은 최근 세 세션만 유지한다")
     void difficultyProfile_keepsOnlyThreeSessionWindow() {
         DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
         DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
         List<QuestionPerformance> neutral = List.of(
-                performance("q1", "p1", QuestionType.WORD_ASSOCIATION, true, false),
-                performance("q2", "p2", QuestionType.PERSON_RECALL, false, false)
+                performance("q1", QuestionType.PERSON_RECALL, true, false),
+                performance("q2", QuestionType.PLACE_MATCH, false, false)
         );
 
         profile.applySession(neutral, 0.1, 20.0, policy);
@@ -292,46 +287,69 @@ class CognitiveTrainingSessionTest {
         profile.applySession(neutral, 0.3, 20.0, policy);
         profile.applySession(neutral, 0.4, 20.0, policy);
 
-        assertThat(profile.getRecentAccuracyRates()).containsExactly(0.2, 0.3, 0.4);
+        assertThat(profile.getRecentResponseRates()).containsExactly(0.2, 0.3, 0.4);
         assertThat(profile.getThreeSessionMovingAverage()).isEqualTo(0.3);
     }
 
     @Test
-    @DisplayName("같은 문제 패턴을 세 번 틀리면 해당 문제 유형을 다음 세션에서 우선한다")
-    void difficultyProfile_prioritizesRepeatedWrongPattern() {
+    @DisplayName("문제 유형 추천은 정책에 설정된 유형을 사용한다")
+    void difficultyProfile_recommendsPolicyQuestionTypes() {
         DifficultyProfile profile = DifficultyProfile.defaultFor("elder");
         DifficultyPolicy policy = DifficultyPolicy.defaultFor(2);
 
-        for (int index = 1; index <= 3; index++) {
-            profile.applySession(
-                    List.of(
-                            performance(
-                                    "wrong-" + index,
-                                    "PERSON_RECALL:홍길동",
-                                    QuestionType.PERSON_RECALL,
-                                    false,
-                                    false
-                            ),
-                            performance(
-                                    "correct-" + index,
-                                    "WORD_ASSOCIATION:가족",
-                                    QuestionType.WORD_ASSOCIATION,
-                                    true,
-                                    false
-                            )
-                    ),
-                    0.5,
-                    20.0,
-                    policy
-            );
-        }
+        assertThat(profile.recommendQuestionTypes(policy))
+                .containsExactlyInAnyOrderElementsOf(policy.getQuestionTypes());
+    }
 
-        assertThat(profile.getWrongAnswerPatterns())
-                .filteredOn(WrongAnswerPattern::isRepeated)
-                .extracting(WrongAnswerPattern::getLastQuestionId)
-                .containsExactly("wrong-3");
-        assertThat(profile.recommendQuestionTypes(policy).getFirst())
-                .isEqualTo(QuestionType.PERSON_RECALL);
+    @Test
+    @DisplayName("사전 적립형 손주 한마디: 대기 없이 즉시 제공하고 찬스를 소진한다")
+    void serveAccruedHint_appliesImmediatelyAndConsumesChance() {
+        CognitiveTrainingSession session = session();
+
+        int remaining = session.serveAccruedHint("그때 바닷가 기억나세요?", "지민");
+
+        assertThat(remaining).isEqualTo(1);
+        assertThat(session.getLastChanceStatus()).isEqualTo(GrandchildChanceStatus.ANSWERED);
+        assertThat(session.getLastHintText()).isEqualTo("그때 바닷가 기억나세요?");
+        assertThat(session.getLastHintResponder()).isEqualTo("지민");
+
+        session.serveAccruedHint("두 번째 힌트", "지호");
+        assertThatThrownBy(() -> session.serveAccruedHint("세 번째 힌트", "지수"))
+                .isInstanceOf(GrandchildChanceExhaustedException.class);
+    }
+
+    @Test
+    @DisplayName("60초 무응답 허용: 발화 없이 다음 문제로 진행하고 무응답으로 기록한다")
+    void recordNoResponse_advancesWithoutResponse() {
+        CognitiveTrainingSession session = session(2);
+
+        QuestionAttempt attempt = session.recordNoResponse("q1");
+
+        assertThat(attempt.isResponded()).isFalse();
+        assertThat(attempt.isTimeout()).isFalse();
+        assertThat(attempt.getResponseSeconds())
+                .isEqualTo(CognitiveTrainingSession.NO_RESPONSE_ALLOWANCE_SECONDS);
+        assertThat(session.getCurrentQuestionIndex()).isEqualTo(1);
+        assertThat(session.getStatus()).isEqualTo(TrainingSessionStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("무응답 진행은 현재 문제에만 허용하며 마지막 문제면 세션을 완료한다")
+    void recordNoResponse_validatesCurrentAndCompletes() {
+        CognitiveTrainingSession session = session(2);
+
+        assertThatThrownBy(() -> session.recordNoResponse("q2"))
+                .isInstanceOf(TrainingQuestionNotFoundException.class);
+
+        session.recordNoResponse("q1");
+        session.answer("q2", "이야기", 10);
+        session.recordNoResponse("q3");
+
+        assertThat(session.getStatus()).isEqualTo(TrainingSessionStatus.COMPLETED);
+        assertThat(session.getRespondedCount()).isEqualTo(1);
+        assertThat(session.getNoResponseCount()).isEqualTo(2);
+        assertThatThrownBy(() -> session.recordNoResponse("q3"))
+                .isInstanceOf(TrainingSessionAlreadyCompletedException.class);
     }
 
     private CognitiveTrainingSession session() {
@@ -341,9 +359,9 @@ class CognitiveTrainingSessionTest {
                 StartMode.AUTO,
                 2,
                 List.of(
-                        question("q1", QuestionType.WORD_ASSOCIATION, "a"),
-                        question("q2", QuestionType.PERSON_RECALL, "b"),
-                        question("q3", QuestionType.SEQUENCE_MEMORY, "c")
+                        question("q1", QuestionType.PERSON_RECALL),
+                        question("q2", QuestionType.PLACE_MATCH),
+                        question("q3", QuestionType.COLOR_SHAPE)
                 )
         );
     }
@@ -355,22 +373,21 @@ class CognitiveTrainingSessionTest {
 
     private List<TrainingQuestion> questions() {
         return List.of(
-                question("q1", QuestionType.WORD_ASSOCIATION, "a"),
-                question("q2", QuestionType.PERSON_RECALL, "b"),
-                question("q3", QuestionType.SEQUENCE_MEMORY, "c"));
+                question("q1", QuestionType.PERSON_RECALL),
+                question("q2", QuestionType.PLACE_MATCH),
+                question("q3", QuestionType.COLOR_SHAPE));
     }
 
-    private TrainingQuestion question(String id, QuestionType type, String answer) {
-        return TrainingQuestion.of(id, type, "질문 " + id, answer, 2);
+    private TrainingQuestion question(String id, QuestionType type) {
+        return TrainingQuestion.of(id, type, "질문 " + id, 2);
     }
 
     private QuestionPerformance performance(
             String questionId,
-            String patternKey,
             QuestionType type,
-            boolean correct,
+            boolean responded,
             boolean timeout
     ) {
-        return new QuestionPerformance(questionId, patternKey, type, correct, timeout);
+        return new QuestionPerformance(questionId, type, responded, timeout);
     }
 }

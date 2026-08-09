@@ -9,6 +9,9 @@ import org.springframework.data.domain.AbstractAggregateRoot;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -34,8 +37,20 @@ public class VoiceAlarm extends AbstractAggregateRoot<VoiceAlarm> {
     @Column(name = "alarm_time", nullable = false)
     private LocalTime alarmTime;
 
+    // 현재 재생 음성 (로테이션 풀에서 선택됨)
     @Column(name = "voice_key")
     private String voiceKey;
+
+    // 가족 음성 로테이션 풀 (순서 보존)
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "voice_alarm_voices",
+            joinColumns = @JoinColumn(name = "alarm_id"))
+    @OrderColumn(name = "voice_order")
+    @Column(name = "voice_key")
+    private List<String> voiceKeys = new ArrayList<>();
+
+    @Column(name = "voice_rotation_index", nullable = false)
+    private int voiceRotationIndex;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "repeat_rule", nullable = false)
@@ -65,10 +80,50 @@ public class VoiceAlarm extends AbstractAggregateRoot<VoiceAlarm> {
         alarm.alarmType = alarmType;
         alarm.alarmTime = alarmTime;
         alarm.voiceKey = voiceKey;
+        if (voiceKey != null && !voiceKey.isBlank()) {
+            alarm.voiceKeys.add(voiceKey);
+        }
+        alarm.voiceRotationIndex = 0;
         alarm.repeatRule = repeatRule;
         alarm.active = true;
         alarm.createdAt = LocalDateTime.now();
         return alarm;
+    }
+
+    // 로테이션 풀에 가족 음성을 추가한다. 첫 음성이면 현재 재생 음성으로 설정.
+    public void addVoice(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        voiceKeys.add(key);
+        if (voiceKeys.size() == 1) {
+            this.voiceRotationIndex = 0;
+            this.voiceKey = key;
+        }
+    }
+
+    // 다음 음성으로 로테이션한다(풀이 2개 이상일 때만 순환). 현재 재생 음성을 갱신.
+    public void rotateVoice() {
+        if (voiceKeys.size() <= 1) {
+            return;
+        }
+        this.voiceRotationIndex = (voiceRotationIndex + 1) % voiceKeys.size();
+        this.voiceKey = voiceKeys.get(voiceRotationIndex);
+    }
+
+    // 발송 직전 상태 검증. 현재는 활성 여부만 확인한다.
+    // 사별/입원 차단(EX-F501-06)·작고 가족 음성 차단(EX-F501-07)은 어르신 상태 머신(#36)
+    // 의존이라 여기 앞단에 상태 조회 결과를 결합할 예정(#50).
+    public boolean isDispatchable() {
+        return active;
+    }
+
+    public List<String> getVoiceKeys() {
+        return Collections.unmodifiableList(voiceKeys);
+    }
+
+    public int voiceCount() {
+        return voiceKeys.size();
     }
 
     public void markTriggered() {

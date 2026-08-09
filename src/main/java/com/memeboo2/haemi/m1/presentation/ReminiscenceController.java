@@ -30,12 +30,10 @@ public class ReminiscenceController {
                     오늘 생성된 AI 회상 콘텐츠를 반환합니다.
 
                     **콘텐츠 구성:**
-                    - `slideCards`: 슬라이드형 사진 회상 (3~5장)
-                    - `questionCards`: 회상 유도 질문 (2~3개)
-                    - `quizItems`: 인물·장소 퀴즈 (1~2개)
+                    - `cards`: 사진과 이야기 청유 문장으로 구성된 회상 카드 (3~5장)
 
                     매일 오전 08:00에 자동 생성됩니다.
-                    앨범에 완료된 분석 사진이 5장 미만이면 `data: null`을 반환합니다.
+                    앨범에 완료된 분석 사진이 20장 미만이거나 안전 검증을 통과한 카드가 3장 미만이면 `data: null`을 반환합니다.
                     """
     )
     @ApiResponses({
@@ -49,7 +47,7 @@ public class ReminiscenceController {
         Optional<ReminiscenceResult> result = reminiscenceService.getTodayReminiscence(
                 new GetTodayReminiscenceQuery(albumId));
         return result.map(ApiResponse::ok)
-                .orElse(ApiResponse.ok(null, "사진을 5장 이상 추가하면 오늘의 회상이 시작됩니다."));
+                .orElse(ApiResponse.ok(null, "사진을 조금 더 담아주시면 오늘의 회상이 시작됩니다."));
     }
 
     @Operation(
@@ -59,6 +57,7 @@ public class ReminiscenceController {
 
                     - 당일 이미 생성된 콘텐츠가 있으면 재생성하지 않고 기존 콘텐츠를 반환합니다.
                     - 최근 7일 이내 노출된 사진은 제외하고 새로운 조합으로 생성합니다.
+                    - 사별 인물 현재형, 금기 주제, 평가·퀴즈 어휘를 서버 안전 검증으로 차단합니다.
                     """
     )
     @ApiResponses({
@@ -73,7 +72,7 @@ public class ReminiscenceController {
             @Parameter(description = "앨범 UUID") @PathVariable String albumId) {
         Optional<ReminiscenceResult> result = reminiscenceService.generateTodayReminiscence(albumId);
         return result.map(r -> ApiResponse.ok(r, "회상 콘텐츠가 생성되었습니다."))
-                .orElse(ApiResponse.ok(null, "사진이 부족합니다. 5장 이상 추가해주세요."));
+                .orElse(ApiResponse.ok(null, "안전하게 보여드릴 회상 카드가 아직 부족합니다."));
     }
 
     @Operation(

@@ -8,8 +8,10 @@ import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.AnswerTrainingQuestionCommand;
 import com.memeboo2.haemi.m3.application.command.RequestGrandchildChanceCommand;
 import com.memeboo2.haemi.m3.application.command.ProvideHintCommand;
+import com.memeboo2.haemi.m3.application.command.RecordNoResponseCommand;
 import com.memeboo2.haemi.m3.application.command.StartTrainingSessionCommand;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
+import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
 import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
@@ -46,9 +48,12 @@ class TrainingApplicationServiceTest {
     @Mock DifficultyProfileRepository profileRepository;
     @Mock DifficultyPolicyRepository policyRepository;
     @Mock AlbumRepository albumRepository;
+    @Mock com.memeboo2.haemi.m3.domain.repository.AccruedHintRepository accruedHintRepository;
     @Mock CognitiveQuestionGeneratorPort questionGenerator;
     @Mock TrainingSpeechSynthesisPort speechSynthesis;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock com.memeboo2.haemi.m0.domain.port.ElderStatusQuery elderStatusQuery;
+    @Mock com.memeboo2.haemi.m0.domain.port.ElderMembershipQuery elderMembershipQuery;
 
     TrainingApplicationService service;
 
@@ -59,10 +64,15 @@ class TrainingApplicationServiceTest {
                 profileRepository,
                 policyRepository,
                 albumRepository,
+                accruedHintRepository,
                 questionGenerator,
                 speechSynthesis,
-                eventPublisher
+                eventPublisher,
+                elderStatusQuery,
+                elderMembershipQuery
         );
+        lenient().when(elderStatusQuery.isDispatchable(anyString())).thenReturn(true);
+        lenient().when(elderMembershipQuery.isActiveGroupMember(anyString(), any())).thenReturn(true);
         lenient().when(sessionRepository.findByElderIdAndSessionDate(anyString(), any(LocalDate.class)))
                 .thenReturn(Optional.empty());
         lenient().when(speechSynthesis.synthesize(anyString()))
@@ -73,54 +83,25 @@ class TrainingApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("손주 찬스 요청은 앨범의 실제 가족 구성원을 알림 대상으로 사용한다")
-    void requestGrandchildChance_usesAlbumMembersAsRecipients() {
-        CognitiveTrainingSession session = session();
-        Album album = Album.create("elder-1", "group-1", "family-1");
-        album.inviteMember("family-2");
-        album.acceptInvite("family-2");
-        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
-        when(albumRepository.findById(AlbumId.of(session.getAlbumId()))).thenReturn(Optional.of(album));
-        when(sessionRepository.save(any(CognitiveTrainingSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        ChanceResult result = service.requestGrandchildChance(
-                new RequestGrandchildChanceCommand(session.getId().toString(), "elder-1"));
-
-        assertThat(result.remainingChanceCount()).isEqualTo(1);
-        assertThat(session.getLastChanceStatus()).isEqualTo(GrandchildChanceStatus.PENDING);
-        verify(sessionRepository).save(session);
-    }
-
-    @Test
-    @DisplayName("손주 찬스 알림 대상은 수락 완료된 구성원만 포함한다 (PENDING 초대자는 제외)")
-    void requestGrandchildChance_excludesPendingInvitee() {
-        CognitiveTrainingSession session = session();
-        Album album = spy(Album.create("elder-1", "group-1", "family-1"));
-        album.inviteMember("family-2"); // 아직 수락 전(PENDING)
-        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
-        when(albumRepository.findById(AlbumId.of(session.getAlbumId()))).thenReturn(Optional.of(album));
-        when(sessionRepository.save(any(CognitiveTrainingSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        service.requestGrandchildChance(
-                new RequestGrandchildChanceCommand(session.getId().toString(), "elder-1"));
-
-        verify(album).getMemberIds();
-        verify(album, never()).getAllMemberIds();
-    }
-
-    @Test
-    @DisplayName("앨범에 알림을 받을 가족 구성원이 없으면 손주 찬스 요청을 저장하지 않는다")
-    void requestGrandchildChance_rejectsAlbumWithoutMembers() {
-        CognitiveTrainingSession session = session();
-        Album album = Album.create("elder-1", "group-1", "family-1");
-        ((List<?>) ReflectionTestUtils.getField(album, "members")).clear();
-        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
-        when(albumRepository.findById(AlbumId.of(session.getAlbumId()))).thenReturn(Optional.of(album));
-
+    @DisplayName("실시간 손주 찬스 요청은 폐기되어 예외를 던지고 세션을 변경하지 않는다")
+    void requestGrandchildChance_isDiscontinued() {
         assertThatThrownBy(() -> service.requestGrandchildChance(
-                new RequestGrandchildChanceCommand(session.getId().toString(), "elder-1")))
-                .isInstanceOf(GrandchildChanceUnavailableException.class);
+                new RequestGrandchildChanceCommand(UUID.randomUUID().toString(), "elder-1")))
+                .isInstanceOf(GrandchildChanceDiscontinuedException.class);
 
+        verifyNoInteractions(sessionRepository, albumRepository);
+    }
+
+    @Test
+    @DisplayName("EX-F301-10: 부적합 상태(사별/입원) 어르신은 세션 개시가 차단된다")
+    void startSession_blockedForUnfitElderStatus() {
+        Album album = albumWithPhotos("elder-profile-1", 5);
+        when(elderStatusQuery.isDispatchable("elder-profile-1")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.startSession(startCommand("elder-profile-1", album)))
+                .isInstanceOf(SessionStartBlockedByElderStatusException.class);
+
+        verifyNoInteractions(questionGenerator);
         verify(sessionRepository, never()).save(any());
     }
 
@@ -252,9 +233,9 @@ class TrainingApplicationServiceTest {
         );
 
         assertThat(result.session().status()).isEqualTo(TrainingSessionStatus.COMPLETED);
-        assertThat(result.message()).contains("정답률은 67퍼센트");
-        assertThat(result.session().speechGuide().text()).contains("정답률은 67퍼센트");
-        verify(speechSynthesis).synthesize(contains("정말 잘하셨어요"));
+        assertThat(result.message()).contains("오늘의 회상을 모두 마쳤습니다");
+        assertThat(result.session().speechGuide().text()).contains("고맙습니다");
+        verify(speechSynthesis).synthesize(contains("오늘의 회상을 모두 마쳤습니다"));
     }
 
     @Test
@@ -265,8 +246,11 @@ class TrainingApplicationServiceTest {
         session.answer("q1", "정답1", 10);
         session.answer("q2", "정답2", 10);
         when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        // 상향 2주기 규칙: 직전 세션에서 이미 1주기 충족한 상태로 설정
+        DifficultyProfile profile = DifficultyProfile.defaultFor("elder-profile-1");
+        ReflectionTestUtils.setField(profile, "increaseEligibleSessions", 1);
         when(profileRepository.findByElderId("elder-profile-1"))
-                .thenReturn(Optional.of(DifficultyProfile.defaultFor("elder-profile-1")));
+                .thenReturn(Optional.of(profile));
 
         service.answerQuestion(new AnswerTrainingQuestionCommand(
                 session.getId().toString(),
@@ -283,6 +267,88 @@ class TrainingApplicationServiceTest {
                     assertThat(changed.currentLevel()).isEqualTo(3);
                     assertThat(changed.elderId()).isEqualTo("elder-profile-1");
                 });
+    }
+
+    @Test
+    @DisplayName("무응답 진행 서비스는 세션을 저장하고 회상 타이밍 기본값을 노출한다")
+    void recordNoResponse_savesAndExposesRecallTiming() {
+        CognitiveTrainingSession session = session();
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any(CognitiveTrainingSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.recordNoResponse(
+                new RecordNoResponseCommand(session.getId().toString(), "q1"));
+
+        assertThat(result.currentQuestion().questionId()).isEqualTo("q2");
+        assertThat(result.recallTiming().hintDelaySeconds()).isEqualTo(4);
+        assertThat(result.recallTiming().autoPlayDelaySeconds()).isEqualTo(7);
+        assertThat(result.recallTiming().noResponseAllowanceSeconds()).isEqualTo(60);
+        verify(sessionRepository).save(session);
+    }
+
+    @Test
+    @DisplayName("손주 한마디 적립: 적립 경로와 함께 저장하고 tier를 판정한다")
+    void accrueHint_savesWithSourceAndTier() {
+        when(accruedHintRepository.save(any(com.memeboo2.haemi.m3.domain.model.hint.AccruedHint.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.accrueHint(new com.memeboo2.haemi.m3.application.command.AccrueHintCommand(
+                "elder-1", UUID.randomUUID(), "손녀",
+                com.memeboo2.haemi.m3.domain.model.hint.AccrualSource.MEMO,
+                "m1", "지민", "그때 바닷가 기억나세요?"));
+
+        assertThat(result.source())
+                .isEqualTo(com.memeboo2.haemi.m3.domain.model.hint.AccrualSource.MEMO);
+        assertThat(result.tier()).isEqualTo(com.memeboo2.haemi.m3.domain.model.hint.HintTier.L1);
+        assertThat(result.text()).isEqualTo("그때 바닷가 기억나세요?");
+    }
+
+    @Test
+    @DisplayName("적립 힌트가 없으면 L3 시스템 기본 문구를 즉시 제공한다")
+    void serveHint_fallsBackToL3WhenBankEmpty() {
+        CognitiveTrainingSession session = session();
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any(CognitiveTrainingSession.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(accruedHintRepository.findLatestActiveGeneral("elder-1")).thenReturn(Optional.empty());
+
+        var result = service.serveGrandchildHint(
+                new com.memeboo2.haemi.m3.application.command.ServeGrandchildHintCommand(
+                        session.getId().toString()));
+
+        assertThat(result.servedTier())
+                .isEqualTo(com.memeboo2.haemi.m3.domain.model.hint.HintTier.L3);
+        assertThat(result.remainingChanceCount()).isEqualTo(1);
+        assertThat(result.session().lastChanceStatus()).isEqualTo(GrandchildChanceStatus.ANSWERED);
+        verify(sessionRepository).save(session);
+    }
+
+    @Test
+    @DisplayName("EX-F302-07: 세션 응답 DTO는 난이도 레벨을 어르신·가족에게 노출하지 않는다")
+    void sessionResult_doesNotExposeDifficultyLevel() {
+        assertThat(java.util.Arrays.stream(TrainingSessionResult.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("difficultyLevel");
+        assertThat(java.util.Arrays.stream(
+                        TrainingSessionResult.QuestionResult.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("difficultyLevel");
+    }
+
+    @Test
+    @DisplayName("타 그룹 구성원의 손주 한마디 적립은 거부한다")
+    void accrueHint_rejectsNonGroupMember() {
+        when(elderMembershipQuery.isActiveGroupMember(eq("elder-1"), any())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.accrueHint(
+                new com.memeboo2.haemi.m3.application.command.AccrueHintCommand(
+                        "elder-1", UUID.randomUUID(), "손녀",
+                        com.memeboo2.haemi.m3.domain.model.hint.AccrualSource.MEMO,
+                        UUID.randomUUID().toString(), "지민", "그때 바닷가 기억나세요?")))
+                .isInstanceOf(HintAccrualAccessDeniedException.class);
+
+        verifyNoInteractions(accruedHintRepository);
     }
 
     private void prepareStart(Album album) {
@@ -313,7 +379,7 @@ class TrainingApplicationServiceTest {
         CognitiveTrainingSession session = CognitiveTrainingSession.start(
                 elderId, album.getId(), StartMode.AUTO, 2, questions());
         questions().forEach(question ->
-                session.answer(question.getQuestionId(), question.getCorrectAnswer(), 10));
+                session.answer(question.getQuestionId(), "이야기", 10));
         return session;
     }
 
@@ -324,26 +390,26 @@ class TrainingApplicationServiceTest {
                 StartMode.AUTO,
                 2,
                 List.of(
-                        question("q1", QuestionType.WORD_ASSOCIATION, "a"),
-                        question("q2", QuestionType.PERSON_RECALL, "b"),
-                        question("q3", QuestionType.SEQUENCE_MEMORY, "c")
+                        question("q1", QuestionType.PERSON_RECALL),
+                        question("q2", QuestionType.PLACE_MATCH),
+                        question("q3", QuestionType.COLOR_SHAPE)
                 )
         );
     }
 
     private List<TrainingQuestion> questions() {
         return List.of(
-                TrainingQuestion.of("q1", QuestionType.WORD_ASSOCIATION,
-                        "첫 번째 질문", "정답1", 2),
-                TrainingQuestion.of("q2", QuestionType.PERSON_RECALL,
-                        "두 번째 질문", "정답2", 2),
-                TrainingQuestion.of("q3", QuestionType.SEQUENCE_MEMORY,
-                        "세 번째 질문", "정답3", 2)
+                TrainingQuestion.of("q1", QuestionType.PERSON_RECALL,
+                        "첫 번째 질문", 2),
+                TrainingQuestion.of("q2", QuestionType.PLACE_MATCH,
+                        "두 번째 질문", 2),
+                TrainingQuestion.of("q3", QuestionType.COLOR_SHAPE,
+                        "세 번째 질문", 2)
         );
     }
 
-    private TrainingQuestion question(String id, QuestionType type, String answer) {
-        return TrainingQuestion.of(id, type, "문제", answer, 2);
+    private TrainingQuestion question(String id, QuestionType type) {
+        return TrainingQuestion.of(id, type, "문제", 2);
     }
 
     private TrainingSpeech speech(String text) {

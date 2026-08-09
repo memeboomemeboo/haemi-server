@@ -34,14 +34,16 @@ public class ReminiscenceContentRepositoryAdapter implements ReminiscenceContent
     @Override
     public Set<UUID> findRecentlyUsedPhotoIds(AlbumId albumId, int days) {
         LocalDate since = LocalDate.now().minusDays(days);
-        Set<UUID> ids = new HashSet<>();
-        ids.addAll(jpa.findRecentlyUsedPhotoIds(albumId.value(), since));
-        ids.addAll(jpa.findRecentlyUsedQuizPhotoIds(albumId.value(), since));
-        return ids;
+        return new HashSet<>(jpa.findRecentlyUsedPhotoIds(albumId.value(), since));
     }
 
     @Override
     public List<ReminiscenceContent> findRecentByAlbumId(AlbumId albumId, int limit) {
-        return jpa.findRecentByAlbumId(albumId.value(), limit);
+        return jpa.findRecentByAlbumId(albumId.value(), limit).stream().limit(limit).toList();
+    }
+
+    @Override
+    public void invalidateByAlbumId(AlbumId albumId) {
+        jpa.deleteAllByAlbumId(albumId.value());
     }
 }

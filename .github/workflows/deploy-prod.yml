@@ -43,17 +43,53 @@ jobs:
             --push \
             .
 
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Sync Compose manifest to EC2
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
+          source: "compose.yaml"
+          target: /home/${{ secrets.EC2_USERNAME }}/haemi
+          overwrite: true
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ELDER_HEALTH_ENCRYPTION_KEY: ${{ secrets.ELDER_HEALTH_ENCRYPTION_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.6-flash
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL
           command_timeout: 10m
           script: |
             set -eu
             cd ~/haemi
+
+            save_env() {
+              name="$1"
+              value="$2"
+              temporary_env="$(mktemp)"
+              if [ -f .env ]; then
+                grep -v "^${name}=" .env > "$temporary_env" || true
+              fi
+              printf '%s=%s\n' "$name" "$value" >> "$temporary_env"
+              chmod 600 "$temporary_env"
+              mv "$temporary_env" .env
+            }
+
+            test -n "$ELDER_HEALTH_ENCRYPTION_KEY" || {
+              echo "ELDER_HEALTH_ENCRYPTION_KEY GitHub Secret이 필요합니다." >&2
+              exit 1
+            }
+            save_env ELDER_HEALTH_ENCRYPTION_KEY "$ELDER_HEALTH_ENCRYPTION_KEY"
+            save_env GEMINI_API_KEY "$GEMINI_API_KEY"
+            save_env GEMINI_MODEL "$GEMINI_MODEL"
 
             if grep -q '^IMAGE_TAG=' .env; then
               sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env
@@ -72,4 +108,18 @@ jobs:
 
             docker compose pull app
             docker compose up -d
+
+            health_url="http://127.0.0.1:${APP_PORT_VALUE}/actuator/health"
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --show-error --max-time 3 "$health_url"; then
+                break
+              fi
+              if [ "$attempt" -eq 30 ]; then
+                docker compose ps
+                docker compose logs --tail=200 app
+                exit 1
+              fi
+              sleep 2
+            done
+
             docker image prune -f

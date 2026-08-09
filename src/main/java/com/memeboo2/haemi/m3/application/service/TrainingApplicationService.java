@@ -1,13 +1,21 @@
 package com.memeboo2.haemi.m3.application.service;
 
+import com.memeboo2.haemi.m0.domain.port.ElderMembershipQuery;
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.application.command.*;
+import com.memeboo2.haemi.m3.application.dto.AccruedHintResult;
 import com.memeboo2.haemi.m3.application.dto.AnswerResult;
 import com.memeboo2.haemi.m3.application.dto.ChanceResult;
+import com.memeboo2.haemi.m3.application.dto.HintServeResult;
 import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
+import com.memeboo2.haemi.m3.domain.model.hint.AccruedHint;
+import com.memeboo2.haemi.m3.domain.model.hint.HintBankResolver;
+import com.memeboo2.haemi.m3.domain.model.hint.ResolvedHint;
+import com.memeboo2.haemi.m3.domain.repository.AccruedHintRepository;
 import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
@@ -25,6 +33,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -35,15 +44,22 @@ public class TrainingApplicationService {
     private final DifficultyProfileRepository profileRepository;
     private final DifficultyPolicyRepository policyRepository;
     private final AlbumRepository albumRepository;
+    private final AccruedHintRepository accruedHintRepository;
     private final CognitiveQuestionGeneratorPort questionGeneratorPort;
     private final TrainingSpeechSynthesisPort speechSynthesisPort;
     private final ApplicationEventPublisher eventPublisher;
+    private final ElderStatusQuery elderStatusQuery;
+    private final ElderMembershipQuery elderMembershipQuery;
 
     private static final int MIN_PHOTO_COUNT = 5;
 
     // F3-01: 일일 인지 훈련 세션 시작
     @Transactional
     public TrainingSessionResult startSession(StartTrainingSessionCommand command) {
+        // EX-F301-10: 사별/입원 등 부적합 상태면 세션 개시를 차단한다
+        if (!elderStatusQuery.isDispatchable(command.elderId())) {
+            throw new SessionStartBlockedByElderStatusException(command.elderId());
+        }
         var todaySession = sessionRepository.findByElderIdAndSessionDate(command.elderId(), LocalDate.now());
         if (todaySession.isPresent()) {
             CognitiveTrainingSession existing = todaySession.get();
@@ -100,18 +116,43 @@ public class TrainingApplicationService {
 
         sessionRepository.save(session);
         String message = completionMessage(session, attempt);
-        return new AnswerResult(toResult(session), attempt.isCorrect(), message);
+        return new AnswerResult(toResult(session), attempt.isResponded(), message);
     }
 
-    // F3-03: 손주 찬스 요청
+    // F3-03: 손주 한마디 사전 적립 (메모/온보딩/주간리마인더/반응 유도 4개 경로)
+    @Transactional
+    public AccruedHintResult accrueHint(AccrueHintCommand command) {
+        // 요청자가 해당 어르신의 가족 그룹 구성원인지 검증 (타 그룹 적립 차단)
+        if (!elderMembershipQuery.isActiveGroupMember(command.elderId(), parseMemberId(command.authorMemberId()))) {
+            throw new HintAccrualAccessDeniedException();
+        }
+        AccruedHint hint = AccruedHint.accrue(
+                command.elderId(), command.photoId(), command.personName(), command.source(),
+                command.authorMemberId(), command.authorName(), command.text());
+        return AccruedHintResult.from(accruedHintRepository.save(hint));
+    }
+
+    // F3-03: 적립 힌트 즉시 제공 (L1 사진특정 → L2 어르신일반 → L3 시스템기본)
+    @Transactional
+    public HintServeResult serveGrandchildHint(ServeGrandchildHintCommand command) {
+        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        var photoId = session.currentQuestion()
+                .map(TrainingQuestion::getPhotoId)
+                .orElse(null);
+        var l1 = photoId == null
+                ? java.util.Optional.<AccruedHint>empty()
+                : accruedHintRepository.findLatestActiveByPhoto(session.getElderId(), photoId);
+        var l2 = accruedHintRepository.findLatestActiveGeneral(session.getElderId());
+        ResolvedHint resolved = HintBankResolver.resolve(l1, l2);
+        int remaining = session.serveAccruedHint(resolved.text(), resolved.responderName());
+        sessionRepository.save(session);
+        return new HintServeResult(toResult(session), resolved.tier(), resolved.text(), remaining);
+    }
+
+    // F3-03: 실시간 소진형 손주 찬스는 폐기됨(P4/v3.0). 사전 적립형(serveGrandchildHint)만 사용한다.
     @Transactional
     public ChanceResult requestGrandchildChance(RequestGrandchildChanceCommand command) {
-        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
-        Album album = albumRepository.findById(AlbumId.of(session.getAlbumId()))
-                .orElseThrow(() -> new AlbumNotFoundException(session.getAlbumId().toString()));
-        int remaining = session.requestGrandchildChance(album.getMemberIds());
-        sessionRepository.save(session);
-        return new ChanceResult(command.sessionId(), remaining, "가족에게 힌트를 요청했습니다.");
+        throw new GrandchildChanceDiscontinuedException();
     }
 
     // F3-03: 가족 힌트 전달
@@ -128,6 +169,18 @@ public class TrainingApplicationService {
         return toResult(session);
     }
 
+    // F3-01: 60초 무응답 허용 — 발화 없이 다음 사진으로 진행
+    @Transactional
+    public TrainingSessionResult recordNoResponse(RecordNoResponseCommand command) {
+        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        session.recordNoResponse(command.questionId());
+        if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
+            adjustDifficulty(session);
+        }
+        sessionRepository.save(session);
+        return toResult(session);
+    }
+
     @Transactional
     public TrainingSessionResult passQuestion(PassTrainingQuestionCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
@@ -137,6 +190,17 @@ public class TrainingApplicationService {
         }
         sessionRepository.save(session);
         return toResult(session);
+    }
+
+    private static UUID parseMemberId(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(memberId);
+        } catch (IllegalArgumentException invalidUuid) {
+            return null;
+        }
     }
 
     private CognitiveTrainingSession loadSessionOrThrow(String sessionId) {
@@ -194,7 +258,7 @@ public class TrainingApplicationService {
         DifficultyPolicy policy = loadPolicy(profile.getCurrentLevel());
         DifficultyAdjustment adjustment = profile.applySession(
                 session.getQuestionPerformances(),
-                session.getAccuracyRate(),
+                session.getResponseRate(),
                 session.getAverageResponseSeconds(),
                 policy
         );
@@ -234,15 +298,15 @@ public class TrainingApplicationService {
     }
 
     private String completedSpeech(CognitiveTrainingSession session) {
-        int accuracyPercent = (int) Math.round(session.getAccuracyRate() * 100);
-        return "오늘의 훈련을 모두 마쳤습니다. 정말 잘하셨어요. 정답률은 %d퍼센트입니다."
-                .formatted(accuracyPercent);
+        return "오늘의 회상을 모두 마쳤습니다. 좋은 이야기 많이 들려주셔서 고맙습니다.";
     }
 
     private String completionMessage(CognitiveTrainingSession session, QuestionAttempt attempt) {
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             return completedSpeech(session);
         }
-        return attempt.isCorrect() ? "잘하셨어요!" : "괜찮아요, 다음 문제를 풀어볼까요?";
+        return attempt.isResponded()
+                ? "이야기해 주셔서 고맙습니다. 다음 사진도 함께 볼까요?"
+                : "괜찮아요, 다음 사진을 함께 볼까요?";
     }
 }

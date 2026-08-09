@@ -25,6 +25,11 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     private static final int MAX_CHANCE_PER_SESSION = 2;
     private static final int GRANDCHILD_CHANCE_RESPONSE_LIMIT_MINUTES = 30;
 
+    // F3-01 회상 세션 타이밍 (클라이언트 재생/힌트 노출 기준)
+    public static final int HINT_DELAY_SECONDS = 4;
+    public static final int AUTO_PLAY_DELAY_SECONDS = 7;
+    public static final int NO_RESPONSE_ALLOWANCE_SECONDS = 60;
+
     @Id
     @Column(columnDefinition = "uuid")
     private UUID id;
@@ -120,10 +125,29 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
 
         QuestionAttempt attempt = QuestionAttempt.of(
-                questionId, submittedAnswer, question.isCorrect(submittedAnswer), responseSeconds);
+                questionId, submittedAnswer, hasResponse(submittedAnswer), responseSeconds);
         attempts.add(attempt);
         currentQuestionIndex++;
 
+        if (currentQuestionIndex >= questions.size()) {
+            complete();
+        }
+        return attempt;
+    }
+
+    // F3-01: 60초 무응답 허용 — 발화 없이 다음 사진으로 진행 (손주 찬스 게이팅과 무관)
+    public QuestionAttempt recordNoResponse(String questionId) {
+        if (status == TrainingSessionStatus.COMPLETED) {
+            throw new TrainingSessionAlreadyCompletedException();
+        }
+        expireGrandchildChanceIfNeeded(LocalDateTime.now());
+        TrainingQuestion question = currentQuestion()
+                .filter(q -> q.getQuestionId().equals(questionId))
+                .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
+        QuestionAttempt attempt = QuestionAttempt.of(
+                question.getQuestionId(), null, false, NO_RESPONSE_ALLOWANCE_SECONDS);
+        attempts.add(attempt);
+        currentQuestionIndex++;
         if (currentQuestionIndex >= questions.size()) {
             complete();
         }
@@ -139,6 +163,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .orElseThrow(TrainingSessionAlreadyCompletedException::new);
         QuestionAttempt attempt = QuestionAttempt.of(
                 question.getQuestionId(), null, false, 61);
+        // 손주 찬스 만료 후 넘긴 문제는 무응답으로 기록
         attempts.add(attempt);
         currentQuestionIndex++;
         if (currentQuestionIndex >= questions.size()) {
@@ -168,6 +193,25 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         lastChanceRequestedAt = requestedAt;
         registerEvent(new HintRequestedEvent(
                 id, elderId, albumId, questionId, chanceUsedCount, recipientMemberIds, requestedAt));
+        return getRemainingChanceCount();
+    }
+
+    // F3-03: 사전 적립형 손주 한마디 — 대기 없이 즉시 제공 (찬스 2회 준수)
+    public int serveAccruedHint(String hintText, String responderName) {
+        if (status == TrainingSessionStatus.COMPLETED) {
+            throw new TrainingSessionAlreadyCompletedException();
+        }
+        if (hintText == null || hintText.isBlank()) {
+            throw new IllegalArgumentException("힌트 내용이 없습니다.");
+        }
+        currentQuestion().orElseThrow(TrainingSessionAlreadyCompletedException::new);
+        if (chanceUsedCount >= MAX_CHANCE_PER_SESSION) {
+            throw new GrandchildChanceExhaustedException();
+        }
+        chanceUsedCount++;
+        lastChanceStatus = GrandchildChanceStatus.ANSWERED;
+        this.lastHintText = hintText;
+        this.lastHintResponder = responderName;
         return getRemainingChanceCount();
     }
 
@@ -216,10 +260,10 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return previousStatus != lastChanceStatus;
     }
 
-    public double getAccuracyRate() {
+    public double getResponseRate() {
         if (attempts.isEmpty()) return 0.0;
-        long correct = attempts.stream().filter(QuestionAttempt::isCorrect).count();
-        return (double) correct / attempts.size();
+        long responded = attempts.stream().filter(QuestionAttempt::isResponded).count();
+        return (double) responded / attempts.size();
     }
 
     public double getAverageResponseSeconds() {
@@ -229,12 +273,12 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .orElse(0.0);
     }
 
-    public int getCorrectCount() {
-        return (int) attempts.stream().filter(QuestionAttempt::isCorrect).count();
+    public int getRespondedCount() {
+        return (int) attempts.stream().filter(QuestionAttempt::isResponded).count();
     }
 
-    public int getWrongCount() {
-        return attempts.size() - getCorrectCount();
+    public int getNoResponseCount() {
+        return attempts.size() - getRespondedCount();
     }
 
     public TrainingSessionId getSessionId() {
@@ -263,9 +307,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                     }
                     return new QuestionPerformance(
                             attempt.getQuestionId(),
-                            question.getPatternKey(),
                             question.getType(),
-                            attempt.isCorrect(),
+                            attempt.isResponded(),
                             attempt.isTimeout()
                     );
                 })
@@ -280,7 +323,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             registerEvent(new GrandchildChanceUnusedBadgeAwardedEvent(id, elderId, albumId, completedAt));
         }
         registerEvent(new TrainingSessionCompletedEvent(
-                id, elderId, albumId, sessionDate, getAccuracyRate(),
+                id, elderId, albumId, sessionDate, getResponseRate(),
                 getAverageResponseSeconds(), attempts.size(), completedAt));
     }
 
@@ -306,5 +349,9 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     private static int clampLevel(int level) {
         return Math.max(1, Math.min(5, level));
+    }
+
+    private static boolean hasResponse(String submittedAnswer) {
+        return submittedAnswer != null && !submittedAnswer.isBlank();
     }
 }

@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m5.application.service;
 
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
@@ -34,6 +35,7 @@ public class CareApplicationService {
     private final WeatherPort weatherPort;
     private final NotificationPort notificationPort;
     private final AlbumRepository albumRepository;
+    private final ElderStatusQuery elderStatusQuery;
 
     // F5-01: 손주 목소리 알람 생성
     @Transactional
@@ -57,6 +59,29 @@ public class CareApplicationService {
 
         VoiceAlarm alarm = VoiceAlarm.create(command.elderId(), command.groupId(),
                 command.alarmType(), command.alarmTime(), voiceKey, command.repeatRule());
+        return VoiceAlarmResult.from(voiceAlarmRepository.save(alarm));
+    }
+
+    // F5-01: 로테이션용 가족 음성 추가
+    @Transactional
+    public VoiceAlarmResult addAlarmVoice(AddAlarmVoiceCommand command) {
+        VoiceAlarm alarm = voiceAlarmRepository.findById(UUID.fromString(command.alarmId()))
+                .orElseThrow(() -> new VoiceAlarmNotFoundException(command.alarmId()));
+        if (!alarm.getElderId().equals(command.elderId())) {
+            throw new AlarmAccessDeniedException();
+        }
+        if (command.voiceInputStream() == null) {
+            throw new EmptyAlarmVoiceException();
+        }
+        String voiceKey;
+        try {
+            voiceKey = storagePort.store(command.voiceInputStream(),
+                    command.voiceFilename() != null ? command.voiceFilename() : "voice-alarm.m4a",
+                    command.voiceContentType());
+        } catch (Exception e) {
+            throw new IllegalStateException("음성 저장에 실패했습니다.", e);
+        }
+        alarm.addVoice(voiceKey);
         return VoiceAlarmResult.from(voiceAlarmRepository.save(alarm));
     }
 
@@ -120,7 +145,7 @@ public class CareApplicationService {
     @Transactional
     public void processDueReminders(LocalDateTime now) {
         voiceAlarmRepository.findAllActive().forEach(alarm -> processVoiceAlarm(alarm, now));
-        walkRoutineRepository.findAllActive().forEach(routine -> processWalkRoutine(routine, now));
+        // F5-02 산책 알림은 보류(#47): 스케줄러에서 산책 루틴을 처리하지 않는다.
     }
 
     @Transactional(readOnly = true)
@@ -139,6 +164,7 @@ public class CareApplicationService {
 
     private String acknowledgementMessage(AlarmType type) {
         return switch (type) {
+            case REMINISCENCE -> "회상 알람을 확인하셨어요.";
             case MEDICATION -> "약을 드셨어요.";
             case WATER -> "물을 드셨어요.";
             case WALK -> "산책 알람을 확인하셨어요.";
@@ -148,13 +174,25 @@ public class CareApplicationService {
 
     private void processVoiceAlarm(VoiceAlarm alarm, LocalDateTime now) {
         if (alarm.shouldTrigger(now)) {
+            // 발송 직전 어르신 상태 검증 (EX-F501-06): 사별/입원/무음기간이면 발송 생략
+            if (!elderStatusQuery.isDispatchable(alarm.getElderId())) {
+                log.info("어르신 상태 검증 실패로 알람 발송 생략: alarmId={}, elderId={}",
+                        alarm.getId(), alarm.getElderId());
+                return;
+            }
+            // 알람 자체의 발송 가능 여부 검증 (작고 가족 음성 등)
+            if (!alarm.isDispatchable()) {
+                log.info("발송 직전 알람 상태 검증 실패로 발송 생략: alarmId={}", alarm.getId());
+                return;
+            }
             alarm.markTriggered(now);
-            voiceAlarmRepository.save(alarm);
             notificationPort.sendToMember(alarm.getElderId(),
                     alarmTitle(alarm.getAlarmType()),
                     alarm.usesTtsFallback()
                             ? "가족이 설정한 알람이에요. 화면의 안내 문구를 읽어드릴게요."
                             : "가족의 목소리 알람이 도착했어요.");
+            alarm.rotateVoice(); // 다음 발송을 위해 로테이션
+            voiceAlarmRepository.save(alarm);
         }
 
         if (alarm.isNoResponseDue(now)) {
@@ -164,24 +202,6 @@ public class CareApplicationService {
                     "알람 무응답",
                     "어르신이 알람을 10분 동안 확인하지 않았습니다.");
         }
-    }
-
-    private void processWalkRoutine(WalkRoutine routine, LocalDateTime now) {
-        if (!routine.shouldRemind(now)) {
-            return;
-        }
-        WeatherCondition condition = weatherPort.currentCondition(routine.getElderId());
-        routine.markReminded(now);
-        walkRoutineRepository.save(routine);
-        if (condition == WeatherCondition.CLEAR) {
-            notificationPort.sendToMember(routine.getElderId(),
-                    "10분 산책 시간이에요",
-                    "가볍게 걸으며 오늘의 산책을 시작해 보세요.");
-            return;
-        }
-        notificationPort.sendToMember(routine.getElderId(),
-                "오늘은 실내 운동을 해봐요",
-                "날씨가 좋지 않아 안전한 실내 활동을 안내합니다.");
     }
 
     private Set<String> familyMemberIds(String groupId) {
@@ -196,6 +216,7 @@ public class CareApplicationService {
 
     private String alarmTitle(AlarmType type) {
         return switch (type) {
+            case REMINISCENCE -> "가족의 회상 목소리 알람이에요";
             case MEDICATION -> "약 드실 시간이에요";
             case WATER -> "물 드실 시간이에요";
             case WALK -> "산책할 시간이에요";

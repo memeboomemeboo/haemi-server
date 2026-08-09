@@ -1,6 +1,7 @@
 package com.memeboo2.haemi.auth.domain.model;
 
 import com.memeboo2.haemi.auth.domain.event.MemberRegisteredEvent;
+import com.memeboo2.haemi.auth.domain.event.MemberWithdrawnEvent;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -97,6 +98,7 @@ public class Member extends AbstractAggregateRoot<Member> {
         this.status          = MemberStatus.WITHDRAWN;
         this.refreshTokenHash = null;
         touch();
+        this.registerEvent(new MemberWithdrawnEvent(this.id));
     }
 
     public void suspend() {

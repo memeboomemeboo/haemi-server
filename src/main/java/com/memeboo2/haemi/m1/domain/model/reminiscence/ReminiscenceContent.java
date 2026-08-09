@@ -39,32 +39,17 @@ public class ReminiscenceContent extends AbstractAggregateRoot<ReminiscenceConte
     @OrderBy("slide_sequence ASC")
     private List<SlideCard> slideCards = new ArrayList<>();
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "reminiscence_questions", joinColumns = @JoinColumn(name = "content_id"))
-    @OrderBy("question_sequence ASC")
-    private List<QuestionCard> questionCards = new ArrayList<>();
-
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "reminiscence_quizzes", joinColumns = @JoinColumn(name = "content_id"))
-    @OrderBy("quiz_sequence ASC")
-    private List<QuizItem> quizItems = new ArrayList<>();
-
     @Enumerated(EnumType.STRING)
     @Column(name = "elder_reaction")
     private ReactionType elderReaction;
 
-    public static ReminiscenceContent create(AlbumId albumId,
-                                              List<SlideCard> slideCards,
-                                              List<QuestionCard> questionCards,
-                                              List<QuizItem> quizItems) {
+    public static ReminiscenceContent create(AlbumId albumId, List<SlideCard> slideCards) {
         ReminiscenceContent content = new ReminiscenceContent();
         content.id = UUID.randomUUID();
         content.albumId = albumId.value();
         content.generatedDate = LocalDate.now();
         content.generatedAt = LocalDateTime.now();
         content.slideCards.addAll(slideCards);
-        content.questionCards.addAll(questionCards);
-        content.quizItems.addAll(quizItems);
         content.registerEvent(new ReminiscenceGeneratedEvent(
                 content.getContentId(), albumId, content.generatedAt));
         return content;
@@ -87,11 +72,4 @@ public class ReminiscenceContent extends AbstractAggregateRoot<ReminiscenceConte
         return Collections.unmodifiableList(slideCards);
     }
 
-    public List<QuestionCard> getQuestionCards() {
-        return Collections.unmodifiableList(questionCards);
-    }
-
-    public List<QuizItem> getQuizItems() {
-        return Collections.unmodifiableList(quizItems);
-    }
 }

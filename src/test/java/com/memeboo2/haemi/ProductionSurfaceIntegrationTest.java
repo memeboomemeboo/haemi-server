@@ -89,9 +89,20 @@ class ProductionSurfaceIntegrationTest {
     }
 
     @Test
-    void walkRoutineApiAppliesDefaultTenMinuteTarget() throws Exception {
+    void elderAccountCannotAccessFamilyAndInstitutionReports() throws Exception {
+        String elderToken = accessToken(MemberRole.ELDER);
+
+        mockMvc.perform(post("/api/v1/cognitive-dashboard/reports")
+                        .header("Authorization", "Bearer " + elderToken)
+                        .param("elderId", UUID.randomUUID().toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void walkRoutineApiIsSuspended() throws Exception {
         String token = accessToken(MemberRole.FAMILY);
 
+        // F5-02 산책 기능 보류(#47): 엔드포인트가 더 이상 노출되지 않는다.
         mockMvc.perform(post("/api/v1/care/walk-routines")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
@@ -103,8 +114,7 @@ class ProductionSurfaceIntegrationTest {
                                   "targetMinutes": 0
                                 }
                                 """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.targetMinutes").value(10));
+                .andExpect(status().isNotFound());
     }
 
     private String accessToken(MemberRole role) {
