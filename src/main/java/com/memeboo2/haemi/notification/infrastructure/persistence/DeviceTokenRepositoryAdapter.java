@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -37,6 +38,11 @@ public class DeviceTokenRepositoryAdapter implements DeviceTokenRepository {
             return List.of();
         }
         return jpa.findByMemberIdIn(memberIds);
+    }
+
+    @Override
+    public List<DeviceToken> findByElderId(UUID elderId) {
+        return jpa.findByElderId(elderId);
     }
 
     @Override

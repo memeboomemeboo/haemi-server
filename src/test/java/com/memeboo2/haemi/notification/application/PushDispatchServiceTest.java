@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.notification.application;
 
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.notification.domain.DevicePlatform;
 import com.memeboo2.haemi.notification.domain.DeviceToken;
 import com.memeboo2.haemi.notification.domain.PushMessage;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -32,12 +34,13 @@ class PushDispatchServiceTest {
 
     @Mock DeviceTokenRepository deviceTokens;
     @Mock PushSenderPort pushSender;
+    @Mock ElderStatusQuery elderStatusQuery;
 
     PushDispatchService service;
 
     @BeforeEach
     void setUp() {
-        service = new PushDispatchService(deviceTokens, pushSender);
+        service = new PushDispatchService(deviceTokens, pushSender, elderStatusQuery);
     }
 
     private DeviceToken token(String token, String memberId) {
@@ -110,5 +113,21 @@ class PushDispatchServiceTest {
 
         assertThatCode(() -> service.dispatchToMember("member-1", PushMessage.of("제목", "본문")))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("어르신 알림은 계정 소유 토큰이 아니라 연결된 어르신 기기 토큰으로만 발송한다")
+    void dispatchesOnlyToBoundElderDevice() {
+        String elderId = UUID.randomUUID().toString();
+        when(elderStatusQuery.isDispatchable(elderId)).thenReturn(true);
+        when(deviceTokens.findByElderId(UUID.fromString(elderId))).thenReturn(List.of(
+                DeviceToken.register("elder-device", "caregiver-account", DevicePlatform.ANDROID,
+                        UUID.fromString(elderId), LocalDateTime.now())));
+        when(pushSender.send(anyList(), any())).thenReturn(new PushSendResult(1, 0, List.of()));
+
+        service.dispatchToElder(elderId, PushMessage.of("제목", "본문"));
+
+        verify(pushSender).send(List.of("elder-device"), PushMessage.of("제목", "본문"));
+        verify(deviceTokens, never()).findByMemberIds(any());
     }
 }

@@ -65,12 +65,13 @@ class FcmPushSenderAdapterTest {
     }
 
     @Test
-    @DisplayName("만료·무효 토큰만 정리 대상으로 돌려준다")
+    @DisplayName("토큰 자체의 영구 오류만 정리 대상으로 돌려준다")
     void reportsOnlyPermanentFailuresAsInvalid() throws Exception {
         // 스터빙 진행 중에 새 mock을 만들지 않도록 응답을 먼저 조립한다.
         BatchResponse response = batch(List.of(
                 success(),
                 failure(MessagingErrorCode.UNREGISTERED),
+                // INVALID_ARGUMENT는 payload 오류에도 쓰이므로 토큰 무효로 단정하지 않는다.
                 failure(MessagingErrorCode.INVALID_ARGUMENT),
                 failure(MessagingErrorCode.SENDER_ID_MISMATCH),
                 // 일시 오류는 토큰 문제가 아니다.
@@ -85,7 +86,7 @@ class FcmPushSenderAdapterTest {
 
         assertThat(result.successCount()).isEqualTo(1);
         assertThat(result.failureCount()).isEqualTo(5);
-        assertThat(result.invalidTokens()).containsExactly("unregistered", "invalid", "mismatch");
+        assertThat(result.invalidTokens()).containsExactly("unregistered", "mismatch");
     }
 
     @Test

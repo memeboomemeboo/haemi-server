@@ -33,13 +33,14 @@ public class DeviceTokenController {
             description = """
                     FCM 등록 토큰을 저장합니다. 토큰 소유자는 요청 본문이 아니라 인증 주체로 결정됩니다.
                     같은 토큰을 다시 등록하면 소유자와 사용 시각이 갱신됩니다(기기 재로그인).
+                    어르신 본인 휴대전화라면 elderId를 함께 보내 Mode A/B 모두 해당 기기로 알림을 받을 수 있어요.
                     """
     )
     @PostMapping
     public ApiResponse<DeviceTokenResult> register(@AuthenticationPrincipal AuthenticatedMember member,
                                                    @Valid @RequestBody RegisterDeviceTokenRequest request) {
         DeviceTokenResult result = deviceTokens.register(
-                member.memberId().toString(), request.token(), request.platform());
+                member.memberId().toString(), request.token(), request.platform(), request.elderId());
         return ApiResponse.ok(result, "이 기기로 알림을 받을 수 있어요.");
     }
 

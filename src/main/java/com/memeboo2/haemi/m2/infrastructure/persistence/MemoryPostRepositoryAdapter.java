@@ -61,6 +61,12 @@ public class MemoryPostRepositoryAdapter implements MemoryPostRepository {
     }
 
     @Override
+    public boolean existsUnreadPublishedByAlbumIdSince(UUID albumId, LocalDateTime since) {
+        return jpa.existsByAlbumIdAndStatusAndReadByElderFalseAndPublishedAtGreaterThanEqual(
+                albumId, PostStatus.PUBLISHED, since);
+    }
+
+    @Override
     public void delete(MemoryPost post) {
         jpa.save(post); // soft delete (status = DELETED)
     }

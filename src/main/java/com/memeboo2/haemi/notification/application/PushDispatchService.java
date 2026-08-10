@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.notification.application;
 
+import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.notification.domain.DeviceToken;
 import com.memeboo2.haemi.notification.domain.PushMessage;
 import com.memeboo2.haemi.notification.domain.PushSendResult;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 수신자(memberId) → 기기 토큰 → 발송 → 무효 토큰 정리 (#80).
@@ -24,9 +26,27 @@ public class PushDispatchService {
 
     private final DeviceTokenRepository deviceTokens;
     private final PushSenderPort pushSender;
+    private final ElderStatusQuery elderStatusQuery;
 
     public PushSendResult dispatchToMember(String memberId, PushMessage message) {
         return dispatchToMembers(Set.of(memberId), message);
+    }
+
+    /** F5-01 등의 어르신 기기 알림. 계정 ID가 아닌 어르신 프로필에 연결된 기기만 대상으로 한다. */
+    public PushSendResult dispatchToElder(String elderId, PushMessage message) {
+        if (!elderStatusQuery.isDispatchable(elderId)) {
+            log.info("[PUSH] 발송 불가 어르신 상태 또는 잘못된 ID로 기기 알림을 건너뜁니다. elderId={}", elderId);
+            return PushSendResult.empty();
+        }
+        try {
+            List<String> tokens = deviceTokens.findByElderId(UUID.fromString(elderId)).stream()
+                    .map(DeviceToken::getToken)
+                    .toList();
+            return sendAndPrune(tokens, message, "elder=" + elderId);
+        } catch (Exception e) {
+            log.error("[PUSH] 어르신 기기 알림 발송에 실패했습니다. elderId={}, title={}", elderId, message.title(), e);
+            return PushSendResult.empty();
+        }
     }
 
     /**
@@ -46,19 +66,27 @@ public class PushDispatchService {
                 return PushSendResult.empty();
             }
 
-            PushSendResult result = pushSender.send(tokens, message);
-            if (!result.invalidTokens().isEmpty()) {
-                // 영구 실패 토큰만 정리한다. 일시 오류 토큰은 sender가 걸러 보내지 않는다.
-                deviceTokens.deleteAllByTokens(result.invalidTokens());
-                log.info("[PUSH] 무효 토큰 {}건을 정리했습니다.", result.invalidTokens().size());
-            }
-            if (result.failureCount() > 0) {
-                log.warn("[PUSH] 발송 일부 실패: 성공={} 실패={}", result.successCount(), result.failureCount());
-            }
-            return result;
+            return sendAndPrune(tokens, message, "members=" + memberIds.size());
         } catch (Exception e) {
             log.error("[PUSH] 알림 발송에 실패했습니다. title={}", message.title(), e);
             return PushSendResult.empty();
         }
+    }
+
+    private PushSendResult sendAndPrune(List<String> tokens, PushMessage message, String recipientDescription) {
+        if (tokens.isEmpty()) {
+            log.debug("[PUSH] 등록된 기기 토큰이 없어 발송을 건너뜁니다. {}", recipientDescription);
+            return PushSendResult.empty();
+        }
+        PushSendResult result = pushSender.send(tokens, message);
+        if (!result.invalidTokens().isEmpty()) {
+            // 영구 실패 토큰만 정리한다. 일시 오류 토큰은 sender가 걸러 보내지 않는다.
+            deviceTokens.deleteAllByTokens(result.invalidTokens());
+            log.info("[PUSH] 무효 토큰 {}건을 정리했습니다.", result.invalidTokens().size());
+        }
+        if (result.failureCount() > 0) {
+            log.warn("[PUSH] 발송 일부 실패: 성공={} 실패={}", result.successCount(), result.failureCount());
+        }
+        return result;
     }
 }

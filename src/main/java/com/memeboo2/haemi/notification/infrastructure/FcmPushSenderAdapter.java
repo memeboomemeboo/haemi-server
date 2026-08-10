@@ -30,12 +30,12 @@ public class FcmPushSenderAdapter implements PushSenderPort {
     private static final int BATCH_SIZE = 500;
 
     /**
-     * 재시도해도 살아나지 않는 토큰만 정리 대상으로 본다.
-     * UNAVAILABLE·INTERNAL·QUOTA_EXCEEDED 같은 일시 오류는 토큰을 지우지 않는다.
+     * 토큰 자체의 영구 오류만 정리 대상으로 본다.
+     * INVALID_ARGUMENT는 잘못된 payload에도 발생할 수 있으므로 토큰 무효로 단정하지 않는다.
+     * UNAVAILABLE·INTERNAL·QUOTA_EXCEEDED 같은 일시 오류도 토큰을 지우지 않는다.
      */
     private static final Set<MessagingErrorCode> PERMANENT_FAILURES = EnumSet.of(
             MessagingErrorCode.UNREGISTERED,
-            MessagingErrorCode.INVALID_ARGUMENT,
             MessagingErrorCode.SENDER_ID_MISMATCH
     );
 

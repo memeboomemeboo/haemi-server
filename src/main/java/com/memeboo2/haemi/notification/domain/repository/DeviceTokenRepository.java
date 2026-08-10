@@ -5,6 +5,7 @@ import com.memeboo2.haemi.notification.domain.DeviceToken;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface DeviceTokenRepository {
 
@@ -15,6 +16,8 @@ public interface DeviceTokenRepository {
     List<DeviceToken> findByMemberId(String memberId);
 
     List<DeviceToken> findByMemberIds(Collection<String> memberIds);
+
+    List<DeviceToken> findByElderId(UUID elderId);
 
     void deleteByToken(String token);
 

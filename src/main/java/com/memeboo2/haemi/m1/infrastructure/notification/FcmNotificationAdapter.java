@@ -3,12 +3,10 @@ package com.memeboo2.haemi.m1.infrastructure.notification;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.notification.application.PushDispatchService;
 import com.memeboo2.haemi.notification.domain.PushMessage;
-import com.memeboo2.haemi.notification.infrastructure.NotificationExecutorConfig;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.memeboo2.haemi.notification.infrastructure.AfterCommitNotificationDispatcher;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
-import java.util.concurrent.Executor;
 
 /**
  * 공용 알림 포트의 FCM 구현 (#80).
@@ -18,18 +16,24 @@ import java.util.concurrent.Executor;
 public class FcmNotificationAdapter implements NotificationPort {
 
     private final PushDispatchService pushDispatch;
-    private final Executor notificationExecutor;
+    private final AfterCommitNotificationDispatcher notificationDispatcher;
 
     public FcmNotificationAdapter(PushDispatchService pushDispatch,
-                                  @Qualifier(NotificationExecutorConfig.EXECUTOR_NAME) Executor notificationExecutor) {
+                                  AfterCommitNotificationDispatcher notificationDispatcher) {
         this.pushDispatch = pushDispatch;
-        this.notificationExecutor = notificationExecutor;
+        this.notificationDispatcher = notificationDispatcher;
     }
 
     @Override
     public void sendToMember(String memberId, String title, String body) {
         PushMessage message = PushMessage.of(title, body);
-        notificationExecutor.execute(() -> pushDispatch.dispatchToMember(memberId, message));
+        notificationDispatcher.execute(() -> pushDispatch.dispatchToMember(memberId, message));
+    }
+
+    @Override
+    public void sendToElder(String elderId, String title, String body) {
+        PushMessage message = PushMessage.of(title, body);
+        notificationDispatcher.execute(() -> pushDispatch.dispatchToElder(elderId, message));
     }
 
     @Override
@@ -37,6 +41,6 @@ public class FcmNotificationAdapter implements NotificationPort {
         PushMessage message = PushMessage.of(title, body);
         // 호출자가 넘긴 컬렉션이 이후에 바뀌어도 안전하도록 복사해 넘긴다.
         Set<String> recipients = Set.copyOf(memberIds);
-        notificationExecutor.execute(() -> pushDispatch.dispatchToMembers(recipients, message));
+        notificationDispatcher.execute(() -> pushDispatch.dispatchToMembers(recipients, message));
     }
 }

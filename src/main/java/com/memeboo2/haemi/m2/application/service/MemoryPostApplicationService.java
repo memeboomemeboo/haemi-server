@@ -26,7 +26,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -125,9 +124,9 @@ public class MemoryPostApplicationService {
 
     // F2-01: 어르신 추억 알림 수신 처리 (이벤트 리스너에서 호출)
     // 일일 3회 한도 + 야간 21:00~08:00 차단 + 발송 직전 상태 검증.
-    // 사별·입원 상태 차단(EX-F201-05): 그룹↔어르신 매핑이 확립되면 자동 활성화(fail-open seam).
+    // 사별·입원 상태 차단(EX-F201-05): 어르신 프로필을 기준으로 최종 확인한다.
     @Transactional
-    public void handleElderNotification(String postId, UUID albumId, Set<String> elderMemberIds) {
+    public void handleElderNotification(String postId, UUID albumId, String elderId) {
         // 발송 직전 상태 검증: 글이 존재하고 게시 상태여야 한다.
         MemoryPost post = postRepository.findById(MemoryPostId.of(postId)).orElse(null);
         if (post == null || post.getStatus() != PostStatus.PUBLISHED) {
@@ -137,9 +136,8 @@ public class MemoryPostApplicationService {
         }
 
         // EX-F201-05: 사별/입원/무음기간 어르신에게는 추억 알림을 발송하지 않는다.
-        // (albumId↔그룹 매핑이 없으면 fail-open으로 기존 동작 보존)
-        if (!elderStatusQuery.isGroupDispatchable(albumId)) {
-            log.info("어르신 상태 검증 실패로 추억 알림 생략: postId={}, albumId={}", postId, albumId);
+        if (!elderStatusQuery.isDispatchable(elderId)) {
+            log.info("어르신 상태 검증 실패로 추억 알림 생략: postId={}, elderId={}", postId, elderId);
             return;
         }
 
@@ -155,7 +153,7 @@ public class MemoryPostApplicationService {
         String preview = buildPreview(post);
         String title   = post.getAuthorInfo().getMemberName() + "("
                 + post.getAuthorInfo().getRelation() + ")님의 추억글";
-        notificationPort.sendToGroup(elderMemberIds, title, preview);
+        notificationPort.sendToElder(elderId, title, preview);
         log.info("어르신 알림 발송: postId={}", postId);
     }
 

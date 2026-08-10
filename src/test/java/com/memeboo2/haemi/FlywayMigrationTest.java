@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(22);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(23);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -87,6 +87,9 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "device_tokens", "member_id")).isTrue();
             assertThat(columnExists(connection, "device_tokens", "platform")).isTrue();
             assertThat(columnExists(connection, "device_tokens", "last_used_at")).isTrue();
+            // #81 보완: 계정 소유자와 어르신 본인 기기 수신 대상을 분리
+            assertThat(columnExists(connection, "elders", "member_id")).isTrue();
+            assertThat(columnExists(connection, "device_tokens", "elder_id")).isTrue();
         }
     }
 

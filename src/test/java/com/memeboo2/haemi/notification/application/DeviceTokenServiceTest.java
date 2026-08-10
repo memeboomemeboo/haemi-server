@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,12 +25,13 @@ import static org.mockito.Mockito.when;
 class DeviceTokenServiceTest {
 
     @Mock DeviceTokenRepository deviceTokens;
+    @Mock ElderDeviceAccessValidator elderDeviceAccessValidator;
 
     DeviceTokenService service;
 
     @BeforeEach
     void setUp() {
-        service = new DeviceTokenService(deviceTokens);
+        service = new DeviceTokenService(deviceTokens, elderDeviceAccessValidator);
         lenientSave();
     }
 
@@ -63,6 +65,19 @@ class DeviceTokenServiceTest {
         assertThat(existing.getMemberId()).isEqualTo("member-2");
         assertThat(existing.getPlatform()).isEqualTo(DevicePlatform.IOS);
         verify(deviceTokens).save(existing);
+    }
+
+    @Test
+    @DisplayName("어르신 본인 휴대전화 토큰은 계정 소유자와 별도로 어르신 프로필에 연결된다")
+    void registerElderDeviceToken() {
+        UUID memberId = UUID.randomUUID();
+        UUID elderId = UUID.randomUUID();
+        when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.empty());
+
+        DeviceTokenResult result = service.register(memberId.toString(), "tok-1", DevicePlatform.ANDROID, elderId);
+
+        assertThat(result.elderId()).isEqualTo(elderId);
+        verify(elderDeviceAccessValidator).requireCanBind(memberId, elderId);
     }
 
     @Test
