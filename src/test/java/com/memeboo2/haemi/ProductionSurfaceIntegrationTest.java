@@ -1,5 +1,7 @@
 package com.memeboo2.haemi;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.memeboo2.haemi.auth.domain.model.MemberRole;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
 import org.junit.jupiter.api.Test;
@@ -8,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.UUID;
 
@@ -27,6 +30,7 @@ class ProductionSurfaceIntegrationTest {
 
     private final MockMvc mockMvc;
     private final TokenPort tokenPort;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
     ProductionSurfaceIntegrationTest(MockMvc mockMvc, TokenPort tokenPort) {
@@ -50,14 +54,14 @@ class ProductionSurfaceIntegrationTest {
     }
 
     @Test
-    void institutionDashboardRejectsFamilyAndAllowsInstitutionAdminThroughSecurityChain() throws Exception {
+    void legacyInstitutionDashboardIsNoLongerExposed() throws Exception {
         String familyToken = accessToken(MemberRole.FAMILY);
         String adminToken = accessToken(MemberRole.INSTITUTION_ADMIN);
         String path = "/api/v1/cognitive-dashboard/institutions/institution-api-test"
                 + "?from=2026-06-30&to=2026-07-06";
 
         mockMvc.perform(get(path).header("Authorization", "Bearer " + familyToken))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
 
         mockMvc.perform(get(path).header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isNotFound())
@@ -65,27 +69,34 @@ class ProductionSurfaceIntegrationTest {
     }
 
     @Test
-    void alertRecipientApiPersistsAndReadsConfiguredRecipients() throws Exception {
-        String token = accessToken(MemberRole.FAMILY);
-        String elderId = "elder-recipient-api-test";
+    void alertRecipientApiUsesAuthenticatedFamilyMemberAsPrimaryCaregiver() throws Exception {
+        UUID familyMemberId = UUID.randomUUID();
+        UUID institutionManagerId = UUID.randomUUID();
+        String token = accessToken(familyMemberId, MemberRole.FAMILY);
+        String institutionToken = accessToken(institutionManagerId, MemberRole.INSTITUTION_ADMIN);
+        String elderId = createElder(token, createGroup(token));
 
         mockMvc.perform(put("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "primaryCaregiverMemberId": "caregiver-api-test",
-                                  "institutionManagerMemberIds": ["manager-api-test"]
+                                  "institutionManagerMemberIds": ["%s"]
                                 }
-                                """))
+                                """.formatted(institutionManagerId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.primaryCaregiverMemberId")
-                        .value("caregiver-api-test"));
+                        .value(familyMemberId.toString()));
 
         mockMvc.perform(get("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.allRecipientMemberIds.length()").value(2));
+
+        mockMvc.perform(get("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
+                        .header("Authorization", "Bearer " + institutionToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.institutionManagerMemberIds[0]").value(institutionManagerId.toString()));
     }
 
     @Test
@@ -117,9 +128,40 @@ class ProductionSurfaceIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    private String createGroup(String token) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/groups")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content("{\"relation\":\"DAUGHTER\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json(result).path("data").path("groupId").asText();
+    }
+
+    private String createElder(String token, String groupId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/elders")
+                        .header("Authorization", "Bearer " + token)
+                        .queryParam("groupId", groupId)
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json(result).path("data").path("elderId").asText();
+    }
+
+    private JsonNode json(MvcResult result) throws Exception {
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
     private String accessToken(MemberRole role) {
+        return accessToken(UUID.randomUUID(), role);
+    }
+
+    private String accessToken(UUID memberId, MemberRole role) {
         return tokenPort.generateAccessToken(
-                UUID.randomUUID(),
+                memberId,
                 role.name().toLowerCase() + "@example.com",
                 role
         );

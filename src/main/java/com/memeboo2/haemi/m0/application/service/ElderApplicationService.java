@@ -125,4 +125,5 @@ public class ElderApplicationService {
     private FamilyGroup loadGroup(UUID groupId) {
         return groups.findById(groupId).orElseThrow(() -> new M0NotFoundException("가족 그룹"));
     }
+
 }

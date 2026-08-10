@@ -2,10 +2,30 @@ package com.memeboo2.haemi.regression;
 
 import com.memeboo2.haemi.m0.domain.model.Elder;
 import com.memeboo2.haemi.m0.domain.model.Gender;
+import com.memeboo2.haemi.m0.domain.model.PersonContentTense;
 import com.memeboo2.haemi.m0.domain.model.ResidenceType;
+import com.memeboo2.haemi.m0.domain.event.PersonSafetyChangedEvent;
+import com.memeboo2.haemi.m0.domain.port.PersonExposurePort;
+import com.memeboo2.haemi.m1.domain.model.album.Album;
+import com.memeboo2.haemi.m1.domain.model.album.PhotoFile;
+import com.memeboo2.haemi.m1.domain.model.album.PhotoMetadata;
+import com.memeboo2.haemi.m1.domain.model.memory.Memory;
+import com.memeboo2.haemi.m1.domain.model.memory.MemoryModerationStatus;
+import com.memeboo2.haemi.m1.domain.model.memory.MemoryVisibility;
+import com.memeboo2.haemi.m1.domain.model.reminiscence.ContentSafetyValidator;
+import com.memeboo2.haemi.m1.domain.model.reminiscence.ContentSafetyViolation;
+import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
+import com.memeboo2.haemi.m1.domain.repository.ReminiscenceContentRepository;
+import com.memeboo2.haemi.m1.infrastructure.event.PersonSafetyInvalidationListener;
 import com.memeboo2.haemi.m3.application.dto.TrainingSessionResult;
 import com.memeboo2.haemi.m3.domain.model.hint.AccrualSource;
 import com.memeboo2.haemi.m3.domain.model.hint.AccruedHint;
+import com.memeboo2.haemi.m4.application.dto.ReminiscenceReportResult;
+import com.memeboo2.haemi.m4.application.service.ActivityChangeLanguagePolicy;
+import com.memeboo2.haemi.m4.domain.model.dashboard.CognitiveReport;
+import com.memeboo2.haemi.m4.domain.model.dashboard.ReportDeliveryMethod;
+import com.memeboo2.haemi.m4.domain.model.dashboard.ReportMode;
+import com.memeboo2.haemi.m4.domain.model.dashboard.ReportPeriod;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,10 +36,15 @@ import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * S1 회귀 스위트 (Developer B 담당분, #50 릴리스 게이트).
@@ -83,6 +108,121 @@ class S1RegressionSuiteTest {
             elder.confirmBereavement(now, 7);
 
             assertThat(elder.isDispatchable(now)).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("충족 (Developer A 소유 메커니즘)")
+    class DeveloperA {
+
+        @Test
+        @DisplayName("EX-F004-01: 작고한 인물의 현재형·모호한 언급은 카드 생성에서 차단된다")
+        void ex_f004_01_deceasedPersonPresentOrAmbiguousReferenceIsBlocked() {
+            var deceased = List.of(new PersonExposurePort.PhotoPersonExposure(
+                    UUID.randomUUID(), "영희", null, PersonContentTense.PAST_ONLY, true));
+            ContentSafetyValidator validator = new ContentSafetyValidator();
+
+            assertThat(validator.validate("영희는 여기 있어요?", deceased, List.of()))
+                    .contains(ContentSafetyViolation.DECEASED_PERSON_PRESENT_TENSE);
+            assertThat(validator.validate("영희와 함께 남긴 사진이에요, 이야기를 들려주실래요?", deceased, List.of()))
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("EX-F004-04: 인물 노출 안전 상태가 바뀌면 기존 회상 카드를 즉시 무효화한다")
+        void ex_f004_04_personSafetyChangeInvalidatesExistingCards() {
+            AlbumRepository albums = mock(AlbumRepository.class);
+            ReminiscenceContentRepository contents = mock(ReminiscenceContentRepository.class);
+            UUID groupId = UUID.randomUUID();
+            Album album = Album.create(UUID.randomUUID().toString(), groupId.toString(), UUID.randomUUID().toString());
+            when(albums.findByGroupId(groupId.toString())).thenReturn(java.util.Optional.of(album));
+
+            new PersonSafetyInvalidationListener(albums, contents)
+                    .invalidate(new PersonSafetyChangedEvent(groupId, UUID.randomUUID()));
+
+            verify(contents).invalidateByAlbumId(album.getAlbumId());
+        }
+
+        @Test
+        @DisplayName("EX-F105-04: 분석 완료 사진이 20장 미만이면 회상 콘텐츠 생성 조건을 충족하지 못한다")
+        void ex_f105_04_requiresTwentyAnalyzedPhotos() {
+            Album album = Album.create(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "family-member");
+            for (int index = 0; index < 19; index++) {
+                var photo = album.addPhoto(PhotoFile.of("photo-" + index, "photo.jpg", "image/jpeg", 1),
+                        PhotoMetadata.empty(), "hash-" + index, "family-member");
+                album.markPhotoAnalysisCompleted(photo.getPhotoId());
+            }
+
+            assertThat(album.hasEnoughPhotosForAi(20)).isFalse();
+
+            var twentieth = album.addPhoto(PhotoFile.of("photo-20", "photo.jpg", "image/jpeg", 1),
+                    PhotoMetadata.empty(), "hash-20", "family-member");
+            album.markPhotoAnalysisCompleted(twentieth.getPhotoId());
+            assertThat(album.hasEnoughPhotosForAi(20)).isTrue();
+        }
+
+        @Test
+        @DisplayName("EX-F105-05: 금기 주제와 퀴즈 어휘는 회상 콘텐츠 생성에서 함께 차단된다")
+        void ex_f105_05_sensitiveTopicAndQuizVocabularyAreBlocked() {
+            ContentSafetyValidator validator = new ContentSafetyValidator();
+
+            assertThat(validator.validate("사별한 배우자 이야기를 들려주세요?", List.of(), List.of("사별한 배우자")))
+                    .contains(ContentSafetyViolation.SENSITIVE_TOPIC);
+            assertThat(validator.validate("이 사진 퀴즈를 풀어보실래요?", List.of(), List.of()))
+                    .contains(ContentSafetyViolation.FORBIDDEN_TERM);
+        }
+
+        @Test
+        @DisplayName("EX-F103-03: FAMILY_ONLY 또는 미검수 추억은 어르신 피드에서 노출되지 않는다")
+        void ex_f103_03_onlyClearGroupMemoriesAreElderVisible() {
+            UUID groupId = UUID.randomUUID();
+            UUID authorId = UUID.randomUUID();
+            Memory familyOnly = Memory.create(groupId, authorId, "가족 메모", "딸", "딸",
+                    MemoryVisibility.FAMILY_ONLY, MemoryModerationStatus.CLEAR);
+            Memory pending = Memory.create(groupId, authorId, "검수 전", "딸", "딸",
+                    MemoryVisibility.GROUP_ALL, MemoryModerationStatus.REVIEW);
+            Memory visible = Memory.create(groupId, authorId, "함께한 날", "딸", "딸",
+                    MemoryVisibility.GROUP_ALL, MemoryModerationStatus.CLEAR);
+
+            assertThat(familyOnly.isElderVisible()).isFalse();
+            assertThat(pending.isElderVisible()).isFalse();
+            assertThat(visible.isElderVisible()).isTrue();
+        }
+
+        @Test
+        @DisplayName("EX-F401-05: 가족용 회상 리포트 DTO에는 점수·정답률·인지 평가 필드가 없다")
+        void ex_f401_05_reportDtoDoesNotExposeCognitiveScores() {
+            Set<String> names = recordComponentNamesDeep(ReminiscenceReportResult.class);
+
+            assertThat(names)
+                    .noneMatch(name -> name.toLowerCase().contains("score"))
+                    .noneMatch(name -> name.toLowerCase().contains("accuracy"))
+                    .noneMatch(name -> name.toLowerCase().contains("cognitive"));
+        }
+
+        @Test
+        @DisplayName("EX-F401-06: memory_focused 리포트는 비교 안내 없이 회상 기록만 제공한다")
+        void ex_f401_06_memoryFocusedReportOmitsActivityComparison() {
+            CognitiveReport report = CognitiveReport.createReminiscence("elder-1", UUID.randomUUID(),
+                    ReportPeriod.WEEKLY, java.time.LocalDate.of(2026, 8, 1), java.time.LocalDate.of(2026, 8, 7),
+                    ReportMode.MEMORY_FOCUSED, 4, List.of("고향"), List.of("photo-1"), 2, 1,
+                    null, "함께한 기억을 정리했어요.", ReportDeliveryMethod.IN_APP);
+
+            ReminiscenceReportResult result = ReminiscenceReportResult.from(report);
+
+            assertThat(result.mode()).isEqualTo(ReportMode.MEMORY_FOCUSED);
+            assertThat(result.activityMessage()).isNull();
+            assertThat(result.rememberedTopics()).containsExactly("고향");
+        }
+
+        @Test
+        @DisplayName("EX-F402-06: 활동 변화 안내는 판정·치료·점수 표현을 발송 전에 차단한다")
+        void ex_f402_06_activityLanguageGateBlocksClinicalOrScoringVocabulary() {
+            ActivityChangeLanguagePolicy policy = new ActivityChangeLanguagePolicy();
+
+            assertThatThrownBy(() -> policy.requireSafe("인지 기능이 악화되었습니다"))
+                    .isInstanceOf(IllegalArgumentException.class);
+            policy.requireSafe("이번 주에도 사진 이야기를 들려주셨어요.");
         }
     }
 

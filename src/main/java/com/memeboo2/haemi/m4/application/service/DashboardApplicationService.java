@@ -12,10 +12,8 @@ import com.memeboo2.haemi.m4.application.command.RecordCognitiveMetricCommand;
 import com.memeboo2.haemi.m4.application.command.UpdateAlertRecipientsCommand;
 import com.memeboo2.haemi.m4.application.dto.*;
 import com.memeboo2.haemi.m4.application.query.GetCognitiveMetricQuery;
-import com.memeboo2.haemi.m4.application.query.GetInstitutionDashboardQuery;
 import com.memeboo2.haemi.m4.domain.model.dashboard.*;
 import com.memeboo2.haemi.m4.domain.port.PdfReportPort;
-import com.memeboo2.haemi.m4.domain.port.InstitutionDashboardExportPort;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveChangeAlertRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveMetricRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveReportRepository;
@@ -45,7 +43,6 @@ public class DashboardApplicationService {
     private final AlertRecipientSettingRepository alertRecipientRepository;
     private final AlbumRepository albumRepository;
     private final PdfReportPort pdfReportPort;
-    private final InstitutionDashboardExportPort institutionDashboardExportPort;
     private final NotificationPort notificationPort;
     private final ElderAccessPort elderAccess;
     private final ActivityChangeLanguagePolicy activityLanguage;
@@ -272,83 +269,6 @@ public class DashboardApplicationService {
         return List.of();
     }
 
-    // F4-03: 기관 관리자 포털 조회
-    @Transactional(readOnly = true)
-    public InstitutionDashboardResult getInstitutionDashboard(GetInstitutionDashboardQuery query) {
-        List<CognitiveDailyMetric> metrics = metricRepository.findByInstitutionIdAndDateBetween(
-                query.institutionId(), query.from(), query.to());
-        if (query.elderIds() != null && !query.elderIds().isEmpty()) {
-            metrics = metrics.stream()
-                    .filter(m -> query.elderIds().contains(m.getElderId()))
-                    .toList();
-        }
-        if (metrics.isEmpty()) {
-            throw new InstitutionSeniorsNotFoundException(query.institutionId());
-        }
-        double institutionAccuracy = metrics.stream()
-                .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
-                .average().orElse(0.0);
-        double institutionResponse = metrics.stream()
-                .mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds)
-                .average().orElse(0.0);
-
-        Map<String, List<CognitiveDailyMetric>> byElder = metrics.stream()
-                .collect(Collectors.groupingBy(CognitiveDailyMetric::getElderId, LinkedHashMap::new, Collectors.toList()));
-        List<InstitutionDashboardResult.SeniorSummary> seniors = byElder.entrySet().stream()
-                .map(entry -> {
-                    List<CognitiveDailyMetric> values = entry.getValue();
-                    double avgAccuracy = values.stream().mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate).average().orElse(0.0);
-                    long periodDays = ChronoUnit.DAYS.between(query.from(), query.to()) + 1;
-                    long participatedDays = values.stream()
-                            .filter(CognitiveDailyMetric::participated)
-                            .map(CognitiveDailyMetric::getMetricDate)
-                            .distinct()
-                            .count();
-                    LocalDate currentWeekStart = query.to().minusDays(6);
-                    List<CognitiveDailyMetric> currentWeek = values.stream()
-                            .filter(value -> !value.getMetricDate().isBefore(currentWeekStart))
-                            .toList();
-                    List<CognitiveDailyMetric> previousWeek = metricRepository
-                            .findByElderIdAndDateBetween(
-                                    entry.getKey(),
-                                    currentWeekStart.minusDays(7),
-                                    currentWeekStart.minusDays(1)
-                            );
-                    double currentWeekAccuracy = currentWeek.stream()
-                            .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
-                            .average()
-                            .orElse(avgAccuracy);
-                    double previousWeekAccuracy = previousWeek.stream()
-                            .mapToDouble(CognitiveDailyMetric::getTrainingAccuracyRate)
-                            .average()
-                            .orElse(currentWeekAccuracy);
-                    return new InstitutionDashboardResult.SeniorSummary(
-                            anonymize(entry.getKey()),
-                            entry.getKey(),
-                            values.stream().mapToInt(CognitiveDailyMetric::getTrainingSessionCount).sum(),
-                            participatedDays / (double) periodDays,
-                            avgAccuracy,
-                            values.stream().mapToDouble(CognitiveDailyMetric::getAverageResponseSeconds).average().orElse(0.0),
-                            currentWeekAccuracy - previousWeekAccuracy,
-                            avgAccuracy - institutionAccuracy
-                    );
-                })
-                .toList();
-
-        return new InstitutionDashboardResult(
-                query.institutionId(), query.from(), query.to(),
-                institutionAccuracy, institutionResponse, seniors);
-    }
-
-    @Transactional(readOnly = true)
-    public InstitutionDashboardExportResult exportInstitutionDashboard(
-            GetInstitutionDashboardQuery query,
-            DashboardExportFormat format
-    ) {
-        return institutionDashboardExportPort.export(
-                getInstitutionDashboard(query), format);
-    }
-
     private CognitiveChangeAlert createAlert(CognitiveDailyMetric metric, AlertType type,
                                              String message, Set<String> recipients) {
         String safeMessage = message + " 이 안내는 앱 사용 기록에 기반한 것으로, 건강 상태에 대한 의학적 판단이 아닙니다.";
@@ -493,7 +413,4 @@ public class DashboardApplicationService {
         }
     }
 
-    private String anonymize(String elderId) {
-        return "senior-" + Integer.toHexString(elderId.hashCode()).replace("-", "");
-    }
 }

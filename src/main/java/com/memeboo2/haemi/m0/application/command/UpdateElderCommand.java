@@ -5,7 +5,6 @@ import com.memeboo2.haemi.m0.domain.model.Gender;
 import com.memeboo2.haemi.m0.domain.model.ResidenceType;
 
 import java.time.LocalDate;
-
 public record UpdateElderCommand(String orgId, String name, Integer birthYear, Gender gender,
                                  ResidenceType residenceType, DiagnosisLevel diagnosisLevel,
                                  String healthConsentId, LocalDate diagnosedAt) {
