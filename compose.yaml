@@ -16,11 +16,16 @@ services:
       OPENAPI_SERVER_URL: ${OPENAPI_SERVER_URL:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      # 서비스 계정 JSON 파일 경로. 비우면 푸시가 발송되지 않고 로그 폴백으로만 동작한다 (#92)
+      FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       HAEMI_STORAGE_UPLOAD_PATH: /data/haemi/photos
     ports:
       - "${APP_PORT:-8080}:8080"
     volumes:
       - haemi-upload-data:/data/haemi/photos
+      # FCM 서비스 계정 키. 배포 스크립트가 채우며, 없으면 빈 디렉터리로 마운트된다 (#92)
+      - ./secrets:/run/secrets:ro
 
   postgres:
     image: postgres:16-alpine@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb

@@ -60,12 +60,14 @@ jobs:
           ELDER_HEALTH_ENCRYPTION_KEY: ${{ secrets.ELDER_HEALTH_ENCRYPTION_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.6-flash
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL
+          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL,FIREBASE_CREDENTIALS,FIREBASE_PROJECT_ID
           command_timeout: 10m
           script: |
             set -eu
@@ -90,6 +92,23 @@ jobs:
             save_env ELDER_HEALTH_ENCRYPTION_KEY "$ELDER_HEALTH_ENCRYPTION_KEY"
             save_env GEMINI_API_KEY "$GEMINI_API_KEY"
             save_env GEMINI_MODEL "$GEMINI_MODEL"
+
+            # 서비스 계정 JSON은 .env에 넣지 않는다. 여러 줄로 저장된 Secret이 들어오면
+            # printf 한 줄 쓰기가 깨지면서 뒤따르는 항목까지 오염된다. 파일로 분리한다.
+            mkdir -p secrets
+            chmod 700 secrets
+            if [ -n "${FIREBASE_CREDENTIALS:-}" ]; then
+              printf '%s' "$FIREBASE_CREDENTIALS" > secrets/firebase-service-account.json
+              chmod 600 secrets/firebase-service-account.json
+              save_env FIREBASE_CREDENTIALS /run/secrets/firebase-service-account.json
+            else
+              # 비어 있어도 배포는 계속한다. 알림 때문에 서비스 전체가 멈추면 안 된다.
+              # 앱은 prod에서 로그 폴백을 고르며 기동 로그에 WARN을 남긴다.
+              echo "경고: FIREBASE_CREDENTIALS가 비어 있어 푸시 알림이 발송되지 않습니다." >&2
+              rm -f secrets/firebase-service-account.json
+              save_env FIREBASE_CREDENTIALS ""
+            fi
+            save_env FIREBASE_PROJECT_ID "${FIREBASE_PROJECT_ID:-}"
 
             if grep -q '^IMAGE_TAG=' .env; then
               sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env
