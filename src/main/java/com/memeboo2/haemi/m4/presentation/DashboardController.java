@@ -12,6 +12,7 @@ import com.memeboo2.haemi.m4.application.dto.*;
 import com.memeboo2.haemi.m4.application.query.GetCognitiveMetricQuery;
 import com.memeboo2.haemi.m4.application.service.DashboardApplicationService;
 import com.memeboo2.haemi.m4.domain.model.dashboard.ReportDeliveryMethod;
+import com.memeboo2.haemi.m4.domain.model.dashboard.ReportFileNotFoundException;
 import com.memeboo2.haemi.m4.domain.model.dashboard.ReportPeriod;
 import com.memeboo2.haemi.m4.presentation.dto.request.UpdateAlertRecipientsRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -91,6 +92,11 @@ public class DashboardController {
         var report = dashboardService.getReport(reportId);
         requireFamilyMember(member, report.getElderId());
         Resource resource = new FileSystemResource(report.getPdfKey());
+        // FileSystemResource는 생성 시점에 존재를 확인하지 않는다. 여기서 막지 않으면
+        // 200 헤더가 나간 뒤 본문을 쓰다 깨져서 원인을 알 수 없는 오류가 된다. (#93)
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new ReportFileNotFoundException(reportId);
+        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + resource.getFilename() + "\"")
