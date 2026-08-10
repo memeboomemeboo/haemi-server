@@ -4,6 +4,8 @@ import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
+import com.memeboo2.haemi.auth.domain.model.MemberRole;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m0.domain.model.ElderStatus;
 import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
@@ -46,6 +48,7 @@ public class DashboardApplicationService {
     private final NotificationPort notificationPort;
     private final ElderAccessPort elderAccess;
     private final ActivityChangeLanguagePolicy activityLanguage;
+    private final MemberRepository members;
 
     @Transactional
     public CognitiveMetricResult recordMetric(RecordCognitiveMetricCommand command) {
@@ -198,7 +201,7 @@ public class DashboardApplicationService {
                 existing,
                 command.elderId(),
                 command.primaryCaregiverMemberId(),
-                command.institutionManagerMemberIds()
+                validatedInstitutionManagerIds(command.institutionManagerMemberIds())
         );
         return AlertRecipientSettingResult.from(alertRecipientRepository.save(setting));
     }
@@ -283,6 +286,29 @@ public class DashboardApplicationService {
     private AlertRecipientSetting loadAlertRecipients(String elderId) {
         return alertRecipientRepository.findByElderId(elderId)
                 .orElseThrow(() -> new AlertRecipientsNotConfiguredException(elderId));
+    }
+
+    private Set<String> validatedInstitutionManagerIds(Set<String> requestedIds) {
+        if (requestedIds == null || requestedIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> validatedIds = new LinkedHashSet<>();
+        for (String requestedId : requestedIds) {
+            if (requestedId == null || requestedId.isBlank()) {
+                continue;
+            }
+            UUID memberId;
+            try {
+                memberId = UUID.fromString(requestedId.trim());
+            } catch (IllegalArgumentException invalidId) {
+                throw new IllegalArgumentException("기관 담당자 회원 ID는 UUID 형식이어야 해요.");
+            }
+            members.findById(memberId)
+                    .filter(member -> member.isActive() && member.getRole() == MemberRole.INSTITUTION_ADMIN)
+                    .orElseThrow(() -> new IllegalArgumentException("활성 기관 관리자 계정만 알림 수신자로 등록할 수 있어요."));
+            validatedIds.add(memberId.toString());
+        }
+        return validatedIds;
     }
 
     private LocalDate resolvePeriodEnd(ReportPeriod period) {
