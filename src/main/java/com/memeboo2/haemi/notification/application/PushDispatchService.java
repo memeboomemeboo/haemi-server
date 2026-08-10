@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -58,19 +59,52 @@ public class PushDispatchService {
             return PushSendResult.empty();
         }
         try {
-            List<String> tokens = deviceTokens.findByMemberIds(memberIds).stream()
+            List<UUID> recipients = toMemberIds(memberIds);
+            if (recipients.isEmpty()) {
+                log.debug("[PUSH] 발송 가능한 수신자가 없어 건너뜁니다. members={}", memberIds.size());
+                return PushSendResult.empty();
+            }
+            List<String> tokens = deviceTokens.findByMemberIds(recipients).stream()
                     .map(DeviceToken::getToken)
                     .toList();
             if (tokens.isEmpty()) {
-                log.debug("[PUSH] 등록된 기기 토큰이 없어 발송을 건너뜁니다. members={}", memberIds.size());
+                log.debug("[PUSH] 등록된 기기 토큰이 없어 발송을 건너뜁니다. members={}", recipients.size());
                 return PushSendResult.empty();
             }
 
-            return sendAndPrune(tokens, message, "members=" + memberIds.size());
+            return sendAndPrune(tokens, message, "members=" + recipients.size());
         } catch (Exception e) {
             log.error("[PUSH] 알림 발송에 실패했습니다. title={}", message.title(), e);
             return PushSendResult.empty();
         }
+    }
+
+    /**
+     * 수신자 식별자는 도메인 계약상 문자열이라 UUID가 아닌 값이 섞일 수 있다.
+     * (M4 기관 담당자 ID, PR #82 이전에 만들어진 앨범 멤버 ID 등)
+     *
+     * <p>여기서 걸러내지 않으면 파싱 예외가 호출부의 catch에 잡혀 그 배치 전체 발송이
+     * 사라진다. 수신자 한 명의 형식 때문에 나머지 가족이 알림을 못 받으면 안 된다.
+     */
+    private List<UUID> toMemberIds(Collection<String> memberIds) {
+        List<UUID> parsed = new ArrayList<>(memberIds.size());
+        List<String> skipped = new ArrayList<>();
+        for (String memberId : memberIds) {
+            if (memberId == null || memberId.isBlank()) {
+                continue;
+            }
+            try {
+                parsed.add(UUID.fromString(memberId));
+            } catch (IllegalArgumentException notAMemberId) {
+                skipped.add(memberId);
+            }
+        }
+        if (!skipped.isEmpty()) {
+            // 잘못된 ID는 대개 고정 데이터라 매 발송마다 반복된다. 건별이 아니라 한 줄로 남긴다.
+            log.warn("[PUSH] 회원 ID 형식이 아닌 수신자 {}건을 제외했습니다.", skipped.size());
+            log.debug("[PUSH] 제외된 수신자: {}", skipped);
+        }
+        return parsed;
     }
 
     private PushSendResult sendAndPrune(List<String> tokens, PushMessage message, String recipientDescription) {
