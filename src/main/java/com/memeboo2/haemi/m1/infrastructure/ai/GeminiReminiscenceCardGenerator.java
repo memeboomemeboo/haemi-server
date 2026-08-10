@@ -8,7 +8,11 @@ import com.memeboo2.haemi.m1.domain.port.ReminiscenceCardGeneratorPort;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 
 import java.util.Map;
 import java.util.Optional;
@@ -23,11 +27,25 @@ public class GeminiReminiscenceCardGenerator implements ReminiscenceCardGenerato
     private final String model;
 
     public GeminiReminiscenceCardGenerator(@Value("${haemi.ai.gemini.api-key:}") String apiKey,
-                                           @Value("${haemi.ai.gemini.model:gemini-3.6-flash}") String model) {
-        this.restClient = RestClient.builder().baseUrl("https://generativelanguage.googleapis.com").build();
+                                           @Value("${haemi.ai.gemini.model:gemini-3.6-flash}") String model,
+                                           @Value("${haemi.ai.gemini.connect-timeout:5s}") Duration connectTimeout,
+                                           @Value("${haemi.ai.gemini.read-timeout:20s}") Duration readTimeout) {
+        // 타임아웃이 없으면 업스트림이 멈췄을 때 08:00 배치가 DB 트랜잭션을 연 채 영원히 대기한다.
+        // 실패는 아래 catch가 안전한 기본 카드로 받아 주므로, 필요한 건 상한뿐이다. (#98)
+        this.restClient = RestClient.builder()
+                .baseUrl("https://generativelanguage.googleapis.com")
+                .requestFactory(requestFactory(connectTimeout, readTimeout))
+                .build();
         this.objectMapper = new ObjectMapper();
         this.apiKey = apiKey;
         this.model = model;
+    }
+
+    private static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connectTimeout);
+        factory.setReadTimeout(readTimeout);
+        return factory;
     }
 
     @Override

@@ -67,6 +67,9 @@ haemi:
     gemini:
       api-key: ${GEMINI_API_KEY:}
       model: ${GEMINI_MODEL:gemini-3.6-flash}
+      # 타임아웃이 없으면 업스트림이 멈췄을 때 야간 배치가 무한 대기한다 (#98)
+      connect-timeout: ${GEMINI_CONNECT_TIMEOUT:5s}
+      read-timeout: ${GEMINI_READ_TIMEOUT:20s}
   reminiscence:
     cron: "0 0 8 * * *"
     time-zone: Asia/Seoul
