@@ -83,6 +83,24 @@ class TestPushApiIntegrationTest {
     }
 
     @Test
+    @DisplayName("기기는 있는데 전부 실패하면 '기기 없음'이 아니라 실패로 안내한다")
+    void distinguishesFailureFromNoDevice() throws Exception {
+        UUID memberId = UUID.randomUUID();
+        String token = "fcm-" + UUID.randomUUID();
+        deviceTokenService.register(memberId.toString(), token, DevicePlatform.ANDROID);
+        when(pushSender.send(anyList(), any())).thenReturn(new PushSendResult(0, 1, List.of(token)));
+
+        mockMvc.perform(post("/api/v1/device-tokens/test-send")
+                        .header("Authorization", "Bearer " + accessToken(memberId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"제목\",\"body\":\"본문\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.failureCount").value(1))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("발송에 실패했어요")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("정리했어요")));
+    }
+
+    @Test
     @DisplayName("인증 없이는 호출할 수 없다")
     void requiresAuthentication() throws Exception {
         mockMvc.perform(post("/api/v1/device-tokens/test-send")

@@ -49,13 +49,25 @@ public class TestPushController {
                 member.memberId().toString(),
                 new PushMessage(request.title(), request.body(), request.data()));
 
-        String message = result.successCount() > 0
-                ? "%d대에 발송했어요.".formatted(result.successCount())
-                : "발송된 기기가 없어요. 토큰을 먼저 등록했는지, 자격증명이 설정됐는지 확인하세요.";
+        String message = describe(result);
         return ApiResponse.ok(Map.of(
                 "successCount", result.successCount(),
                 "failureCount", result.failureCount(),
                 "invalidTokens", result.invalidTokens()
         ), message);
+    }
+
+    // 기기가 없어서 안 간 것과, 기기는 있었는데 실패한 것은 원인이 전혀 다르다.
+    private String describe(PushSendResult result) {
+        if (result.successCount() > 0) {
+            return "%d대에 발송했어요.".formatted(result.successCount());
+        }
+        if (result.failureCount() > 0) {
+            String pruned = result.invalidTokens().isEmpty()
+                    ? "일시 오류로 보여 토큰은 남겨뒀어요. 잠시 후 다시 시도해 보세요."
+                    : "만료·무효 토큰 %d건은 정리했어요. 기기에서 토큰을 다시 등록하세요.".formatted(result.invalidTokens().size());
+            return "%d대 모두 발송에 실패했어요. %s".formatted(result.failureCount(), pruned);
+        }
+        return "발송된 기기가 없어요. 토큰을 먼저 등록했는지, 자격증명이 설정됐는지 확인하세요.";
     }
 }
