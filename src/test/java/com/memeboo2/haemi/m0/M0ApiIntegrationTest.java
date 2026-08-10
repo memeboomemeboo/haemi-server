@@ -266,12 +266,13 @@ class M0ApiIntegrationTest {
     }
 
     private String createPhoto(String token, String groupId) throws Exception {
+        String elderId = createElder(token, groupId);
         MvcResult album = mockMvc.perform(post("/api/v1/albums")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"elderProfileId":"elder-%s","groupId":"%s"}
-                                """.formatted(UUID.randomUUID(), groupId)))
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
                 .andExpect(status().isCreated())
                 .andReturn();
         String albumId = json(album).path("data").path("albumId").asText();

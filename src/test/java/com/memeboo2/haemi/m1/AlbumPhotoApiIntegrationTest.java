@@ -67,6 +67,31 @@ class AlbumPhotoApiIntegrationTest {
     }
 
     @Test
+    void createAlbum_rejectsAnotherFamilyAndDuplicateGroupAlbum() throws Exception {
+        String groupId = createGroup();
+        String elderId = createElder(groupId);
+        createAlbum(elderId, groupId);
+
+        mockMvc.perform(post("/api/v1/albums")
+                        .header("Authorization", "Bearer " + familyToken(UUID.randomUUID()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+
+        mockMvc.perform(post("/api/v1/albums")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void savePhoto_rejectsAuthenticatedUserEvenWhenSupplyingOwnersLegacyParameter() throws Exception {
         String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
@@ -209,12 +234,17 @@ class AlbumPhotoApiIntegrationTest {
     }
 
     private String createAlbum() throws Exception {
+        String groupId = createGroup();
+        return createAlbum(createElder(groupId), groupId);
+    }
+
+    private String createAlbum(String elderId, String groupId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/albums")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"elderProfileId":"elder-api-test","groupId":"group-%s"}
-                                """.formatted(UUID.randomUUID())))
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -222,6 +252,31 @@ class AlbumPhotoApiIntegrationTest {
         String albumId = root.path("data").path("albumId").asText();
         assertThat(albumId).isNotBlank();
         return albumId;
+    }
+
+    private String createGroup() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/groups")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"relation\":\"DAUGHTER\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("groupId").asText();
+    }
+
+    private String createElder(String groupId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/elders")
+                        .header("Authorization", "Bearer " + token)
+                        .queryParam("groupId", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("elderId").asText();
     }
 
     private String familyToken(UUID memberId) {

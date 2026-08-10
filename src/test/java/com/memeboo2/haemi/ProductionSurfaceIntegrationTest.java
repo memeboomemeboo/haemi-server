@@ -2,8 +2,12 @@ package com.memeboo2.haemi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.memeboo2.haemi.auth.domain.model.Member;
 import com.memeboo2.haemi.auth.domain.model.MemberRole;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
+import com.memeboo2.haemi.m4.domain.model.dashboard.AlertRecipientSetting;
+import com.memeboo2.haemi.m4.domain.repository.AlertRecipientSettingRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.UUID;
+import java.util.Set;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -30,12 +35,21 @@ class ProductionSurfaceIntegrationTest {
 
     private final MockMvc mockMvc;
     private final TokenPort tokenPort;
+    private final MemberRepository members;
+    private final AlertRecipientSettingRepository alertRecipientSettings;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
-    ProductionSurfaceIntegrationTest(MockMvc mockMvc, TokenPort tokenPort) {
+    ProductionSurfaceIntegrationTest(
+            MockMvc mockMvc,
+            TokenPort tokenPort,
+            MemberRepository members,
+            AlertRecipientSettingRepository alertRecipientSettings
+    ) {
         this.mockMvc = mockMvc;
         this.tokenPort = tokenPort;
+        this.members = members;
+        this.alertRecipientSettings = alertRecipientSettings;
     }
 
     @Test
@@ -71,7 +85,7 @@ class ProductionSurfaceIntegrationTest {
     @Test
     void alertRecipientApiUsesAuthenticatedFamilyMemberAsPrimaryCaregiver() throws Exception {
         UUID familyMemberId = UUID.randomUUID();
-        UUID institutionManagerId = UUID.randomUUID();
+        UUID institutionManagerId = createMember(MemberRole.INSTITUTION_ADMIN).getId();
         String token = accessToken(familyMemberId, MemberRole.FAMILY);
         String institutionToken = accessToken(institutionManagerId, MemberRole.INSTITUTION_ADMIN);
         String elderId = createElder(token, createGroup(token));
@@ -97,6 +111,31 @@ class ProductionSurfaceIntegrationTest {
                         .header("Authorization", "Bearer " + institutionToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.institutionManagerMemberIds[0]").value(institutionManagerId.toString()));
+    }
+
+    @Test
+    void alertRecipientApiRejectsNonAdminRecipientsAndLegacyNonAdminReader() throws Exception {
+        UUID familyMemberId = UUID.randomUUID();
+        Member elderMember = createMember(MemberRole.ELDER);
+        String familyToken = accessToken(familyMemberId, MemberRole.FAMILY);
+        String elderToken = accessToken(elderMember.getId(), MemberRole.ELDER);
+        String elderId = createElder(familyToken, createGroup(familyToken));
+
+        mockMvc.perform(put("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
+                        .header("Authorization", "Bearer " + familyToken)
+                        .contentType("application/json")
+                        .content("""
+                                {"institutionManagerMemberIds": ["%s"]}
+                                """.formatted(elderMember.getId())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        alertRecipientSettings.save(AlertRecipientSetting.createOrUpdate(
+                null, elderId, familyMemberId.toString(), Set.of(elderMember.getId().toString())));
+        mockMvc.perform(get("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
+                        .header("Authorization", "Bearer " + elderToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
@@ -165,5 +204,14 @@ class ProductionSurfaceIntegrationTest {
                 role.name().toLowerCase() + "@example.com",
                 role
         );
+    }
+
+    private Member createMember(MemberRole role) {
+        return members.save(Member.create(
+                role.name().toLowerCase() + "-" + UUID.randomUUID() + "@example.com",
+                "encoded-password",
+                "테스트 사용자",
+                role
+        ));
     }
 }

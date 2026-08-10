@@ -9,11 +9,17 @@ import com.memeboo2.haemi.m1.application.dto.PhotoResult;
 import com.memeboo2.haemi.m1.application.query.GetAlbumQuery;
 import com.memeboo2.haemi.m1.application.query.GetTimelineQuery;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
+import com.memeboo2.haemi.m1.domain.model.album.AlbumAccessDeniedException;
+import com.memeboo2.haemi.m1.domain.model.album.AlbumAlreadyExistsException;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.model.album.Photo;
 import com.memeboo2.haemi.m1.domain.model.album.TimelineSortBy;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
+import com.memeboo2.haemi.m0.domain.model.Elder;
+import com.memeboo2.haemi.m0.domain.model.FamilyGroup;
+import com.memeboo2.haemi.m0.domain.repository.ElderRepository;
+import com.memeboo2.haemi.m0.domain.repository.FamilyGroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,10 +35,13 @@ public class AlbumApplicationService {
 
     private final AlbumRepository albumRepository;
     private final NotificationPort notificationPort;
+    private final ElderRepository elderRepository;
+    private final FamilyGroupRepository familyGroupRepository;
 
     // F1-03: 앨범 생성
     @Transactional
     public AlbumResult createAlbum(CreateAlbumCommand command) {
+        validateAlbumTarget(command);
         Album album = Album.create(command.elderProfileId(), command.groupId(), command.ownerMemberId());
         albumRepository.save(album);
         log.info("앨범 생성: albumId={}, groupId={}", album.getAlbumId(), command.groupId());
@@ -131,5 +140,31 @@ public class AlbumApplicationService {
     private Album loadAlbumOrThrow(String albumId) {
         return albumRepository.findById(AlbumId.of(albumId))
                 .orElseThrow(() -> new AlbumNotFoundException(albumId));
+    }
+
+    private void validateAlbumTarget(CreateAlbumCommand command) {
+        UUID elderId = parseUuid(command.elderProfileId());
+        UUID groupId = parseUuid(command.groupId());
+        UUID ownerMemberId = parseUuid(command.ownerMemberId());
+        Elder elder = elderRepository.findById(elderId)
+                .orElseThrow(AlbumAccessDeniedException::new);
+        if (!elder.getGroupId().equals(groupId)) {
+            throw new AlbumAccessDeniedException();
+        }
+        // 같은 그룹의 앨범 생성 요청을 직렬화해 existsByGroupId 검사와 저장 사이의 경쟁을 막는다.
+        FamilyGroup group = familyGroupRepository.findByIdForUpdate(groupId)
+                .orElseThrow(AlbumAccessDeniedException::new);
+        group.requireActiveMember(ownerMemberId);
+        if (albumRepository.existsByGroupId(groupId.toString())) {
+            throw new AlbumAlreadyExistsException();
+        }
+    }
+
+    private UUID parseUuid(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException invalidId) {
+            throw new AlbumAccessDeniedException();
+        }
     }
 }

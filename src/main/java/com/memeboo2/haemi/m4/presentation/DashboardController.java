@@ -136,7 +136,8 @@ public class DashboardController {
             return ApiResponse.ok(dashboardService.getAlertRecipients(elderId));
         }
         AlertRecipientSettingResult result = dashboardService.getAlertRecipients(elderId);
-        if (!result.institutionManagerMemberIds().contains(member.memberId().toString())) {
+        if (member.role() != MemberRole.INSTITUTION_ADMIN
+                || !result.institutionManagerMemberIds().contains(member.memberId().toString())) {
             throw new M0AccessDeniedException("알림 수신자로 등록된 기관 담당자만 설정을 조회할 수 있어요.");
         }
         return ApiResponse.ok(result);
