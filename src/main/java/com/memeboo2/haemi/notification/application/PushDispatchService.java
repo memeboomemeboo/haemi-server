@@ -25,13 +25,17 @@ public class PushDispatchService {
     private final DeviceTokenRepository deviceTokens;
     private final PushSenderPort pushSender;
 
-    public void dispatchToMember(String memberId, PushMessage message) {
-        dispatchToMembers(Set.of(memberId), message);
+    public PushSendResult dispatchToMember(String memberId, PushMessage message) {
+        return dispatchToMembers(Set.of(memberId), message);
     }
 
-    public void dispatchToMembers(Collection<String> memberIds, PushMessage message) {
+    /**
+     * 발송 결과를 돌려주지만, 업무 흐름에서 호출하는 어댑터는 이 값을 쓰지 않는다.
+     * 결과가 필요한 곳은 개발용 테스트 발송처럼 "무슨 일이 일어났는지" 보여줘야 하는 경로다.
+     */
+    public PushSendResult dispatchToMembers(Collection<String> memberIds, PushMessage message) {
         if (memberIds == null || memberIds.isEmpty()) {
-            return;
+            return PushSendResult.empty();
         }
         try {
             List<String> tokens = deviceTokens.findByMemberIds(memberIds).stream()
@@ -39,7 +43,7 @@ public class PushDispatchService {
                     .toList();
             if (tokens.isEmpty()) {
                 log.debug("[PUSH] 등록된 기기 토큰이 없어 발송을 건너뜁니다. members={}", memberIds.size());
-                return;
+                return PushSendResult.empty();
             }
 
             PushSendResult result = pushSender.send(tokens, message);
@@ -51,8 +55,10 @@ public class PushDispatchService {
             if (result.failureCount() > 0) {
                 log.warn("[PUSH] 발송 일부 실패: 성공={} 실패={}", result.successCount(), result.failureCount());
             }
+            return result;
         } catch (Exception e) {
             log.error("[PUSH] 알림 발송에 실패했습니다. title={}", message.title(), e);
+            return PushSendResult.empty();
         }
     }
 }
