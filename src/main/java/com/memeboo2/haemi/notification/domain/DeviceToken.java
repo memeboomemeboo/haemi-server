@@ -68,9 +68,22 @@ public class DeviceToken {
         refresh(memberId, platform, null, now);
     }
 
+    /**
+     * 같은 소유자가 elderId 없이 재등록하면 기존 어르신 기기 연결을 그대로 둔다.
+     * 앱이 토큰 갱신 콜백에서 elderId 없이 재등록하는 것만으로 어르신 알림 경로가
+     * 조용히 끊기면 안 되기 때문이다. 연결 해제는 토큰 해지 후 재등록으로 한다.
+     *
+     * <p>다만 소유자가 바뀐 기기는 이전 어르신 연결을 이어받지 않는다.
+     * 기기를 넘겨받은 사람에게 남의 어르신 알림이 계속 가면 안 된다.
+     */
     public void refresh(String memberId, DevicePlatform platform, UUID elderId, LocalDateTime now) {
+        boolean ownerChanged = !isOwnedBy(memberId);
         this.memberId = memberId;
-        this.elderId = elderId;
+        if (elderId != null) {
+            this.elderId = elderId;
+        } else if (ownerChanged) {
+            this.elderId = null;
+        }
         this.platform = platform;
         this.lastUsedAt = now;
     }

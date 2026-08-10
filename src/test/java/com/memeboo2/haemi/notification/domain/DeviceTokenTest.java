@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +37,28 @@ class DeviceTokenTest {
         assertThat(token.getLastUsedAt()).isEqualTo(later);
         // 최초 등록 시각은 보존한다.
         assertThat(token.getRegisteredAt()).isEqualTo(REGISTERED_AT);
+    }
+
+    @Test
+    @DisplayName("같은 소유자가 elderId 없이 재등록해도 어르신 기기 연결은 유지된다")
+    void refreshKeepsElderBindingWhenElderIdOmitted() {
+        UUID elderId = UUID.randomUUID();
+        DeviceToken token = DeviceToken.register("tok-1", "member-1", DevicePlatform.ANDROID, elderId, REGISTERED_AT);
+
+        token.refresh("member-1", DevicePlatform.ANDROID, REGISTERED_AT.plusDays(1));
+
+        assertThat(token.getElderId()).isEqualTo(elderId);
+    }
+
+    @Test
+    @DisplayName("소유자가 바뀐 기기는 이전 어르신 연결을 이어받지 않는다")
+    void refreshDropsElderBindingWhenOwnerChanges() {
+        UUID elderId = UUID.randomUUID();
+        DeviceToken token = DeviceToken.register("tok-1", "member-1", DevicePlatform.ANDROID, elderId, REGISTERED_AT);
+
+        token.refresh("member-2", DevicePlatform.ANDROID, REGISTERED_AT.plusDays(1));
+
+        assertThat(token.getElderId()).isNull();
     }
 
     @Test
