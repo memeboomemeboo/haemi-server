@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m0.application.service;
 
+import com.memeboo2.haemi.auth.domain.model.MemberRole;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m0.application.command.*;
 import com.memeboo2.haemi.m0.application.dto.*;
 import com.memeboo2.haemi.m0.domain.model.*;
@@ -22,6 +24,7 @@ public class ElderApplicationService {
     private final ElderHealthRepository elderHealth;
     private final LifeStoryRepository lifeStories;
     private final SensitiveTopicRepository sensitiveTopics;
+    private final MemberRepository members;
     private final ElderHealthCrypto healthCrypto;
 
     public ElderResult create(UUID actorId, UUID groupId, CreateElderCommand command) {
@@ -81,6 +84,26 @@ public class ElderApplicationService {
         Elder elder = loadElder(elderId);
         loadGroup(elder.getGroupId()).requireOwner(actorId);
         elderHealth.deleteByElderId(elderId);
+    }
+
+    /**
+     * Mode A 자동 로그인에 사용할 어르신 계정을 연결한다. Mode B의 보호자 대행 기기와
+     * 구분하기 위해, 기기 토큰은 이 값이 아니라 별도의 elderId로 연결된다.
+     */
+    public ElderResult linkMember(UUID actorId, UUID elderId, UUID elderMemberId) {
+        Elder elder = loadElder(elderId);
+        loadGroup(elder.getGroupId()).requireOwner(actorId);
+        members.findById(elderMemberId)
+                .filter(member -> member.isActive() && member.getRole() == MemberRole.ELDER)
+                .orElseThrow(() -> new M0ValidationException("활성 어르신 계정만 연결할 수 있어요."));
+        elders.findByMemberId(elderMemberId)
+                .filter(other -> !other.getId().equals(elderId))
+                .ifPresent(other -> {
+                    throw new M0ConflictException("이미 다른 어르신 프로필에 연결된 계정이에요.");
+                });
+        elder.linkMember(elderMemberId);
+        elders.save(elder);
+        return toResult(elder);
     }
 
     @Transactional(readOnly = true)

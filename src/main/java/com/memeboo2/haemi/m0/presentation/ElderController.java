@@ -49,6 +49,14 @@ public class ElderController {
                         request.diagnosedAt())));
     }
 
+    @Operation(summary = "어르신 계정 연결", description = "Mode A 자동 로그인에 사용할 ELDER 계정을 연결합니다.")
+    @PutMapping("/{elderId}/member")
+    public ApiResponse<ElderResult> linkMember(@AuthenticationPrincipal AuthenticatedMember member,
+                                                @PathVariable UUID elderId,
+                                                @Valid @RequestBody LinkElderMemberRequest request) {
+        return ApiResponse.ok(elders.linkMember(member.memberId(), elderId, request.memberId()));
+    }
+
     @Operation(summary = "생애 정보 일괄 갱신")
     @PutMapping("/{elderId}/life-story")
     public ApiResponse<List<LifeStoryResult>> replaceLifeStories(

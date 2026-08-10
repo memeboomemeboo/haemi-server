@@ -18,11 +18,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -42,14 +40,14 @@ class MemoryPostApplicationServiceTest {
     MemoryPostApplicationService service;
 
     private final UUID albumId = UUID.randomUUID();
-    private final Set<String> elders = Set.of("elder-1");
+    private final String elderId = UUID.randomUUID().toString();
 
     @BeforeEach
     void setUp() {
         service = new MemoryPostApplicationService(
                 postRepository, photoStoragePort, contentFilterPort,
                 aiPoemGeneratorPort, sttPort, notificationPort, elderStatusQuery);
-        lenient().when(elderStatusQuery.isGroupDispatchable(any())).thenReturn(true);
+        lenient().when(elderStatusQuery.isDispatchable(elderId)).thenReturn(true);
         ReflectionTestUtils.setField(service, "elderDailyLimit", 3);
         // 야간 창을 빈 구간(0==0)으로 두어 시각과 무관하게 결정되도록 한다.
         ReflectionTestUtils.setField(service, "quietHoursStart", 0);
@@ -70,9 +68,9 @@ class MemoryPostApplicationServiceTest {
         when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.of(post));
         when(postRepository.countTodayNotificationsSentToElder(albumId)).thenReturn(0);
 
-        service.handleElderNotification(post.getPostId().toString(), albumId, elders);
+        service.handleElderNotification(post.getPostId().toString(), albumId, elderId);
 
-        verify(notificationPort).sendToGroup(eq(elders), anyString(), anyString());
+        verify(notificationPort).sendToElder(eq(elderId), anyString(), anyString());
     }
 
     @Test
@@ -82,9 +80,9 @@ class MemoryPostApplicationServiceTest {
         when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.of(post));
         when(postRepository.countTodayNotificationsSentToElder(albumId)).thenReturn(3);
 
-        service.handleElderNotification(post.getPostId().toString(), albumId, elders);
+        service.handleElderNotification(post.getPostId().toString(), albumId, elderId);
 
-        verify(notificationPort, never()).sendToGroup(anySet(), anyString(), anyString());
+        verify(notificationPort, never()).sendToElder(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -94,9 +92,9 @@ class MemoryPostApplicationServiceTest {
                 albumId, AuthorInfo.of("m-1", "홍길동", "딸"), "임시글", null, null);
         when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.of(draft));
 
-        service.handleElderNotification(draft.getPostId().toString(), albumId, elders);
+        service.handleElderNotification(draft.getPostId().toString(), albumId, elderId);
 
-        verify(notificationPort, never()).sendToGroup(anySet(), anyString(), anyString());
+        verify(notificationPort, never()).sendToElder(anyString(), anyString(), anyString());
         verify(postRepository, never()).countTodayNotificationsSentToElder(any());
     }
 
@@ -105,11 +103,11 @@ class MemoryPostApplicationServiceTest {
     void skipsWhenElderNotDispatchable() {
         MemoryPost post = publishedPost();
         when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.of(post));
-        when(elderStatusQuery.isGroupDispatchable(albumId)).thenReturn(false);
+        when(elderStatusQuery.isDispatchable(elderId)).thenReturn(false);
 
-        service.handleElderNotification(post.getPostId().toString(), albumId, elders);
+        service.handleElderNotification(post.getPostId().toString(), albumId, elderId);
 
-        verify(notificationPort, never()).sendToGroup(anySet(), anyString(), anyString());
+        verify(notificationPort, never()).sendToElder(anyString(), anyString(), anyString());
         verify(postRepository, never()).countTodayNotificationsSentToElder(any());
     }
 
@@ -118,8 +116,8 @@ class MemoryPostApplicationServiceTest {
     void skipsWhenPostMissing() {
         when(postRepository.findById(any(MemoryPostId.class))).thenReturn(Optional.empty());
 
-        service.handleElderNotification(UUID.randomUUID().toString(), albumId, elders);
+        service.handleElderNotification(UUID.randomUUID().toString(), albumId, elderId);
 
-        verify(notificationPort, never()).sendToGroup(anySet(), anyString(), anyString());
+        verify(notificationPort, never()).sendToElder(anyString(), anyString(), anyString());
     }
 }
