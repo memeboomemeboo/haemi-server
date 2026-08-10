@@ -52,6 +52,10 @@ haemi:
     include-local-server: ${OPENAPI_INCLUDE_LOCAL_SERVER:true}
   storage:
     upload-path: ${java.io.tmpdir}/haemi/photos
+  report:
+    pdf:
+      # 상대 경로로 두면 컨테이너 작업 디렉터리에 쌓였다가 재배포 때 사라진다 (#93)
+      output-dir: ${HAEMI_REPORT_PDF_OUTPUT_DIR:${java.io.tmpdir}/haemi/reports}
   album:
     max-group-members: 10
     max-photos-per-upload: 30

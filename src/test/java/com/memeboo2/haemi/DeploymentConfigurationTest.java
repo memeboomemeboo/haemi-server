@@ -51,6 +51,23 @@ class DeploymentConfigurationTest {
     }
 
     @Test
+    @DisplayName("재배포에도 남아야 하는 데이터는 볼륨에 마운트된다")
+    void persistentDataDirectoriesAreMounted() throws Exception {
+        String appService = appServiceSection();
+
+        // 컨테이너 레이어에 쓰면 docker compose up 한 번에 사라진다.
+        // 파일은 없는데 DB에는 경로가 남아 다운로드가 깨진다. (#93)
+        assertThat(appService)
+                .as("사진 업로드 경로가 볼륨에 없으면 재배포마다 원본이 사라진다")
+                .contains("HAEMI_STORAGE_UPLOAD_PATH: /data/haemi/photos")
+                .contains(":/data/haemi/photos");
+        assertThat(appService)
+                .as("리포트 PDF 경로가 볼륨에 없으면 재배포 후 다운로드가 실패한다")
+                .contains("HAEMI_REPORT_PDF_OUTPUT_DIR: /data/haemi/reports")
+                .contains(":/data/haemi/reports");
+    }
+
+    @Test
     @DisplayName("서비스 계정 JSON은 .env가 아니라 파일로 전달한다")
     void serviceAccountJsonIsDeliveredAsFileNotEnvLine() throws Exception {
         String workflow = Files.readString(DEPLOY_WORKFLOW);
