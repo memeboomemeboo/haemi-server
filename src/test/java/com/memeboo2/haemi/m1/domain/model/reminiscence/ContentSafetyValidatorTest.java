@@ -42,6 +42,12 @@ class ContentSafetyValidatorTest {
                 .isEmpty();
     }
 
+    @Test
+    void blocksPresentTenseQuestionEvenWhenPhotoIsMentioned() {
+        assertThat(validator.validate("영희 사진은 지금 어디에 있나요?", deceased, List.of()))
+                .contains(ContentSafetyViolation.DECEASED_PERSON_PRESENT_TENSE);
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("pastMarkerMixedWithPresentTensePrompts")
     void pastContextMarkerNearbyDoesNotUnblockPresentTenseReference(String prompt) {
