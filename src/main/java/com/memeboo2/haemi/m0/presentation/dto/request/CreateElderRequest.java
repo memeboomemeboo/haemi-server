@@ -7,9 +7,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-import java.util.UUID;
-
 public record CreateElderRequest(String orgId, @NotBlank String name, @Min(1920) @Max(1970) int birthYear,
-                                 @NotNull Gender gender, @NotNull ResidenceType residenceType,
-                                 UUID elderMemberId) {
+                                 @NotNull Gender gender, @NotNull ResidenceType residenceType) {
 }

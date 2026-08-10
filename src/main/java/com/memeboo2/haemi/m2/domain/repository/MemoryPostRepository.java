@@ -33,5 +33,7 @@ public interface MemoryPostRepository {
     // 당일 어르신이 받은 알림 수 (F2-02 한도 확인용)
     int countTodayNotificationsSentToElder(UUID albumId);
 
+    boolean existsUnreadPublishedByAlbumIdSince(UUID albumId, LocalDateTime since);
+
     void delete(MemoryPost post);
 }

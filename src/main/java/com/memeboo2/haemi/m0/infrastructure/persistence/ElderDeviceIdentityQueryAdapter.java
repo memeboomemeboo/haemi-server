@@ -23,7 +23,7 @@ public class ElderDeviceIdentityQueryAdapter implements ElderDeviceIdentityQuery
         }
         try {
             return elders.findById(UUID.fromString(elderId))
-                    .map(Elder::getElderMemberId)
+                    .map(Elder::getMemberId)
                     .filter(memberId::equals)
                     .isPresent();
         } catch (IllegalArgumentException invalidId) {

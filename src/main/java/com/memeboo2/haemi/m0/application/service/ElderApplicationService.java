@@ -24,8 +24,8 @@ public class ElderApplicationService {
     private final ElderHealthRepository elderHealth;
     private final LifeStoryRepository lifeStories;
     private final SensitiveTopicRepository sensitiveTopics;
-    private final ElderHealthCrypto healthCrypto;
     private final MemberRepository members;
+    private final ElderHealthCrypto healthCrypto;
 
     public ElderResult create(UUID actorId, UUID groupId, CreateElderCommand command) {
         FamilyGroup group = loadGroup(groupId);
@@ -34,7 +34,7 @@ public class ElderApplicationService {
             throw new M0ConflictException("이 가족 그룹에는 이미 어르신 프로필이 있어요.");
         }
         Elder elder = Elder.create(groupId, command.orgId(), command.name(), command.birthYear(), command.gender(),
-                command.residenceType(), requireActiveElderMember(command.elderMemberId()));
+                command.residenceType());
         elders.save(elder);
         return toResult(elder);
     }
@@ -43,9 +43,6 @@ public class ElderApplicationService {
         Elder elder = loadElder(elderId);
         loadGroup(elder.getGroupId()).requireActiveMember(actorId);
         elder.updateProfile(command.name(), command.birthYear(), command.gender(), command.residenceType(), command.orgId());
-        if (command.elderMemberId() != null) {
-            elder.linkElderMember(requireActiveElderMember(command.elderMemberId()));
-        }
         if (command.diagnosisLevel() != null) {
             String encryptedDiagnosis = healthCrypto.encrypt(command.diagnosisLevel().name());
             elderHealth.findByElderId(elderId)
@@ -89,6 +86,26 @@ public class ElderApplicationService {
         elderHealth.deleteByElderId(elderId);
     }
 
+    /**
+     * Mode A 자동 로그인에 사용할 어르신 계정을 연결한다. Mode B의 보호자 대행 기기와
+     * 구분하기 위해, 기기 토큰은 이 값이 아니라 별도의 elderId로 연결된다.
+     */
+    public ElderResult linkMember(UUID actorId, UUID elderId, UUID elderMemberId) {
+        Elder elder = loadElder(elderId);
+        loadGroup(elder.getGroupId()).requireOwner(actorId);
+        members.findById(elderMemberId)
+                .filter(member -> member.isActive() && member.getRole() == MemberRole.ELDER)
+                .orElseThrow(() -> new M0ValidationException("활성 어르신 계정만 연결할 수 있어요."));
+        elders.findByMemberId(elderMemberId)
+                .filter(other -> !other.getId().equals(elderId))
+                .ifPresent(other -> {
+                    throw new M0ConflictException("이미 다른 어르신 프로필에 연결된 계정이에요.");
+                });
+        elder.linkMember(elderMemberId);
+        elders.save(elder);
+        return toResult(elder);
+    }
+
     @Transactional(readOnly = true)
     public ElderResult get(UUID actorId, UUID elderId) {
         Elder elder = loadElder(elderId);
@@ -109,13 +126,4 @@ public class ElderApplicationService {
         return groups.findById(groupId).orElseThrow(() -> new M0NotFoundException("가족 그룹"));
     }
 
-    private UUID requireActiveElderMember(UUID memberId) {
-        if (memberId == null) {
-            return null;
-        }
-        return members.findById(memberId)
-                .filter(member -> member.isActive() && member.getRole() == MemberRole.ELDER)
-                .map(member -> member.getId())
-                .orElseThrow(() -> new M0ValidationException("연결할 어르신 계정은 활성 ELDER 회원이어야 해요."));
-    }
 }

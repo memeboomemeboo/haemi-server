@@ -101,12 +101,12 @@ class MemoryFeedApiIntegrationTest {
                         .header("Authorization", "Bearer " + elderToken))
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(patch("/api/v1/elders/{elderId}", elderId)
+        mockMvc.perform(put("/api/v1/elders/{elderId}/member", elderId)
                         .header("Authorization", "Bearer " + familyToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"elderMemberId\":\"%s\"}".formatted(elderMemberId)))
+                        .content("{\"memberId\":\"%s\"}".formatted(elderMemberId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.elderMemberId").value(elderMemberId.toString()));
+                .andExpect(jsonPath("$.data.memberId").value(elderMemberId.toString()));
 
         mockMvc.perform(get("/api/v1/elders/{elderId}/memories", elderId)
                         .header("Authorization", "Bearer " + elderToken))
@@ -147,11 +147,17 @@ class MemoryFeedApiIntegrationTest {
                         .queryParam("groupId", groupId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY","elderMemberId":"%s"}
-                                """.formatted(elderMemberId)))
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY"}
+                                """))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return json(result).path("data").path("elderId").asText();
+        String elderId = json(result).path("data").path("elderId").asText();
+        mockMvc.perform(put("/api/v1/elders/{elderId}/member", elderId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"%s\"}".formatted(elderMemberId)))
+                .andExpect(status().isOk());
+        return elderId;
     }
 
     private String createElderWithoutDevice(String token, String groupId) throws Exception {

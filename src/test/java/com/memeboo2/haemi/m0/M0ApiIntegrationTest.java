@@ -144,13 +144,21 @@ class M0ApiIntegrationTest {
         UUID familyMemberId = members.save(Member.create("family-link-%s@example.com".formatted(UUID.randomUUID()),
                 "encoded-password", "가족", MemberRole.FAMILY)).getId();
 
-        mockMvc.perform(post("/api/v1/elders")
+        MvcResult elder = mockMvc.perform(post("/api/v1/elders")
                         .header("Authorization", "Bearer " + ownerToken)
                         .queryParam("groupId", groupId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY","elderMemberId":"%s"}
-                                """.formatted(familyMemberId)))
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String elderId = json(elder).path("data").path("elderId").asText();
+
+        mockMvc.perform(put("/api/v1/elders/{elderId}/member", elderId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"%s\"}".formatted(familyMemberId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }

@@ -58,7 +58,8 @@ public class OpenApiConfig {
                         new Tag().name("M3-Training").description("F3-01 회상 세션 / F3-02 발화 기반 개인화 / F3-03 손주 한마디"),
                         new Tag().name("M3-Hint").description("F3-03 손주 한마디 사전 적립"),
                         new Tag().name("M4-Dashboard").description("F4-01 인지 리포트 / F4-02 조기 알림 / F4-03 기관 관리자 포털"),
-                        new Tag().name("M5-Care").description("F5-01 손주 목소리 알람 (F5-02 산책 유도는 보류)")
+                        new Tag().name("M5-Care").description("F5-01 손주 목소리 알람 (F5-02 산책 유도는 보류)"),
+                        new Tag().name("Notification").description("FCM 푸시 알림 기기 토큰 등록·해지")
                 ))
                 .components(new Components()
                         .addSecuritySchemes("Bearer Token", new SecurityScheme()

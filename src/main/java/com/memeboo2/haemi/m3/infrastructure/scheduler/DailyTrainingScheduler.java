@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.infrastructure.scheduler;
 
+import com.memeboo2.haemi.m0.application.service.ElderRecipientResolver;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -18,6 +20,7 @@ public class DailyTrainingScheduler {
 
     private final NotificationPort notificationPort;
     private final AlbumRepository albumRepository;
+    private final ElderRecipientResolver elderRecipients;
 
     // F3-01: 매일 오전 09:00 오늘의 훈련 알림
     @Scheduled(
@@ -27,21 +30,21 @@ public class DailyTrainingScheduler {
     @Transactional(readOnly = true)
     public void sendDailyTrainingReminder() {
         log.info("=== 일일 인지 훈련 알림 발송 시작 ===");
-        List<String> eligibleElderProfileIds = albumRepository.findAll().stream()
-                .filter(album -> album.getElderProfileId() != null)
-                .filter(album -> !album.getElderProfileId().isBlank())
+        List<String> eligibleElderIds = albumRepository.findAll().stream()
                 .filter(album -> album.getPhotos().size() >= 5)
-                .map(Album::getElderProfileId)
+                .map(Album::getGroupId)
+                .map(elderRecipients::resolveByGroupId)
+                .flatMap(Optional::stream)
                 .distinct()
                 .toList();
 
-        eligibleElderProfileIds.forEach(elderProfileId ->
-                notificationPort.sendToMember(
-                        elderProfileId,
+        eligibleElderIds.forEach(elderId ->
+                notificationPort.sendToElder(
+                        elderId,
                         "오늘의 인지 훈련",
                         "오늘의 훈련을 시작해볼까요?"
                 )
         );
-        log.info("일일 인지 훈련 알림 발송 완료: 대상={}명", eligibleElderProfileIds.size());
+        log.info("일일 인지 훈련 알림 발송 완료: 대상={}명", eligibleElderIds.size());
     }
 }

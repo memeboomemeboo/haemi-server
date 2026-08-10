@@ -27,9 +27,12 @@ public class Elder {
     @Column(name = "group_id", nullable = false, unique = true, columnDefinition = "uuid")
     private UUID groupId;
 
-    /** 어르신 기기에서 사용하는 ELDER 회원 계정. 프로필 UUID와 동일시하지 않는다. */
-    @Column(name = "elder_member_id", unique = true, columnDefinition = "uuid")
-    private UUID elderMemberId;
+    /**
+     * Mode A에서 어르신 본인이 로그인할 때 사용하는 계정이다.
+     * Mode B에서는 보호자 계정으로 대행할 수 있으므로 기기 토큰의 소유자와는 별개다.
+     */
+    @Column(name = "member_id", unique = true, columnDefinition = "uuid")
+    private UUID memberId;
 
     @Column(name = "org_id", length = 100)
     private String orgId;
@@ -77,16 +80,10 @@ public class Elder {
 
     public static Elder create(UUID groupId, String orgId, String name, int birthYear,
                                Gender gender, ResidenceType residenceType) {
-        return create(groupId, orgId, name, birthYear, gender, residenceType, null);
-    }
-
-    public static Elder create(UUID groupId, String orgId, String name, int birthYear,
-                               Gender gender, ResidenceType residenceType, UUID elderMemberId) {
         validate(name, birthYear, gender, residenceType);
         Elder elder = new Elder();
         elder.id = UUID.randomUUID();
         elder.groupId = groupId;
-        elder.elderMemberId = elderMemberId;
         elder.orgId = blankToNull(orgId);
         elder.name = name.trim();
         elder.birthYear = birthYear;
@@ -98,15 +95,6 @@ public class Elder {
         elder.createdAt = LocalDateTime.now();
         elder.updatedAt = elder.createdAt;
         return elder;
-    }
-
-    /** 가족이 어르신 기기 계정을 연결하거나 교체한다. */
-    public void linkElderMember(UUID elderMemberId) {
-        if (elderMemberId == null) {
-            throw new M0ValidationException("어르신 계정 ID는 필수예요.");
-        }
-        this.elderMemberId = elderMemberId;
-        touch();
     }
 
     public void updateProfile(String name, Integer birthYear, Gender gender, ResidenceType residenceType,
@@ -132,6 +120,15 @@ public class Elder {
             throw new M0ValidationException("접근 모드는 A 또는 B로 설정해야 해요.");
         }
         this.accessMode = accessMode;
+        touch();
+    }
+
+    /** Mode A 어르신 계정 연결. 계정 자체의 역할 검증은 애플리케이션 계층에서 수행한다. */
+    public void linkMember(UUID memberId) {
+        if (memberId == null) {
+            throw new M0ValidationException("연결할 어르신 계정은 필수예요.");
+        }
+        this.memberId = memberId;
         touch();
     }
 

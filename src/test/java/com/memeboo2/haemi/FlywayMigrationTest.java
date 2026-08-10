@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(22);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(23);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -82,8 +82,14 @@ class FlywayMigrationTest {
             assertThat(tableExists(connection, "event_collection_consent")).isTrue();
             // #35: 접근 모드 추천
             assertThat(tableExists(connection, "access_mode_recommendations")).isTrue();
-            // #82: 어르신 프로필과 어르신 기기 계정 연결
-            assertThat(columnExists(connection, "elders", "elder_member_id")).isTrue();
+            // #80: FCM 기기 토큰
+            assertThat(tableExists(connection, "device_tokens")).isTrue();
+            assertThat(columnExists(connection, "device_tokens", "member_id")).isTrue();
+            assertThat(columnExists(connection, "device_tokens", "platform")).isTrue();
+            assertThat(columnExists(connection, "device_tokens", "last_used_at")).isTrue();
+            // #81 보완: 계정 소유자와 어르신 본인 기기 수신 대상을 분리
+            assertThat(columnExists(connection, "elders", "member_id")).isTrue();
+            assertThat(columnExists(connection, "device_tokens", "elder_id")).isTrue();
         }
     }
 

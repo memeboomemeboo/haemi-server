@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.infrastructure.scheduler;
 
+import com.memeboo2.haemi.m0.application.service.ElderRecipientResolver;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.PhotoFile;
 import com.memeboo2.haemi.m1.domain.model.album.PhotoMetadata;
@@ -9,6 +10,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.mockito.Mockito.*;
 
@@ -18,22 +21,26 @@ class DailyTrainingSchedulerTest {
     void sendsReminderOnlyToProfilesWithAtLeastFivePhotos() {
         NotificationPort notificationPort = mock(NotificationPort.class);
         AlbumRepository albumRepository = mock(AlbumRepository.class);
+        ElderRecipientResolver elderRecipients = mock(ElderRecipientResolver.class);
+        String eligibleElderId = UUID.randomUUID().toString();
         DailyTrainingScheduler scheduler =
-                new DailyTrainingScheduler(notificationPort, albumRepository);
+                new DailyTrainingScheduler(notificationPort, albumRepository, elderRecipients);
         when(albumRepository.findAll()).thenReturn(List.of(
-                albumWithPhotos("eligible-elder", 5),
+                albumWithPhotos(eligibleElderId, 5),
                 albumWithPhotos("not-ready-elder", 4),
-                albumWithPhotos("eligible-elder", 6)
+                albumWithPhotos(eligibleElderId, 6)
         ));
+        when(elderRecipients.resolveByGroupId("group-" + eligibleElderId))
+                .thenReturn(Optional.of(eligibleElderId));
 
         scheduler.sendDailyTrainingReminder();
 
-        verify(notificationPort, times(1)).sendToMember(
-                "eligible-elder",
+        verify(notificationPort, times(1)).sendToElder(
+                eligibleElderId,
                 "오늘의 인지 훈련",
                 "오늘의 훈련을 시작해볼까요?"
         );
-        verify(notificationPort, never()).sendToMember(
+        verify(notificationPort, never()).sendToElder(
                 eq("not-ready-elder"),
                 anyString(),
                 anyString()
