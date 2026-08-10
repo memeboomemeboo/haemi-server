@@ -1,5 +1,6 @@
 package com.memeboo2.haemi;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,6 +11,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * 배포 매니페스트 배선 가드 (#92).
@@ -19,11 +21,22 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>그래서 매니페스트를 직접 읽어 검증한다. application.yaml이 요구하는 환경변수가 운영까지
  * 실제로 전달되는지 확인하는 것이 목적이다.
+ *
+ * <p><b>실행 조건</b>: 저장소 전체 체크아웃에서만 돈다 (#102). Docker 이미지 빌드는
+ * {@code src}와 gradle 파일만 컨텍스트로 받고 {@code .github}는 {@code .dockerignore}에도
+ * 들어 있어, 매니페스트가 존재하지 않는다. 이미지 빌드는 저장소 레이아웃을 검증할 자리가 아니므로
+ * 그 환경에서는 건너뛴다.
  */
 class DeploymentConfigurationTest {
 
     private static final Path COMPOSE = Path.of("compose.yaml");
     private static final Path DEPLOY_WORKFLOW = Path.of(".github/workflows/deploy-prod.yml");
+
+    @BeforeEach
+    void requireRepositoryCheckout() {
+        assumeTrue(Files.exists(COMPOSE) && Files.exists(DEPLOY_WORKFLOW),
+                "배포 매니페스트가 없는 실행 환경(Docker 이미지 빌드 등)에서는 건너뛴다");
+    }
 
     @ParameterizedTest(name = "compose.yaml이 {0}를 앱에 전달한다")
     @ValueSource(strings = {"FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "GEMINI_API_KEY",
