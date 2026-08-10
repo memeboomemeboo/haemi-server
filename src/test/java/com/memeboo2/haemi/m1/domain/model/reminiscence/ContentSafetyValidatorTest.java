@@ -43,6 +43,13 @@ class ContentSafetyValidatorTest {
     }
 
     @ParameterizedTest(name = "{0}")
+    @MethodSource("pastMarkerMixedWithPresentTensePrompts")
+    void pastContextMarkerNearbyDoesNotUnblockPresentTenseReference(String prompt) {
+        assertThat(validator.validate(prompt, deceased, List.of()))
+                .contains(ContentSafetyViolation.DECEASED_PERSON_PRESENT_TENSE);
+    }
+
+    @ParameterizedTest(name = "{0}")
     @MethodSource("clearPastPrompts")
     void clearPastContextDoesNotSuppressSafeReminiscenceCards(String prompt) {
         assertThat(validator.validate(prompt, deceased, List.of())).isEmpty();
@@ -60,6 +67,16 @@ class ContentSafetyValidatorTest {
     void acceptsSupportiveStoryPrompt() {
         assertThat(validator.validate("1978년 여름 사진이에요, 이야기 들려주실래요?", deceased, List.of()))
                 .isEmpty();
+    }
+
+    // 회고 어휘 옆에 현재 안부를 섞은 문장이 과거 단서 하나로 통과되면 안 된다.
+    private static Stream<String> pastMarkerMixedWithPresentTensePrompts() {
+        return Stream.of(
+                "그때 영희는 잘 계세요?",
+                "예전 사진인데 영희는 지금 어디 계세요?",
+                "이 추억 속 영희는 살아계신가요?",
+                "지난봄 사진이에요, 영희는 어디 있어요?"
+        );
     }
 
     private static Stream<String> clearPastPrompts() {

@@ -16,7 +16,7 @@ public class ContentSafetyValidator {
     private static final List<String> QUIZ_STYLE_TERMS = List.of("누구인가요", "언제인가요", "어디인가요", "맞히", "알아맞");
     private static final List<String> PRESENT_TENSE_MARKERS = List.of(
             "지금", "요즘", "잘계세요", "잘계신가요", "잘계십니까", "잘계시는",
-            "연락하", "만나", "뵈", "오시", "계시",
+            "연락하", "만나", "뵈", "오시", "계시", "계세",
             "있어요", "있나요", "있으세요", "있습니다", "있죠", "살아계", "살고", "살아요", "사세요",
             "찾아가", "찾으러", "보러가");
     private static final List<String> PAST_CONTEXT_MARKERS = List.of(
@@ -57,13 +57,13 @@ public class ContentSafetyValidator {
             int from = Math.max(0, index - 4);
             int to = Math.min(prompt.length(), index + personName.length() + 10);
             String context = prompt.substring(from, to);
-            // 분명한 과거 문맥은 현재형처럼 보이는 일반 동사보다 우선한다.
-            if (PAST_CONTEXT_MARKERS.stream().anyMatch(context::contains)) {
-                index = prompt.indexOf(personName, index + personName.length());
-                continue;
+            // 명시적 현재형 언급은 과거 문맥 단서가 곁에 있어도 차단한다.
+            // ("그때 영희는 잘 계세요?"처럼 회고 표현에 현재 안부를 섞는 문장이 통과하면 안 된다.)
+            if (PRESENT_TENSE_MARKERS.stream().anyMatch(context::contains)) {
+                return true;
             }
-            if (PRESENT_TENSE_MARKERS.stream().anyMatch(context::contains)
-                    || PAST_CONTEXT_MARKERS.stream().noneMatch(context::contains)) {
+            // 현재형은 아니지만 과거 단서도 없으면 시제가 모호하다. 안전한 쪽으로 막는다.
+            if (PAST_CONTEXT_MARKERS.stream().noneMatch(context::contains)) {
                 return true;
             }
             index = prompt.indexOf(personName, index + personName.length());
