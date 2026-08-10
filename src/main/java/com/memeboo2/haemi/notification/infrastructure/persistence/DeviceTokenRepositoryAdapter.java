@@ -28,12 +28,12 @@ public class DeviceTokenRepositoryAdapter implements DeviceTokenRepository {
     }
 
     @Override
-    public List<DeviceToken> findByMemberId(String memberId) {
+    public List<DeviceToken> findByMemberId(UUID memberId) {
         return jpa.findByMemberId(memberId);
     }
 
     @Override
-    public List<DeviceToken> findByMemberIds(Collection<String> memberIds) {
+    public List<DeviceToken> findByMemberIds(Collection<UUID> memberIds) {
         if (memberIds.isEmpty()) {
             return List.of();
         }

@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(23);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(24);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -90,12 +90,24 @@ class FlywayMigrationTest {
             // #81 보완: 계정 소유자와 어르신 본인 기기 수신 대상을 분리
             assertThat(columnExists(connection, "elders", "member_id")).isTrue();
             assertThat(columnExists(connection, "device_tokens", "elder_id")).isTrue();
+            // #86: 회원 식별자 타입을 다른 테이블과 맞춘다
+            assertThat(columnType(connection, "device_tokens", "member_id")).isEqualTo("UUID");
         }
     }
 
     private boolean tableExists(java.sql.Connection connection, String tableName) throws Exception {
         try (var tables = connection.getMetaData().getTables(null, "public", tableName, new String[]{"TABLE"})) {
             return tables.next();
+        }
+    }
+
+    private String columnType(
+            java.sql.Connection connection,
+            String tableName,
+            String columnName
+    ) throws Exception {
+        try (var columns = connection.getMetaData().getColumns(null, "public", tableName, columnName)) {
+            return columns.next() ? columns.getString("TYPE_NAME") : null;
         }
     }
 

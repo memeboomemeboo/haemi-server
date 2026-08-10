@@ -35,6 +35,9 @@ class DeviceTokenServiceTest {
         lenientSave();
     }
 
+    private static final UUID MEMBER = UUID.randomUUID();
+    private static final UUID OTHER_MEMBER = UUID.randomUUID();
+
     private void lenientSave() {
         org.mockito.Mockito.lenient()
                 .when(deviceTokens.save(any(DeviceToken.class)))
@@ -46,7 +49,7 @@ class DeviceTokenServiceTest {
     void registerNewToken() {
         when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.empty());
 
-        DeviceTokenResult result = service.register("member-1", "tok-1", DevicePlatform.ANDROID);
+        DeviceTokenResult result = service.register(MEMBER, "tok-1", DevicePlatform.ANDROID);
 
         assertThat(result.token()).isEqualTo("tok-1");
         assertThat(result.platform()).isEqualTo(DevicePlatform.ANDROID);
@@ -56,13 +59,13 @@ class DeviceTokenServiceTest {
     @Test
     @DisplayName("이미 있는 토큰을 다시 등록하면 새로 만들지 않고 소유자를 이전한다")
     void registerExistingTokenTransfersOwner() {
-        DeviceToken existing = DeviceToken.register("tok-1", "member-1", DevicePlatform.ANDROID,
+        DeviceToken existing = DeviceToken.register("tok-1", MEMBER, DevicePlatform.ANDROID,
                 LocalDateTime.of(2026, 8, 1, 9, 0));
         when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.of(existing));
 
-        service.register("member-2", "tok-1", DevicePlatform.IOS);
+        service.register(OTHER_MEMBER, "tok-1", DevicePlatform.IOS);
 
-        assertThat(existing.getMemberId()).isEqualTo("member-2");
+        assertThat(existing.getMemberId()).isEqualTo(OTHER_MEMBER);
         assertThat(existing.getPlatform()).isEqualTo(DevicePlatform.IOS);
         verify(deviceTokens).save(existing);
     }
@@ -74,7 +77,7 @@ class DeviceTokenServiceTest {
         UUID elderId = UUID.randomUUID();
         when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.empty());
 
-        DeviceTokenResult result = service.register(memberId.toString(), "tok-1", DevicePlatform.ANDROID, elderId);
+        DeviceTokenResult result = service.register(memberId, "tok-1", DevicePlatform.ANDROID, elderId);
 
         assertThat(result.elderId()).isEqualTo(elderId);
         verify(elderDeviceAccessValidator).requireCanBind(memberId, elderId);
@@ -83,10 +86,10 @@ class DeviceTokenServiceTest {
     @Test
     @DisplayName("본인 토큰은 해지된다")
     void unregisterOwnToken() {
-        DeviceToken existing = DeviceToken.register("tok-1", "member-1", DevicePlatform.ANDROID, LocalDateTime.now());
+        DeviceToken existing = DeviceToken.register("tok-1", MEMBER, DevicePlatform.ANDROID, LocalDateTime.now());
         when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.of(existing));
 
-        service.unregister("member-1", "tok-1");
+        service.unregister(MEMBER, "tok-1");
 
         verify(deviceTokens).deleteByToken("tok-1");
     }
@@ -94,10 +97,10 @@ class DeviceTokenServiceTest {
     @Test
     @DisplayName("남의 토큰은 해지할 수 없다")
     void unregisterOtherMembersTokenIsRejected() {
-        DeviceToken existing = DeviceToken.register("tok-1", "member-1", DevicePlatform.ANDROID, LocalDateTime.now());
+        DeviceToken existing = DeviceToken.register("tok-1", MEMBER, DevicePlatform.ANDROID, LocalDateTime.now());
         when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() -> service.unregister("member-2", "tok-1"))
+        assertThatThrownBy(() -> service.unregister(OTHER_MEMBER, "tok-1"))
                 .isInstanceOf(DeviceTokenAccessDeniedException.class);
 
         verify(deviceTokens, never()).deleteByToken(any());
@@ -108,7 +111,7 @@ class DeviceTokenServiceTest {
     void unregisterMissingTokenIsIdempotent() {
         when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.empty());
 
-        service.unregister("member-1", "tok-1");
+        service.unregister(MEMBER, "tok-1");
 
         verify(deviceTokens, never()).deleteByToken(any());
     }

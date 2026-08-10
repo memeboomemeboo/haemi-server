@@ -9,9 +9,9 @@ import java.util.UUID;
 
 public interface JpaDeviceTokenRepository extends JpaRepository<DeviceToken, String> {
 
-    List<DeviceToken> findByMemberId(String memberId);
+    List<DeviceToken> findByMemberId(UUID memberId);
 
-    List<DeviceToken> findByMemberIdIn(Collection<String> memberIds);
+    List<DeviceToken> findByMemberIdIn(Collection<UUID> memberIds);
 
     List<DeviceToken> findByElderId(UUID elderId);
 
