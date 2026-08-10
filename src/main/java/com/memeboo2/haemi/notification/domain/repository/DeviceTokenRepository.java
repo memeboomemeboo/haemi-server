@@ -1,0 +1,23 @@
+package com.memeboo2.haemi.notification.domain.repository;
+
+import com.memeboo2.haemi.notification.domain.DeviceToken;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+public interface DeviceTokenRepository {
+
+    DeviceToken save(DeviceToken deviceToken);
+
+    Optional<DeviceToken> findByToken(String token);
+
+    List<DeviceToken> findByMemberId(String memberId);
+
+    List<DeviceToken> findByMemberIds(Collection<String> memberIds);
+
+    void deleteByToken(String token);
+
+    // FCM이 영구 실패로 응답한 토큰 정리
+    void deleteAllByTokens(Collection<String> tokens);
+}
