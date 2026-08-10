@@ -20,10 +20,13 @@ services:
       FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       HAEMI_STORAGE_UPLOAD_PATH: /data/haemi/photos
+      HAEMI_REPORT_PDF_OUTPUT_DIR: /data/haemi/reports
     ports:
       - "${APP_PORT:-8080}:8080"
     volumes:
       - haemi-upload-data:/data/haemi/photos
+      # 리포트 PDF. 없으면 재배포마다 사라지고 DB의 pdfKey만 남는다 (#93)
+      - haemi-report-data:/data/haemi/reports
       # FCM 서비스 계정 키. 배포 스크립트가 채우며, 없으면 빈 디렉터리로 마운트된다 (#92)
       - ./secrets:/run/secrets:ro
 
@@ -48,3 +51,4 @@ services:
 volumes:
   haemi-postgres-data:
   haemi-upload-data:
+  haemi-report-data:
