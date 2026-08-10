@@ -67,6 +67,10 @@ haemi:
     elder-daily-limit: 3
     elder-quiet-hours-start: 21
     elder-quiet-hours-end: 8
+    fcm:
+      # 서비스 계정 JSON 원문 또는 JSON 파일 경로. 비우면 발송 대신 로그만 남긴다.
+      credentials: ${FIREBASE_CREDENTIALS:}
+      project-id: ${FIREBASE_PROJECT_ID:}
   predownload:
     # 배치 순서: 08:00 콘텐츠 → 08:45 선다운로드 → 09:00 알림
     cron: "0 45 8 * * *"
