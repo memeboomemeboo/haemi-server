@@ -26,7 +26,8 @@ class DeploymentConfigurationTest {
     private static final Path DEPLOY_WORKFLOW = Path.of(".github/workflows/deploy-prod.yml");
 
     @ParameterizedTest(name = "compose.yaml이 {0}를 앱에 전달한다")
-    @ValueSource(strings = {"FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "GEMINI_API_KEY"})
+    @ValueSource(strings = {"FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "GEMINI_API_KEY",
+            "INSTITUTION_ADMIN_EMAILS"})
     @DisplayName("application.yaml이 읽는 외부 자격증명은 compose에서 앱 컨테이너로 전달된다")
     void composePassesCredentialsToApp(String variable) throws Exception {
         String appService = appServiceSection();
@@ -37,7 +38,7 @@ class DeploymentConfigurationTest {
     }
 
     @ParameterizedTest(name = "배포 워크플로가 {0}를 EC2로 전달한다")
-    @ValueSource(strings = {"FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID"})
+    @ValueSource(strings = {"FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "INSTITUTION_ADMIN_EMAILS"})
     @DisplayName("배포 워크플로가 자격증명을 .env까지 실어 나른다")
     void deployWorkflowCarriesCredentialsToEnvFile(String variable) throws Exception {
         String workflow = Files.readString(DEPLOY_WORKFLOW);

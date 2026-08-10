@@ -144,6 +144,33 @@ public class AuthController {
     // ─────────── 2FA 설정 ───────────
 
     @Operation(
+            summary = "기관 관리자 2FA 최초 등록 시작 [#96]",
+            description = """
+                    2FA를 아직 켜지 않은 기관 관리자는 로그인이 막혀 있어 토큰을 받을 수 없습니다.
+                    이 경로만 자격증명으로 직접 열어 최초 등록을 마칠 수 있게 합니다.
+                    이미 2FA를 켠 계정과 일반 사용자는 인증된 `/totp/setup`을 사용하세요.
+                    """
+    )
+    @PostMapping("/totp/enrollment")
+    public ApiResponse<TotpSetupResult> beginTotpEnrollment(
+            @RequestBody @Valid BeginTotpEnrollmentRequest request) {
+        return ApiResponse.ok(authService.beginTotpEnrollment(
+                new BeginTotpEnrollmentCommand(request.email(), request.password())));
+    }
+
+    @Operation(
+            summary = "기관 관리자 2FA 최초 등록 확정 [#96]",
+            description = "활성화만 하고 토큰은 발급하지 않습니다. 이후 일반 로그인에 인증 코드를 함께 보내세요."
+    )
+    @PostMapping("/totp/enrollment/verify")
+    public ApiResponse<Void> completeTotpEnrollment(
+            @RequestBody @Valid CompleteTotpEnrollmentRequest request) {
+        authService.completeTotpEnrollment(new CompleteTotpEnrollmentCommand(
+                request.email(), request.password(), request.secret(), request.code()));
+        return ApiResponse.ok(null, "2FA가 활성화되었어요. 이제 인증 코드로 로그인할 수 있어요.");
+    }
+
+    @Operation(
             summary = "2FA TOTP 설정 시작",
             description = "비밀키와 QR URI를 발급합니다. 인증 앱(Google Authenticator 등)으로 QR 스캔 후 코드를 검증해주세요."
     )

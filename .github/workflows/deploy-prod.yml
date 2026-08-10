@@ -62,12 +62,13 @@ jobs:
           GEMINI_MODEL: gemini-3.6-flash
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          INSTITUTION_ADMIN_EMAILS: ${{ secrets.INSTITUTION_ADMIN_EMAILS }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL,FIREBASE_CREDENTIALS,FIREBASE_PROJECT_ID
+          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL,FIREBASE_CREDENTIALS,FIREBASE_PROJECT_ID,INSTITUTION_ADMIN_EMAILS
           command_timeout: 10m
           script: |
             set -eu
@@ -109,6 +110,9 @@ jobs:
               save_env FIREBASE_CREDENTIALS ""
             fi
             save_env FIREBASE_PROJECT_ID "${FIREBASE_PROJECT_ID:-}"
+
+            # 비우면 아무도 기관 관리자로 가입할 수 없다. 그게 안전한 기본값이다.
+            save_env INSTITUTION_ADMIN_EMAILS "${INSTITUTION_ADMIN_EMAILS:-}"
 
             if grep -q '^IMAGE_TAG=' .env; then
               sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env
