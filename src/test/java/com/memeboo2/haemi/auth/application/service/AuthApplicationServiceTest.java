@@ -10,6 +10,7 @@ import com.memeboo2.haemi.auth.domain.model.*;
 import com.memeboo2.haemi.auth.domain.port.PasswordEncoderPort;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
 import com.memeboo2.haemi.auth.domain.port.TotpPort;
+import com.memeboo2.haemi.auth.infrastructure.security.InstitutionAdminProperties;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +40,8 @@ class AuthApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuthApplicationService(memberRepository, passwordEncoder, tokenPort, totpPort);
+        service = new AuthApplicationService(memberRepository, passwordEncoder, tokenPort, totpPort,
+                new InstitutionAdminProperties(List.of("admin@haemi.kr")));
     }
 
     @Test
