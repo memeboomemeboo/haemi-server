@@ -12,6 +12,8 @@ import com.memeboo2.haemi.m1.domain.model.album.PhotoFile;
 import com.memeboo2.haemi.m1.domain.model.album.PhotoMetadata;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
+import com.memeboo2.haemi.m0.domain.repository.ElderRepository;
+import com.memeboo2.haemi.m0.domain.repository.FamilyGroupRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,13 +33,15 @@ class AlbumApplicationServiceTest {
 
     @Mock AlbumRepository albumRepository;
     @Mock NotificationPort notificationPort;
+    @Mock ElderRepository elderRepository;
+    @Mock FamilyGroupRepository familyGroupRepository;
 
     AlbumApplicationService service;
     Album album;
 
     @BeforeEach
     void setUp() {
-        service = new AlbumApplicationService(albumRepository, notificationPort);
+        service = new AlbumApplicationService(albumRepository, notificationPort, elderRepository, familyGroupRepository);
         album = Album.create("elder-1", "group-1", "owner");
         when(albumRepository.findById(album.getAlbumId())).thenReturn(Optional.of(album));
     }

@@ -3,6 +3,7 @@ package com.memeboo2.haemi.m4.application.service;
 import com.memeboo2.haemi.m0.domain.model.ElderAccessMode;
 import com.memeboo2.haemi.m0.domain.model.ElderStatus;
 import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
@@ -43,6 +44,7 @@ class DashboardApplicationServiceTest {
     @Mock PdfReportPort pdfReportPort;
     @Mock NotificationPort notificationPort;
     @Mock ElderAccessPort elderAccess;
+    @Mock MemberRepository memberRepository;
 
     private DashboardApplicationService service;
     private UUID elderId;
@@ -51,7 +53,7 @@ class DashboardApplicationServiceTest {
         elderId = UUID.randomUUID();
         service = new DashboardApplicationService(metricRepository, reportRepository, alertRepository,
                 alertRecipientRepository, albumRepository, pdfReportPort,
-                notificationPort, elderAccess, new ActivityChangeLanguagePolicy());
+                notificationPort, elderAccess, new ActivityChangeLanguagePolicy(), memberRepository);
     }
 
     @Test

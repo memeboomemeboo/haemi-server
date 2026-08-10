@@ -57,16 +57,17 @@ public class ContentSafetyValidator {
             int from = Math.max(0, index - 4);
             int to = Math.min(prompt.length(), index + personName.length() + 10);
             String context = prompt.substring(from, to);
-            // 분명한 과거 문맥은 현재형처럼 보이는 일반 동사보다 우선한다.
+            // 현재형 표지어는 사진·추억 같은 일반 과거 문맥보다 우선한다.
+            // 예: "영희 사진은 지금 어디에 있나요?"는 현재형 질문으로 차단해야 한다.
+            if (PRESENT_TENSE_MARKERS.stream().anyMatch(context::contains)) {
+                return true;
+            }
             if (PAST_CONTEXT_MARKERS.stream().anyMatch(context::contains)) {
                 index = prompt.indexOf(personName, index + personName.length());
                 continue;
             }
-            if (PRESENT_TENSE_MARKERS.stream().anyMatch(context::contains)
-                    || PAST_CONTEXT_MARKERS.stream().noneMatch(context::contains)) {
-                return true;
-            }
-            index = prompt.indexOf(personName, index + personName.length());
+            // 시제를 판단할 수 없는 고인 언급은 안전하게 차단한다.
+            return true;
         }
         return false;
     }
