@@ -22,6 +22,18 @@ class ContentSafetyValidatorTest {
     }
 
     @Test
+    void blocksAmbiguousOrPresentReferencesToDeceasedPersonWhileAllowingClearPastContext() {
+        assertThat(validator.validate("영희는 여기 있어요?", deceased, List.of()))
+                .contains(ContentSafetyViolation.DECEASED_PERSON_PRESENT_TENSE);
+        assertThat(validator.validate("지금 영희를 보러 가고 싶으세요?", deceased, List.of()))
+                .contains(ContentSafetyViolation.DECEASED_PERSON_PRESENT_TENSE);
+        assertThat(validator.validate("영희와 함께 남긴 오래된 사진이에요. 지금 영희는 어디 계세요?", deceased, List.of()))
+                .contains(ContentSafetyViolation.DECEASED_PERSON_PRESENT_TENSE);
+        assertThat(validator.validate("영희와 함께 남긴 사진이에요, 이야기를 들려주실래요?", deceased, List.of()))
+                .isEmpty();
+    }
+
+    @Test
     void blocksSensitiveTopicAndForbiddenQuizVocabulary() {
         assertThat(validator.validate("사별한 배우자 이야기를 들려주세요?", List.of(), List.of("사별한 배우자")))
                 .contains(ContentSafetyViolation.SENSITIVE_TOPIC);

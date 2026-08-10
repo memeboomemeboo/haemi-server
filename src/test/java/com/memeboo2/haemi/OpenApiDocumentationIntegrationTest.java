@@ -34,4 +34,12 @@ class OpenApiDocumentationIntegrationTest {
                 .andExpect(jsonPath("$.servers[0].url").value("http://ec2.example.com:8080"))
                 .andExpect(jsonPath("$.servers[0].description").value("운영 서버"));
     }
+
+    @Test
+    void apiDocsDoNotExposeLegacyCognitiveScoreDashboard() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/cognitive-dashboard/institutions/{institutionId}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/cognitive-dashboard/institutions/{institutionId}/export']").doesNotExist());
+    }
 }

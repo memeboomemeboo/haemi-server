@@ -19,12 +19,11 @@ public class ReminiscenceScheduler {
     private final ReminiscenceApplicationService reminiscenceService;
 
     // F1-05: 매일 오전 08:00 자동 실행
-    @Scheduled(cron = "0 0 8 * * *")
+    @Scheduled(cron = "${haemi.reminiscence.cron:0 0 8 * * *}",
+            zone = "${haemi.reminiscence.time-zone:Asia/Seoul}")
     public void generateDailyReminiscence() {
         log.info("=== 오늘의 회상 일괄 생성 시작 ===");
-        // 전체 어르신 앨범 대상 생성
-        // 실제로는 활성 앨범만 처리하는 페이징 쿼리 필요
-        List<Album> albums = albumRepository.findAllByElderProfileId(null); // 전체
+        List<Album> albums = albumRepository.findAll();
         log.info("대상 앨범 수: {}", albums.size());
 
         int success = 0, skipped = 0;

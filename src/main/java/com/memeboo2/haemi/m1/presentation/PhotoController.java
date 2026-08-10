@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m1.presentation;
 
+import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
 import com.memeboo2.haemi.m1.application.command.RemovePhotoCommand;
 import com.memeboo2.haemi.m1.application.command.SavePhotoCommand;
 import com.memeboo2.haemi.m1.application.command.SyncPhotosCommand;
@@ -21,6 +22,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,6 +35,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/albums/{albumId}/photos")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('FAMILY', 'INSTITUTION_ADMIN')")
 public class PhotoController {
 
     private final PhotoApplicationService photoService;
@@ -64,8 +68,8 @@ public class PhotoController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<List<PhotoResult>> savePhotos(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
-            @Parameter(description = "업로더 memberId", required = true) @RequestParam String uploadedBy,
             @Parameter(description = "사진 파일 (최대 30장)", required = true)
             @RequestPart("files") List<MultipartFile> files) throws IOException {
 
@@ -75,7 +79,7 @@ public class PhotoController {
 
         List<PhotoResult> results = new ArrayList<>();
         for (MultipartFile file : files) {
-            results.add(photoService.savePhoto(toSaveCommand(albumId, uploadedBy, file)));
+            results.add(photoService.savePhoto(toSaveCommand(albumId, member.memberId().toString(), file)));
         }
         return ApiResponse.ok(results, results.size() + "장 저장되었습니다.");
     }
@@ -101,8 +105,8 @@ public class PhotoController {
     })
     @PostMapping(value = "/sync", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<PhotoApplicationService.SyncResult> syncPhotos(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
-            @Parameter(description = "업로더 memberId", required = true) @RequestParam String uploadedBy,
             @Parameter(description = "사진 파일 목록", required = true)
             @RequestPart("files") List<MultipartFile> files,
             @Parameter(description = "Wi-Fi 전용 동기화 여부") @RequestParam(defaultValue = "true") boolean wifiOnly,
@@ -113,11 +117,11 @@ public class PhotoController {
 
         List<SavePhotoCommand> cmds = new ArrayList<>();
         for (MultipartFile file : files) {
-            cmds.add(toSaveCommand(albumId, uploadedBy, file));
+            cmds.add(toSaveCommand(albumId, member.memberId().toString(), file));
         }
 
         PhotoApplicationService.SyncResult result = photoService.syncPhotos(
-                new SyncPhotosCommand(albumId, uploadedBy, cmds, wifiOnly, networkType, batteryLevel, backgroundSync));
+                new SyncPhotosCommand(albumId, member.memberId().toString(), cmds, wifiOnly, networkType, batteryLevel, backgroundSync));
         return ApiResponse.ok(result, "총 " + result.saved().size() + "장 동기화 완료");
     }
 
@@ -132,10 +136,9 @@ public class PhotoController {
     })
     @GetMapping("/sync/history")
     public ApiResponse<List<SyncHistoryResult>> getSyncHistory(
-            @Parameter(description = "앨범 UUID") @PathVariable String albumId,
-            @Parameter(description = "조회자 memberId(그룹 구성원)", required = true)
-            @RequestParam String viewerMemberId) {
-        return ApiResponse.ok(photoService.getSyncHistory(new GetSyncHistoryQuery(albumId, viewerMemberId)));
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @Parameter(description = "앨범 UUID") @PathVariable String albumId) {
+        return ApiResponse.ok(photoService.getSyncHistory(new GetSyncHistoryQuery(albumId, member.memberId().toString())));
     }
 
     @Operation(
@@ -163,9 +166,9 @@ public class PhotoController {
     })
     @PatchMapping("/{photoId}/memo")
     public ApiResponse<PhotoResult> updateMemo(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
             @Parameter(description = "사진 UUID") @PathVariable String photoId,
-            @Parameter(description = "요청자 memberId", required = true) @RequestParam String requestingMemberId,
             @Valid @RequestBody UpdatePhotoMemoRequest request) {
 
         List<UpdatePhotoMemoCommand.PersonTagItem> tags = request.personTags() == null ? List.of() :
@@ -174,7 +177,7 @@ public class PhotoController {
                         .toList();
 
         PhotoResult result = photoService.updatePhotoMemo(new UpdatePhotoMemoCommand(
-                albumId, photoId, requestingMemberId,
+                albumId, photoId, member.memberId().toString(),
                 request.timePeriod(), request.locationText(), request.memo(),
                 tags
         ));
@@ -199,11 +202,10 @@ public class PhotoController {
     @DeleteMapping("/{photoId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removePhoto(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
-            @Parameter(description = "사진 UUID") @PathVariable String photoId,
-            @Parameter(description = "요청자 memberId", required = true)
-            @RequestParam String requestingMemberId) {
-        photoService.removePhoto(new RemovePhotoCommand(albumId, photoId, requestingMemberId));
+            @Parameter(description = "사진 UUID") @PathVariable String photoId) {
+        photoService.removePhoto(new RemovePhotoCommand(albumId, photoId, member.memberId().toString()));
     }
 
     private SavePhotoCommand toSaveCommand(String albumId, String uploadedBy, MultipartFile file) throws IOException {

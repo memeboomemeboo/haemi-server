@@ -17,6 +17,7 @@ import com.memeboo2.haemi.m4.domain.repository.CognitiveChangeAlertRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveMetricRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveReportRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -158,6 +159,7 @@ class DashboardApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("EX-F402-07: 사별 상태에서는 활동 변화 안내를 생성하거나 발송하지 않는다")
     void activityAlertIsNotSentAfterDeath() {
         setUp();
         when(elderAccess.getRequired(elderId)).thenReturn(snapshot(ElderStatus.DECEASED));

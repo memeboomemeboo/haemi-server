@@ -45,7 +45,7 @@ class MemoryFeedApiIntegrationTest {
         String familyToken = familyToken(ownerId);
         String groupId = createGroup(familyToken);
         String elderId = createElder(familyToken, groupId);
-        String elderToken = tokenPort.generateAccessToken(UUID.randomUUID(), "elder-memory@example.com", MemberRole.ELDER);
+        String elderToken = tokenPort.generateAccessToken(UUID.fromString(elderId), "elder-memory@example.com", MemberRole.ELDER);
 
         createMemory(familyToken, groupId, "가족끼리만 보는 개인 기록이에요.", "FAMILY_ONLY");
 
@@ -67,6 +67,20 @@ class MemoryFeedApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.memories.length()").value(1))
                 .andExpect(jsonPath("$.data.memories[0].visibility").value("GROUP_ALL"));
+    }
+
+    @Test
+    void elderTokenCannotReadAnotherEldersMemoryFeed() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        String familyToken = familyToken(ownerId);
+        String groupId = createGroup(familyToken);
+        String elderId = createElder(familyToken, groupId);
+        String elderToken = tokenPort.generateAccessToken(UUID.fromString(elderId), "elder-owner@example.com", MemberRole.ELDER);
+
+        mockMvc.perform(get("/api/v1/elders/{elderId}/memories", UUID.randomUUID())
+                        .header("Authorization", "Bearer " + elderToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
