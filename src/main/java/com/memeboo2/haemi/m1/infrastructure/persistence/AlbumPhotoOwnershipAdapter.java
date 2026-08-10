@@ -19,11 +19,7 @@ public class AlbumPhotoOwnershipAdapter implements PhotoOwnershipPort {
 
     @Override
     public void requireBelongsToGroup(UUID photoId, UUID groupId) {
-        boolean belongsToGroup = albums.findAll().stream()
-                .filter(album -> groupId.toString().equals(album.getGroupId()))
-                .flatMap(album -> album.getPhotos().stream())
-                .anyMatch(photo -> photoId.equals(photo.getId()));
-        if (!belongsToGroup) {
+        if (!albums.existsPhotoInGroup(groupId.toString(), photoId)) {
             throw new M0NotFoundException("가족 그룹의 사진");
         }
     }
