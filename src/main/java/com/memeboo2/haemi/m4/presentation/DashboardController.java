@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m4.presentation;
 
+import com.memeboo2.haemi.auth.domain.model.MemberRole;
 import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
 import com.memeboo2.haemi.m0.domain.model.M0AccessDeniedException;
 import com.memeboo2.haemi.m0.domain.port.ElderMembershipQuery;
@@ -34,7 +35,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/cognitive-dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('FAMILY')")
+@PreAuthorize("hasAnyRole('FAMILY', 'INSTITUTION_ADMIN')")
 public class DashboardController {
 
     private final DashboardApplicationService dashboardService;
@@ -130,12 +131,20 @@ public class DashboardController {
             @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable String elderId
     ) {
-        requireFamilyMember(member, elderId);
-        return ApiResponse.ok(dashboardService.getAlertRecipients(elderId));
+        if (member.role() == MemberRole.FAMILY) {
+            requireFamilyMember(member, elderId);
+            return ApiResponse.ok(dashboardService.getAlertRecipients(elderId));
+        }
+        AlertRecipientSettingResult result = dashboardService.getAlertRecipients(elderId);
+        if (!result.institutionManagerMemberIds().contains(member.memberId().toString())) {
+            throw new M0AccessDeniedException("알림 수신자로 등록된 기관 담당자만 설정을 조회할 수 있어요.");
+        }
+        return ApiResponse.ok(result);
     }
 
     private void requireFamilyMember(AuthenticatedMember member, String elderId) {
-        if (!elderMemberships.isActiveGroupMember(elderId, member.memberId())) {
+        if (member.role() != MemberRole.FAMILY
+                || !elderMemberships.isActiveGroupMember(elderId, member.memberId())) {
             throw new M0AccessDeniedException("해당 어르신의 가족 그룹 구성원만 이용할 수 있어요.");
         }
     }

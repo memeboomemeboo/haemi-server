@@ -35,7 +35,7 @@ public class ElderController {
                                            @Valid @RequestBody CreateElderRequest request) {
         return ApiResponse.ok(elders.create(member.memberId(), groupId,
                 new CreateElderCommand(request.orgId(), request.name(), request.birthYear(), request.gender(),
-                        request.residenceType())));
+                        request.residenceType(), request.elderMemberId())));
     }
 
     @Operation(summary = "어르신 프로필 및 별도 동의 건강 정보 수정")
@@ -46,7 +46,7 @@ public class ElderController {
         return ApiResponse.ok(elders.update(member.memberId(), elderId,
                 new UpdateElderCommand(request.orgId(), request.name(), request.birthYear(), request.gender(),
                         request.residenceType(), request.diagnosisLevel(), request.healthConsentId(),
-                        request.diagnosedAt())));
+                        request.diagnosedAt(), request.elderMemberId())));
     }
 
     @Operation(summary = "생애 정보 일괄 갱신")

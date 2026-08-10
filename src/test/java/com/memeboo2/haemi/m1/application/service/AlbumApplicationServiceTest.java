@@ -72,27 +72,23 @@ class AlbumApplicationServiceTest {
         addPhoto("hash-1");
 
         TimelineResult result = service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), "owner", null, null, null, null, "FAMILY"));
+                new GetTimelineQuery(album.getAlbumId().toString(), "owner", null, null, null, null));
 
         assertThat(result.belowMinimumPhotoThreshold()).isTrue();
         assertThat(result.guideMessage()).isEqualTo("사진을 더 추가하면 타임라인이 만들어집니다");
     }
 
     @Test
-    @DisplayName("FAMILY 역할만 타임라인을 편집할 수 있다")
-    void getTimeline_setsEditableByRole() {
+    @DisplayName("가족 관리용 타임라인은 충분한 사진이 있으면 안내 없이 반환한다")
+    void getTimeline_returnsFamilyManagementViewWithoutViewerRoleFlag() {
         addPhoto("hash-1");
         addPhoto("hash-2");
         addPhoto("hash-3");
 
         TimelineResult familyResult = service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), "owner", null, null, null, null, "FAMILY"));
-        TimelineResult elderResult = service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), "elder-1", null, null, null, null, "ELDER"));
+                new GetTimelineQuery(album.getAlbumId().toString(), "owner", null, null, null, null));
 
-        assertThat(familyResult.editable()).isTrue();
         assertThat(familyResult.belowMinimumPhotoThreshold()).isFalse();
-        assertThat(elderResult.editable()).isFalse();
     }
 
     @Test
@@ -101,7 +97,7 @@ class AlbumApplicationServiceTest {
         assertThatThrownBy(() -> service.getAlbum(new GetAlbumQuery(album.getAlbumId().toString(), "stranger")))
                 .isInstanceOf(AlbumAccessDeniedException.class);
         assertThatThrownBy(() -> service.getTimeline(
-                new GetTimelineQuery(album.getAlbumId().toString(), "stranger", null, null, null, null, "FAMILY")))
+                new GetTimelineQuery(album.getAlbumId().toString(), "stranger", null, null, null, null)))
                 .isInstanceOf(AlbumAccessDeniedException.class);
     }
 

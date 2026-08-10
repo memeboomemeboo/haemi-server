@@ -82,14 +82,27 @@ class AlbumPhotoApiIntegrationTest {
     @Test
     void inviteMember_rejectsInviterWhoIsNotAlbumMember() throws Exception {
         String albumId = createAlbum();
+        UUID inviteeId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/v1/albums/{albumId}/members", albumId)
                         .header("Authorization", "Bearer " + familyToken(UUID.randomUUID()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"inviteeId":"family-2"}
-                                """))
+                                {"inviteeId":"%s"}
+                                """.formatted(inviteeId)))
                 .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void inviteMember_rejectsNonUuidInviteeBeforeCreatingAPendingMembership() throws Exception {
+        String albumId = createAlbum();
+
+        mockMvc.perform(post("/api/v1/albums/{albumId}/members", albumId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteeId\":\"not-a-member-uuid\"}"))
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
@@ -179,7 +192,7 @@ class AlbumPhotoApiIntegrationTest {
     }
 
     @Test
-    void timeline_belowThreeShotPhotosReturnsGuideMessageAndDoesNotTrustRoleParameter() throws Exception {
+    void timeline_belowThreeShotPhotosReturnsGuideMessageWithoutEditableRoleFlag() throws Exception {
         String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
         mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos", albumId)
@@ -192,13 +205,7 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.belowMinimumPhotoThreshold").value(true))
                 .andExpect(jsonPath("$.data.guideMessage").value("사진을 더 추가하면 타임라인이 만들어집니다"))
-                .andExpect(jsonPath("$.data.editable").value(true));
-
-        mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
-                        .param("role", "ELDER")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.editable").value(true));
+                .andExpect(jsonPath("$.data.editable").doesNotExist());
     }
 
     private String createAlbum() throws Exception {

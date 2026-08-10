@@ -6,7 +6,6 @@ public record TimelineResult(
         String albumId,
         List<TimelineGroup> groups,
         int totalCount,
-        boolean editable,
         boolean belowMinimumPhotoThreshold,
         String guideMessage
 ) {

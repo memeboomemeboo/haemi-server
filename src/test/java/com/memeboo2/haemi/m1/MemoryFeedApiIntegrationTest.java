@@ -3,7 +3,9 @@ package com.memeboo2.haemi.m1;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.memeboo2.haemi.auth.domain.model.MemberRole;
+import com.memeboo2.haemi.auth.domain.model.Member;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,12 +33,14 @@ class MemoryFeedApiIntegrationTest {
 
     private final MockMvc mockMvc;
     private final TokenPort tokenPort;
+    private final MemberRepository members;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
-    MemoryFeedApiIntegrationTest(MockMvc mockMvc, TokenPort tokenPort) {
+    MemoryFeedApiIntegrationTest(MockMvc mockMvc, TokenPort tokenPort, MemberRepository members) {
         this.mockMvc = mockMvc;
         this.tokenPort = tokenPort;
+        this.members = members;
     }
 
     @Test
@@ -44,8 +48,9 @@ class MemoryFeedApiIntegrationTest {
         UUID ownerId = UUID.randomUUID();
         String familyToken = familyToken(ownerId);
         String groupId = createGroup(familyToken);
-        String elderId = createElder(familyToken, groupId);
-        String elderToken = tokenPort.generateAccessToken(UUID.fromString(elderId), "elder-memory@example.com", MemberRole.ELDER);
+        UUID elderMemberId = createElderMember();
+        String elderId = createElder(familyToken, groupId, elderMemberId);
+        String elderToken = tokenPort.generateAccessToken(elderMemberId, "elder-memory@example.com", MemberRole.ELDER);
 
         createMemory(familyToken, groupId, "가족끼리만 보는 개인 기록이에요.", "FAMILY_ONLY");
 
@@ -74,13 +79,39 @@ class MemoryFeedApiIntegrationTest {
         UUID ownerId = UUID.randomUUID();
         String familyToken = familyToken(ownerId);
         String groupId = createGroup(familyToken);
-        String elderId = createElder(familyToken, groupId);
-        String elderToken = tokenPort.generateAccessToken(UUID.fromString(elderId), "elder-owner@example.com", MemberRole.ELDER);
+        UUID elderMemberId = createElderMember();
+        String elderId = createElder(familyToken, groupId, elderMemberId);
+        String elderToken = tokenPort.generateAccessToken(elderMemberId, "elder-owner@example.com", MemberRole.ELDER);
 
         mockMvc.perform(get("/api/v1/elders/{elderId}/memories", UUID.randomUUID())
                         .header("Authorization", "Bearer " + elderToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void existingElderProfileBecomesReadableAfterItsElderAccountIsLinked() throws Exception {
+        String familyToken = familyToken(UUID.randomUUID());
+        String groupId = createGroup(familyToken);
+        String elderId = createElderWithoutDevice(familyToken, groupId);
+        UUID elderMemberId = createElderMember();
+        String elderToken = tokenPort.generateAccessToken(elderMemberId, "elder-linked@example.com", MemberRole.ELDER);
+
+        mockMvc.perform(get("/api/v1/elders/{elderId}/memories", elderId)
+                        .header("Authorization", "Bearer " + elderToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(patch("/api/v1/elders/{elderId}", elderId)
+                        .header("Authorization", "Bearer " + familyToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"elderMemberId\":\"%s\"}".formatted(elderMemberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.elderMemberId").value(elderMemberId.toString()));
+
+        mockMvc.perform(get("/api/v1/elders/{elderId}/memories", elderId)
+                        .header("Authorization", "Bearer " + elderToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memories.length()").value(0));
     }
 
     @Test
@@ -110,7 +141,20 @@ class MemoryFeedApiIntegrationTest {
         return groupId;
     }
 
-    private String createElder(String token, String groupId) throws Exception {
+    private String createElder(String token, String groupId, UUID elderMemberId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/elders")
+                        .header("Authorization", "Bearer " + token)
+                        .queryParam("groupId", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY","elderMemberId":"%s"}
+                                """.formatted(elderMemberId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return json(result).path("data").path("elderId").asText();
+    }
+
+    private String createElderWithoutDevice(String token, String groupId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/elders")
                         .header("Authorization", "Bearer " + token)
                         .queryParam("groupId", groupId)
@@ -134,6 +178,11 @@ class MemoryFeedApiIntegrationTest {
 
     private String familyToken(UUID memberId) {
         return tokenPort.generateAccessToken(memberId, "family-%s@example.com".formatted(memberId), MemberRole.FAMILY);
+    }
+
+    private UUID createElderMember() {
+        return members.save(Member.create("elder-%s@example.com".formatted(UUID.randomUUID()),
+                "encoded-password", "김해미", MemberRole.ELDER)).getId();
     }
 
     private JsonNode json(MvcResult result) throws Exception {

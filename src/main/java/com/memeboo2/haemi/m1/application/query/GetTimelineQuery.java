@@ -6,6 +6,5 @@ public record GetTimelineQuery(
         String filterMemberId,
         String filterLocation,
         String filterTimePeriod,
-        String sortBy,      // "SHOT_AT" | "UPLOADED_AT"
-        String viewerRole   // "ELDER" | "FAMILY"
+        String sortBy       // "SHOT_AT" | "UPLOADED_AT"
 ) {}

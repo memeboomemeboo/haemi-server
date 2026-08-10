@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m0.application.service;
 
+import com.memeboo2.haemi.auth.domain.model.MemberRole;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m0.application.command.*;
 import com.memeboo2.haemi.m0.application.dto.*;
 import com.memeboo2.haemi.m0.domain.model.*;
@@ -23,6 +25,7 @@ public class ElderApplicationService {
     private final LifeStoryRepository lifeStories;
     private final SensitiveTopicRepository sensitiveTopics;
     private final ElderHealthCrypto healthCrypto;
+    private final MemberRepository members;
 
     public ElderResult create(UUID actorId, UUID groupId, CreateElderCommand command) {
         FamilyGroup group = loadGroup(groupId);
@@ -31,7 +34,7 @@ public class ElderApplicationService {
             throw new M0ConflictException("이 가족 그룹에는 이미 어르신 프로필이 있어요.");
         }
         Elder elder = Elder.create(groupId, command.orgId(), command.name(), command.birthYear(), command.gender(),
-                command.residenceType());
+                command.residenceType(), requireActiveElderMember(command.elderMemberId()));
         elders.save(elder);
         return toResult(elder);
     }
@@ -40,6 +43,9 @@ public class ElderApplicationService {
         Elder elder = loadElder(elderId);
         loadGroup(elder.getGroupId()).requireActiveMember(actorId);
         elder.updateProfile(command.name(), command.birthYear(), command.gender(), command.residenceType(), command.orgId());
+        if (command.elderMemberId() != null) {
+            elder.linkElderMember(requireActiveElderMember(command.elderMemberId()));
+        }
         if (command.diagnosisLevel() != null) {
             String encryptedDiagnosis = healthCrypto.encrypt(command.diagnosisLevel().name());
             elderHealth.findByElderId(elderId)
@@ -101,5 +107,15 @@ public class ElderApplicationService {
 
     private FamilyGroup loadGroup(UUID groupId) {
         return groups.findById(groupId).orElseThrow(() -> new M0NotFoundException("가족 그룹"));
+    }
+
+    private UUID requireActiveElderMember(UUID memberId) {
+        if (memberId == null) {
+            return null;
+        }
+        return members.findById(memberId)
+                .filter(member -> member.isActive() && member.getRole() == MemberRole.ELDER)
+                .map(member -> member.getId())
+                .orElseThrow(() -> new M0ValidationException("연결할 어르신 계정은 활성 ELDER 회원이어야 해요."));
     }
 }

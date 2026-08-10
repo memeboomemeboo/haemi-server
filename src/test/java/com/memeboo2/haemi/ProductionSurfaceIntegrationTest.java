@@ -61,7 +61,7 @@ class ProductionSurfaceIntegrationTest {
                 + "?from=2026-06-30&to=2026-07-06";
 
         mockMvc.perform(get(path).header("Authorization", "Bearer " + familyToken))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
 
         mockMvc.perform(get(path).header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isNotFound())
@@ -71,7 +71,9 @@ class ProductionSurfaceIntegrationTest {
     @Test
     void alertRecipientApiUsesAuthenticatedFamilyMemberAsPrimaryCaregiver() throws Exception {
         UUID familyMemberId = UUID.randomUUID();
+        UUID institutionManagerId = UUID.randomUUID();
         String token = accessToken(familyMemberId, MemberRole.FAMILY);
+        String institutionToken = accessToken(institutionManagerId, MemberRole.INSTITUTION_ADMIN);
         String elderId = createElder(token, createGroup(token));
 
         mockMvc.perform(put("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
@@ -79,9 +81,9 @@ class ProductionSurfaceIntegrationTest {
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "institutionManagerMemberIds": ["manager-api-test"]
+                                  "institutionManagerMemberIds": ["%s"]
                                 }
-                                """))
+                                """.formatted(institutionManagerId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.primaryCaregiverMemberId")
                         .value(familyMemberId.toString()));
@@ -90,6 +92,11 @@ class ProductionSurfaceIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.allRecipientMemberIds.length()").value(2));
+
+        mockMvc.perform(get("/api/v1/cognitive-dashboard/alerts/recipients/{elderId}", elderId)
+                        .header("Authorization", "Bearer " + institutionToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.institutionManagerMemberIds[0]").value(institutionManagerId.toString()));
     }
 
     @Test

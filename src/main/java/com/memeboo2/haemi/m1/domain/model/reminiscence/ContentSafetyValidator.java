@@ -15,9 +15,12 @@ public class ContentSafetyValidator {
             "문제", "퀴즈", "정답", "오답", "맞혔", "틀렸", "점수", "훈련", "치료", "회복", "랭킹", "뱃지");
     private static final List<String> QUIZ_STYLE_TERMS = List.of("누구인가요", "언제인가요", "어디인가요", "맞히", "알아맞");
     private static final List<String> PRESENT_TENSE_MARKERS = List.of(
-            "지금", "요즘", "잘 계", "연락", "만나", "뵈", "오시", "계시", "있", "살", "지내", "찾", "보러");
+            "지금", "요즘", "잘계세요", "잘계신가요", "잘계십니까", "잘계시는",
+            "연락하", "만나", "뵈", "오시", "계시",
+            "있어요", "있나요", "있으세요", "있습니다", "있죠", "살아계", "살고", "살아요", "사세요",
+            "찾아가", "찾으러", "보러가");
     private static final List<String> PAST_CONTEXT_MARKERS = List.of(
-            "그때", "예전", "지난", "함께", "추억", "기억", "사진", "였", "했", "던", "남긴", "찍은", "살던", "고인", "생전");
+            "그때", "예전", "지난", "함께", "추억", "기억", "사진", "였", "했", "던", "남긴", "찍은", "살던", "있었", "고인", "생전");
 
     public Optional<ContentSafetyViolation> validate(String prompt, List<PersonExposurePort.PhotoPersonExposure> persons,
                                                      List<String> sensitiveTopics) {
@@ -50,9 +53,15 @@ public class ContentSafetyValidator {
     private boolean hasUnsafeOccurrence(String prompt, String personName) {
         int index = prompt.indexOf(personName);
         while (index >= 0) {
-            int from = Math.max(0, index - 12);
-            int to = Math.min(prompt.length(), index + personName.length() + 13);
+            // 인물 이름 전후의 짧은 구문만 본다. 40자 전체 프롬프트의 다른 문장을 끌어오지 않는다.
+            int from = Math.max(0, index - 4);
+            int to = Math.min(prompt.length(), index + personName.length() + 10);
             String context = prompt.substring(from, to);
+            // 분명한 과거 문맥은 현재형처럼 보이는 일반 동사보다 우선한다.
+            if (PAST_CONTEXT_MARKERS.stream().anyMatch(context::contains)) {
+                index = prompt.indexOf(personName, index + personName.length());
+                continue;
+            }
             if (PRESENT_TENSE_MARKERS.stream().anyMatch(context::contains)
                     || PAST_CONTEXT_MARKERS.stream().noneMatch(context::contains)) {
                 return true;

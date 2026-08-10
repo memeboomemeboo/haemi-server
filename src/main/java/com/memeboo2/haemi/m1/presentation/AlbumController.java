@@ -1,6 +1,7 @@
 package com.memeboo2.haemi.m1.presentation;
 
 import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
+import com.memeboo2.haemi.m0.domain.model.M0AccessDeniedException;
 import com.memeboo2.haemi.m1.application.command.AcceptInviteCommand;
 import com.memeboo2.haemi.m1.application.command.CreateAlbumCommand;
 import com.memeboo2.haemi.m1.application.command.InviteMemberCommand;
@@ -97,7 +98,7 @@ public class AlbumController {
             @AuthenticationPrincipal AuthenticatedMember member,
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
             @Valid @RequestBody InviteMemberRequest request) {
-        albumService.inviteMember(new InviteMemberCommand(albumId, member.memberId().toString(), request.inviteeId()));
+        albumService.inviteMember(new InviteMemberCommand(albumId, member.memberId().toString(), request.inviteeId().toString()));
         return ApiResponse.ok(null, "초대되었습니다.");
     }
 
@@ -116,7 +117,7 @@ public class AlbumController {
             @Parameter(description = "앨범 UUID") @PathVariable String albumId,
             @Parameter(description = "초대 수락자") @PathVariable String memberId) {
         if (!member.memberId().toString().equals(memberId)) {
-            throw new com.memeboo2.haemi.m0.domain.model.M0AccessDeniedException("본인에게 온 초대만 수락할 수 있어요.");
+            throw new M0AccessDeniedException("본인에게 온 초대만 수락할 수 있어요.");
         }
         albumService.acceptInvite(new AcceptInviteCommand(albumId, member.memberId().toString()));
         return ApiResponse.ok(null, "초대를 수락했습니다.");
@@ -127,8 +128,7 @@ public class AlbumController {
             description = """
                     인물·장소·시기 필터로 사진을 연도·계절 단위로 그루핑한 타임라인을 반환합니다.
                     - 날짜 정보가 없는 사진은 `날짜 미상` 그룹으로 마지막에 표시됩니다.
-                    - `role=ELDER` : 슬라이드형 뷰 기준 (프론트에서 활용), 편집 불가(`editable=false`)
-                    - `role=FAMILY` : 그리드 편집 뷰 기준, 편집 가능(`editable=true`)
+                    - 이 API는 가족 구성원의 관리 뷰이며, 어르신 기기에는 전용 추억 피드를 사용합니다.
                     - 시기 메타데이터가 있는 사진이 3장 미만이면 `belowMinimumPhotoThreshold=true`와
                       `guideMessage`("사진을 더 추가하면 타임라인이 만들어집니다")를 함께 반환합니다.
                     - `sortBy=SHOT_AT`(기본값, 촬영 날짜) 또는 `sortBy=UPLOADED_AT`(업로드 날짜) 정렬을 지원합니다.
@@ -149,7 +149,7 @@ public class AlbumController {
             @Parameter(description = "정렬 기준", schema = @Schema(allowableValues = {"SHOT_AT", "UPLOADED_AT"}))
             @RequestParam(defaultValue = "SHOT_AT") String sortBy) {
         TimelineResult result = albumService.getTimeline(
-                new GetTimelineQuery(albumId, member.memberId().toString(), memberId, location, timePeriod, sortBy, "FAMILY"));
+                new GetTimelineQuery(albumId, member.memberId().toString(), memberId, location, timePeriod, sortBy));
         return ApiResponse.ok(result);
     }
 }

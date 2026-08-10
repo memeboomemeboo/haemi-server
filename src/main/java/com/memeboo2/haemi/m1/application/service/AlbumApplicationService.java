@@ -82,7 +82,6 @@ public class AlbumApplicationService {
         boolean belowThreshold = !album.hasEnoughPhotosForTimeline();
         String guideMessage = belowThreshold
                 ? "사진을 더 추가하면 타임라인이 만들어집니다" : null;
-        boolean editable = "FAMILY".equals(query.viewerRole());
 
         // 연도-계절 단위로 그룹화
         Map<String, List<Photo>> grouped = photos.stream()
@@ -108,7 +107,7 @@ public class AlbumApplicationService {
         }
         if (unknownGroup != null) groups.add(unknownGroup);
 
-        return new TimelineResult(query.albumId(), groups, photos.size(), editable, belowThreshold, guideMessage);
+        return new TimelineResult(query.albumId(), groups, photos.size(), belowThreshold, guideMessage);
     }
 
     private String resolvePeriodLabel(Photo photo) {

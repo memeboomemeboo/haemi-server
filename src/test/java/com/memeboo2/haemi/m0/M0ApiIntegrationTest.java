@@ -138,12 +138,30 @@ class M0ApiIntegrationTest {
     }
 
     @Test
+    void elderProfileCanOnlyLinkAnActiveElderAccount() throws Exception {
+        String ownerToken = token(UUID.randomUUID());
+        String groupId = createGroup(ownerToken);
+        UUID familyMemberId = members.save(Member.create("family-link-%s@example.com".formatted(UUID.randomUUID()),
+                "encoded-password", "가족", MemberRole.FAMILY)).getId();
+
+        mockMvc.perform(post("/api/v1/elders")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .queryParam("groupId", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY","elderMemberId":"%s"}
+                                """.formatted(familyMemberId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void hiddenPersonIsImmediatelyExcludedFromPhotoContentContext() throws Exception {
         UUID ownerId = UUID.randomUUID();
         String ownerToken = token(ownerId);
         String groupId = createGroup(ownerToken);
         String personId = createDeceasedPerson(ownerToken, groupId);
-        String photoId = createPhoto(ownerToken, ownerId, groupId);
+        String photoId = createPhoto(ownerToken, groupId);
 
         mockMvc.perform(post("/api/v1/photos/{photoId}/persons", photoId)
                         .header("Authorization", "Bearer " + ownerToken)
@@ -239,20 +257,19 @@ class M0ApiIntegrationTest {
         return json(result).path("data").path("personId").asText();
     }
 
-    private String createPhoto(String token, UUID ownerId, String groupId) throws Exception {
+    private String createPhoto(String token, String groupId) throws Exception {
         MvcResult album = mockMvc.perform(post("/api/v1/albums")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"elderProfileId":"elder-%s","groupId":"%s","ownerMemberId":"%s"}
-                                """.formatted(UUID.randomUUID(), groupId, ownerId)))
+                                {"elderProfileId":"elder-%s","groupId":"%s"}
+                                """.formatted(UUID.randomUUID(), groupId)))
                 .andExpect(status().isCreated())
                 .andReturn();
         String albumId = json(album).path("data").path("albumId").asText();
         MockMultipartFile file = new MockMultipartFile("files", "memory.jpg", "image/jpeg", "photo".getBytes());
         MvcResult photo = mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos", albumId)
                         .file(file)
-                        .param("uploadedBy", ownerId.toString())
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isCreated())
                 .andReturn();

@@ -8,9 +8,7 @@ import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
-import com.memeboo2.haemi.m4.application.query.GetInstitutionDashboardQuery;
 import com.memeboo2.haemi.m4.domain.model.dashboard.*;
-import com.memeboo2.haemi.m4.domain.port.InstitutionDashboardExportPort;
 import com.memeboo2.haemi.m4.domain.port.PdfReportPort;
 import com.memeboo2.haemi.m4.domain.repository.AlertRecipientSettingRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveChangeAlertRepository;
@@ -43,7 +41,6 @@ class DashboardApplicationServiceTest {
     @Mock AlertRecipientSettingRepository alertRecipientRepository;
     @Mock AlbumRepository albumRepository;
     @Mock PdfReportPort pdfReportPort;
-    @Mock InstitutionDashboardExportPort institutionDashboardExportPort;
     @Mock NotificationPort notificationPort;
     @Mock ElderAccessPort elderAccess;
 
@@ -53,7 +50,7 @@ class DashboardApplicationServiceTest {
     private void setUp() {
         elderId = UUID.randomUUID();
         service = new DashboardApplicationService(metricRepository, reportRepository, alertRepository,
-                alertRecipientRepository, albumRepository, pdfReportPort, institutionDashboardExportPort,
+                alertRecipientRepository, albumRepository, pdfReportPort,
                 notificationPort, elderAccess, new ActivityChangeLanguagePolicy());
     }
 
@@ -166,16 +163,6 @@ class DashboardApplicationServiceTest {
 
         assertThat(service.detectEarlyAlerts(elderId.toString())).isEmpty();
         verifyNoInteractions(alertRecipientRepository, metricRepository, notificationPort);
-    }
-
-    @Test
-    void institutionDashboardStillRejectsAnEmptyInstitution() {
-        setUp();
-        when(metricRepository.findByInstitutionIdAndDateBetween(anyString(), any(), any())).thenReturn(List.of());
-
-        assertThatThrownBy(() -> service.getInstitutionDashboard(new GetInstitutionDashboardQuery(
-                "institution-1", LocalDate.now().minusDays(6), LocalDate.now(), null)))
-                .isInstanceOf(InstitutionSeniorsNotFoundException.class);
     }
 
     private ElderAccessPort.ElderAccessSnapshot snapshot(ElderStatus status) {

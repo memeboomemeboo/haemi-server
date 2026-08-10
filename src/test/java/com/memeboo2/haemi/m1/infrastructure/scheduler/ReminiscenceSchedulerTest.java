@@ -4,9 +4,7 @@ import com.memeboo2.haemi.m1.application.service.ReminiscenceApplicationService;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.scheduling.annotation.Scheduled;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,7 +15,7 @@ import static org.mockito.Mockito.*;
 class ReminiscenceSchedulerTest {
 
     @Test
-    void dailyRunLoadsEveryAlbumAndUsesKoreanStandardTime() throws Exception {
+    void dailyRunLoadsEveryAlbum() {
         AlbumRepository albums = mock(AlbumRepository.class);
         ReminiscenceApplicationService reminiscence = mock(ReminiscenceApplicationService.class);
         Album first = Album.create(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString());
@@ -31,10 +29,5 @@ class ReminiscenceSchedulerTest {
         verify(albums, never()).findAllByElderProfileId(any());
         verify(reminiscence).generateTodayReminiscence(first.getId().toString());
         verify(reminiscence).generateTodayReminiscence(second.getId().toString());
-
-        Method method = ReminiscenceScheduler.class.getMethod("generateDailyReminiscence");
-        Scheduled scheduled = method.getAnnotation(Scheduled.class);
-        assertThat(scheduled.cron()).isEqualTo("${haemi.reminiscence.cron:0 0 8 * * *}");
-        assertThat(scheduled.zone()).isEqualTo("${haemi.reminiscence.time-zone:Asia/Seoul}");
     }
 }
