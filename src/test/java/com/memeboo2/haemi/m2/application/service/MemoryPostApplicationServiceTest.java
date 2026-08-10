@@ -5,6 +5,9 @@ import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
 import com.memeboo2.haemi.m2.domain.model.post.AuthorInfo;
 import com.memeboo2.haemi.m2.domain.model.post.MemoryPost;
 import com.memeboo2.haemi.m2.domain.model.post.MemoryPostId;
+import com.memeboo2.haemi.m2.domain.model.post.ReplyType;
+import com.memeboo2.haemi.m2.application.command.ReplyToPostCommand;
+import com.memeboo2.haemi.m2.application.query.GeneratePoemDraftQuery;
 import com.memeboo2.haemi.m2.domain.port.AiPoemGeneratorPort;
 import com.memeboo2.haemi.m2.domain.port.ContentFilterPort;
 import com.memeboo2.haemi.m2.domain.port.SttPort;
@@ -19,7 +22,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.io.ByteArrayInputStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -119,5 +124,32 @@ class MemoryPostApplicationServiceTest {
         service.handleElderNotification(UUID.randomUUID().toString(), albumId, elderId);
 
         verify(notificationPort, never()).sendToElder(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("시 초안은 게시글 원문을 실제 AI 포트에 전달한다")
+    void generatesPoemThroughAiPort() {
+        MemoryPost post = publishedPost();
+        when(postRepository.findById(post.getPostId())).thenReturn(Optional.of(post));
+        when(aiPoemGeneratorPort.generatePoem("보고싶어요")).thenReturn("보고 싶은 마음이 피어납니다");
+
+        String poem = service.generatePoemDraft(new GeneratePoemDraftQuery(post.getPostId().toString()));
+
+        assertThat(poem).isEqualTo("보고 싶은 마음이 피어납니다");
+        verify(aiPoemGeneratorPort).generatePoem("보고싶어요");
+    }
+
+    @Test
+    @DisplayName("음성 답변은 STT 포트 전사 결과를 저장한다")
+    void savesVoiceReplyFromSttTranscript() {
+        MemoryPost post = publishedPost();
+        when(postRepository.findById(post.getPostId())).thenReturn(Optional.of(post));
+        when(sttPort.transcribe(any(), eq("audio/mpeg"))).thenReturn("고마워요");
+
+        service.replyToPost(new ReplyToPostCommand(post.getPostId().toString(), elderId, ReplyType.VOICE,
+                null, new ByteArrayInputStream(new byte[]{1, 2}), "audio/mpeg"));
+
+        assertThat(post.getElderReply().getContent()).isEqualTo("고마워요");
+        verify(postRepository).save(post);
     }
 }

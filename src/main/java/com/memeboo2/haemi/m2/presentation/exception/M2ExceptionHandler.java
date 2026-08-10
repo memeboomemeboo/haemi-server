@@ -63,6 +63,18 @@ public class M2ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler({UnsupportedVoiceContentTypeException.class, VoiceInputTooLargeException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleInvalidVoiceInput(RuntimeException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(AiGenerationUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ApiResponse<Void> handleAiGenerationUnavailable(AiGenerationUnavailableException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler(InvalidHeartEmojiException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleInvalidHeartEmoji(InvalidHeartEmojiException e) {

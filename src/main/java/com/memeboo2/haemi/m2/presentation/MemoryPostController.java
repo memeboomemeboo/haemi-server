@@ -124,6 +124,8 @@ public class MemoryPostController {
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "답변 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "음성 형식·크기 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 음성 전사 일시 불가"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
                     description = "이미 답변한 추억글"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
@@ -148,8 +150,12 @@ public class MemoryPostController {
 
     @Operation(
             summary = "AI 시 초안 생성 [F2-03]",
-            description = "추억글 내용을 기반으로 AI가 시 초안을 생성합니다. 어르신이 음성으로 수정한 뒤 최종 답변으로 전송할 수 있습니다."
+            description = "추억글 내용을 기반으로 Gemini가 시 초안을 생성합니다. AI 설정 또는 업스트림이 일시 불가하면 503을 반환합니다."
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "시 초안 생성 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 시 생성 일시 불가")
+    })
     @GetMapping("/{postId}/poem-draft")
     public ApiResponse<String> getPoemDraft(
             @PathVariable String albumId,
