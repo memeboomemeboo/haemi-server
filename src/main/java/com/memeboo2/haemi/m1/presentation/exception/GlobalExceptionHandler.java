@@ -95,6 +95,12 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler(AlbumAlreadyExistsException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleAlbumAlreadyExists(AlbumAlreadyExistsException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler(UnsupportedPhotoFormatException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleUnsupportedFormat(UnsupportedPhotoFormatException e) {

@@ -13,7 +13,6 @@ public interface JpaCognitiveMetricRepository extends JpaRepository<CognitiveDai
     Optional<CognitiveDailyMetric> findByElderIdAndMetricDate(String elderId, LocalDate metricDate);
     List<CognitiveDailyMetric> findByElderIdAndMetricDateBetweenOrderByMetricDateAsc(String elderId, LocalDate from, LocalDate to);
     List<CognitiveDailyMetric> findByAlbumIdAndMetricDateBetweenOrderByMetricDateAsc(UUID albumId, LocalDate from, LocalDate to);
-    List<CognitiveDailyMetric> findByInstitutionIdAndMetricDateBetweenOrderByMetricDateAsc(String institutionId, LocalDate from, LocalDate to);
     @Query("SELECT DISTINCT m.elderId FROM CognitiveDailyMetric m")
     List<String> findDistinctElderId();
 }

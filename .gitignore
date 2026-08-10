@@ -36,3 +36,11 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Secrets ###
+# FCM 서비스 계정 키 (#80) — 파일 경로로 주입할 때 실수로 커밋되는 것을 막는다
+*service-account*.json
+firebase-*.json
+
+# FCM 서비스 계정 키가 떨어지는 배포용 디렉터리 (#92)
+secrets/

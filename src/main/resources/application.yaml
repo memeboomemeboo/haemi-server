@@ -52,6 +52,10 @@ haemi:
     include-local-server: ${OPENAPI_INCLUDE_LOCAL_SERVER:true}
   storage:
     upload-path: ${java.io.tmpdir}/haemi/photos
+  report:
+    pdf:
+      # 상대 경로로 두면 컨테이너 작업 디렉터리에 쌓였다가 재배포 때 사라진다 (#93)
+      output-dir: ${HAEMI_REPORT_PDF_OUTPUT_DIR:${java.io.tmpdir}/haemi/reports}
   album:
     max-group-members: 10
     max-photos-per-upload: 30
@@ -63,10 +67,20 @@ haemi:
     gemini:
       api-key: ${GEMINI_API_KEY:}
       model: ${GEMINI_MODEL:gemini-3.6-flash}
+      # 타임아웃이 없으면 업스트림이 멈췄을 때 야간 배치가 무한 대기한다 (#98)
+      connect-timeout: ${GEMINI_CONNECT_TIMEOUT:5s}
+      read-timeout: ${GEMINI_READ_TIMEOUT:20s}
+  reminiscence:
+    cron: "0 0 8 * * *"
+    time-zone: Asia/Seoul
   notification:
     elder-daily-limit: 3
     elder-quiet-hours-start: 21
     elder-quiet-hours-end: 8
+    fcm:
+      # 서비스 계정 JSON 원문 또는 JSON 파일 경로. 비우면 발송 대신 로그만 남긴다.
+      credentials: ${FIREBASE_CREDENTIALS:}
+      project-id: ${FIREBASE_PROJECT_ID:}
   predownload:
     # 배치 순서: 08:00 콘텐츠 → 08:45 선다운로드 → 09:00 알림
     cron: "0 45 8 * * *"
@@ -95,5 +109,8 @@ haemi:
     access-token-validity: PT30M
     refresh-token-validity: P14D
   security:
+    institution-admin:
+      # 기관 관리자로 가입할 수 있는 이메일 목록. 비우면 아무도 가입할 수 없다 (#96)
+      allowed-emails: ${INSTITUTION_ADMIN_EMAILS:}
     # 개발 환경용 키. 운영 프로필은 ELDER_HEALTH_ENCRYPTION_KEY 없이는 기동하지 않는다.
     elder-health-encryption-key: ${ELDER_HEALTH_ENCRYPTION_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}

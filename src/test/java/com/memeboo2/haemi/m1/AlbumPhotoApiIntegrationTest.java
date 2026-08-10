@@ -36,6 +36,7 @@ class AlbumPhotoApiIntegrationTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String token;
+    private UUID ownerId;
 
     @Autowired
     AlbumPhotoApiIntegrationTest(MockMvc mockMvc, TokenPort tokenPort) {
@@ -45,90 +46,126 @@ class AlbumPhotoApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        token = tokenPort.generateAccessToken(UUID.randomUUID(), "family-api-test@example.com", MemberRole.FAMILY);
+        ownerId = UUID.randomUUID();
+        token = tokenPort.generateAccessToken(ownerId, "family-api-test@example.com", MemberRole.FAMILY);
     }
 
     @Test
     void getAlbumAndTimeline_rejectViewerWhoIsNotMemberOrElder() throws Exception {
-        String albumId = createAlbum("owner-0");
+        String albumId = createAlbum();
+        String strangerToken = familyToken(UUID.randomUUID());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}", albumId)
-                        .param("viewerMemberId", "stranger")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + strangerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
-                        .param("viewerMemberId", "stranger")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + strangerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
-    void savePhoto_rejectsUploaderWhoIsNotAlbumMember() throws Exception {
-        String albumId = createAlbum("owner-0b");
+    void createAlbum_rejectsAnotherFamilyAndDuplicateGroupAlbum() throws Exception {
+        String groupId = createGroup();
+        String elderId = createElder(groupId);
+        createAlbum(elderId, groupId);
+
+        mockMvc.perform(post("/api/v1/albums")
+                        .header("Authorization", "Bearer " + familyToken(UUID.randomUUID()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+
+        mockMvc.perform(post("/api/v1/albums")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void savePhoto_rejectsAuthenticatedUserEvenWhenSupplyingOwnersLegacyParameter() throws Exception {
+        String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
 
         mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos", albumId)
                         .file(file)
-                        .param("uploadedBy", "stranger")
-                        .header("Authorization", "Bearer " + token))
+                        .param("uploadedBy", ownerId.toString())
+                        .header("Authorization", "Bearer " + familyToken(UUID.randomUUID())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
     void inviteMember_rejectsInviterWhoIsNotAlbumMember() throws Exception {
-        String albumId = createAlbum("owner-1");
+        String albumId = createAlbum();
+        UUID inviteeId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/v1/albums/{albumId}/members", albumId)
-                        .header("Authorization", "Bearer " + token)
+                        .header("Authorization", "Bearer " + familyToken(UUID.randomUUID()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"inviterId":"stranger","inviteeId":"family-2"}
-                                """))
+                                {"inviteeId":"%s"}
+                                """.formatted(inviteeId)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
+    void inviteMember_rejectsNonUuidInviteeBeforeCreatingAPendingMembership() throws Exception {
+        String albumId = createAlbum();
+
+        mockMvc.perform(post("/api/v1/albums/{albumId}/members", albumId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteeId\":\"not-a-member-uuid\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void inviteMember_pendingUntilAccepted_thenBecomesAlbumMember() throws Exception {
-        String albumId = createAlbum("owner-2");
+        String albumId = createAlbum();
+        UUID inviteeId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/v1/albums/{albumId}/members", albumId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"inviterId":"owner-2","inviteeId":"family-2"}
-                                """))
+                                {"inviteeId":"%s"}
+                                """.formatted(inviteeId)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}", albumId)
-                        .param("viewerMemberId", "owner-2")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.memberIds", org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("family-2"))));
+                .andExpect(jsonPath("$.data.memberIds", org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem(inviteeId.toString()))));
 
-        mockMvc.perform(post("/api/v1/albums/{albumId}/members/{memberId}/accept", albumId, "family-2")
-                        .header("Authorization", "Bearer " + token))
+        mockMvc.perform(post("/api/v1/albums/{albumId}/members/{memberId}/accept", albumId, inviteeId)
+                        .header("Authorization", "Bearer " + familyToken(inviteeId)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}", albumId)
-                        .param("viewerMemberId", "owner-2")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.memberIds", org.hamcrest.Matchers.hasItem("family-2")));
+                .andExpect(jsonPath("$.data.memberIds", org.hamcrest.Matchers.hasItem(inviteeId.toString())));
     }
 
     @Test
     void syncPhotos_rejectsCellularWhenWifiOnly() throws Exception {
-        String albumId = createAlbum("owner-3");
+        String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
 
         mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos/sync", albumId)
                         .file(file)
-                        .param("uploadedBy", "owner-3")
                         .param("wifiOnly", "true")
                         .param("networkType", "CELLULAR")
                         .header("Authorization", "Bearer " + token))
@@ -138,12 +175,11 @@ class AlbumPhotoApiIntegrationTest {
 
     @Test
     void syncPhotos_rejectsLowBattery() throws Exception {
-        String albumId = createAlbum("owner-4");
+        String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
 
         mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos/sync", albumId)
                         .file(file)
-                        .param("uploadedBy", "owner-4")
                         .param("wifiOnly", "false")
                         .param("networkType", "WIFI")
                         .param("batteryLevel", "15")
@@ -154,12 +190,11 @@ class AlbumPhotoApiIntegrationTest {
 
     @Test
     void syncPhotos_succeedsAndRecordsQueryableHistory() throws Exception {
-        String albumId = createAlbum("owner-5");
+        String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
 
         mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos/sync", albumId)
                         .file(file)
-                        .param("uploadedBy", "owner-5")
                         .param("wifiOnly", "true")
                         .param("networkType", "WIFI")
                         .param("batteryLevel", "80")
@@ -169,7 +204,6 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(jsonPath("$.data.saved.length()").value(1));
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/photos/sync/history", albumId)
-                        .param("viewerMemberId", "owner-5")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].savedCount").value(1))
@@ -177,46 +211,40 @@ class AlbumPhotoApiIntegrationTest {
                 .andExpect(jsonPath("$.data[0].batteryLevel").value(80));
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/photos/sync/history", albumId)
-                        .param("viewerMemberId", "stranger")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + familyToken(UUID.randomUUID())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
-    void timeline_belowThreeShotPhotosReturnsGuideMessageAndRoleControlsEditable() throws Exception {
-        String albumId = createAlbum("owner-6");
+    void timeline_belowThreeShotPhotosReturnsGuideMessageWithoutEditableRoleFlag() throws Exception {
+        String albumId = createAlbum();
         MockMultipartFile file = new MockMultipartFile("files", "photo.jpg", "image/jpeg", "photo-bytes".getBytes());
         mockMvc.perform(multipart("/api/v1/albums/{albumId}/photos", albumId)
                         .file(file)
-                        .param("uploadedBy", "owner-6")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
-                        .param("viewerMemberId", "owner-6")
-                        .param("role", "FAMILY")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.belowMinimumPhotoThreshold").value(true))
                 .andExpect(jsonPath("$.data.guideMessage").value("사진을 더 추가하면 타임라인이 만들어집니다"))
-                .andExpect(jsonPath("$.data.editable").value(true));
-
-        mockMvc.perform(get("/api/v1/albums/{albumId}/timeline", albumId)
-                        .param("viewerMemberId", "elder-api-test")
-                        .param("role", "ELDER")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.editable").value(false));
+                .andExpect(jsonPath("$.data.editable").doesNotExist());
     }
 
-    private String createAlbum(String ownerMemberId) throws Exception {
+    private String createAlbum() throws Exception {
+        String groupId = createGroup();
+        return createAlbum(createElder(groupId), groupId);
+    }
+
+    private String createAlbum(String elderId, String groupId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/albums")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"elderProfileId":"elder-api-test","groupId":"group-%s","ownerMemberId":"%s"}
-                                """.formatted(UUID.randomUUID(), ownerMemberId)))
+                                {"elderProfileId":"%s","groupId":"%s"}
+                                """.formatted(elderId, groupId)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -224,5 +252,34 @@ class AlbumPhotoApiIntegrationTest {
         String albumId = root.path("data").path("albumId").asText();
         assertThat(albumId).isNotBlank();
         return albumId;
+    }
+
+    private String createGroup() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/groups")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"relation\":\"DAUGHTER\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("groupId").asText();
+    }
+
+    private String createElder(String groupId) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/elders")
+                        .header("Authorization", "Bearer " + token)
+                        .queryParam("groupId", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"김해미","birthYear":1940,"gender":"FEMALE","residenceType":"HOME_WITH_FAMILY"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("elderId").asText();
+    }
+
+    private String familyToken(UUID memberId) {
+        return tokenPort.generateAccessToken(memberId, "family-%s@example.com".formatted(memberId), MemberRole.FAMILY);
     }
 }

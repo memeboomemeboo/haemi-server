@@ -2,7 +2,9 @@ package com.memeboo2.haemi.auth.infrastructure.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -15,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@EnableConfigurationProperties(InstitutionAdminProperties.class)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -23,6 +26,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // CorsConfigurationSource 빈이 있을 때만 동작한다(현재는 dev 프로필 전용, DevCorsConfig 참고).
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -31,6 +36,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 인증 불필요
                         .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+
+                        // 2FA를 켜지 않은 기관 관리자는 로그인이 막혀 토큰을 받을 수 없다.
+                        // 이 경로만 자격증명으로 직접 열어 최초 등록을 마치게 한다. (#96)
+                        .requestMatchers("/api/v1/auth/totp/enrollment",
+                                "/api/v1/auth/totp/enrollment/verify").permitAll()
 
                         // Swagger
                         .requestMatchers(
@@ -43,8 +53,7 @@ public class SecurityConfig {
 
                         // 기관 관리자 전용
                         .requestMatchers(
-                                "/api/v1/admin/**",
-                                "/api/v1/cognitive-dashboard/institutions/**"
+                                "/api/v1/admin/**"
                         ).hasRole("INSTITUTION_ADMIN")
 
                         // 나머지 인증 필요

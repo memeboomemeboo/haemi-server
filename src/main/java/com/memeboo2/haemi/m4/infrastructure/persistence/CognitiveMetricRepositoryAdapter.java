@@ -37,11 +37,6 @@ public class CognitiveMetricRepositoryAdapter implements CognitiveMetricReposito
     }
 
     @Override
-    public List<CognitiveDailyMetric> findByInstitutionIdAndDateBetween(String institutionId, LocalDate from, LocalDate to) {
-        return jpa.findByInstitutionIdAndMetricDateBetweenOrderByMetricDateAsc(institutionId, from, to);
-    }
-
-    @Override
     public List<String> findAllDistinctElderIds() {
         return jpa.findDistinctElderId();
     }

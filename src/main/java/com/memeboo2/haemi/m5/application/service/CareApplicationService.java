@@ -124,7 +124,7 @@ public class CareApplicationService {
         WalkRecord record = WalkRecord.start(routine, condition);
         walkRecordRepository.save(record);
         if (record.getStatus() == WalkStatus.CANCELLED_BY_WEATHER) {
-            notificationPort.sendToMember(routine.getElderId(),
+            notificationPort.sendToElder(routine.getElderId(),
                     "오늘은 실내 운동을 해봐요", "날씨가 좋지 않아 산책 알림을 쉬어갑니다.");
         }
         return WalkRecordResult.from(record);
@@ -186,7 +186,7 @@ public class CareApplicationService {
                 return;
             }
             alarm.markTriggered(now);
-            notificationPort.sendToMember(alarm.getElderId(),
+            notificationPort.sendToElder(alarm.getElderId(),
                     alarmTitle(alarm.getAlarmType()),
                     alarm.usesTtsFallback()
                             ? "가족이 설정한 알람이에요. 화면의 안내 문구를 읽어드릴게요."

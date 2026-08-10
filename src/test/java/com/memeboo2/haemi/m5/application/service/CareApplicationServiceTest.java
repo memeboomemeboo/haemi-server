@@ -69,7 +69,7 @@ class CareApplicationServiceTest {
         service.processDueReminders(due.plusMinutes(10));
         service.processDueReminders(due.plusMinutes(11));
 
-        verify(notificationPort).sendToMember(
+        verify(notificationPort).sendToElder(
                 ELDER_ID, "약 드실 시간이에요", "가족의 목소리 알람이 도착했어요.");
         verify(notificationPort, times(1)).sendToGroup(
                 album.getMemberIds(), "알람 무응답",

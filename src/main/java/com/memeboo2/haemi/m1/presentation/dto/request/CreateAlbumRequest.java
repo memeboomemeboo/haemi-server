@@ -9,8 +9,5 @@ public record CreateAlbumRequest(
         @NotBlank String elderProfileId,
 
         @Schema(description = "가족 그룹 ID", example = "family-group-001")
-        @NotBlank String groupId,
-
-        @Schema(description = "앨범 소유자(주 보호자) memberId", example = "member-001")
-        @NotBlank String ownerMemberId
+        @NotBlank String groupId
 ) {}

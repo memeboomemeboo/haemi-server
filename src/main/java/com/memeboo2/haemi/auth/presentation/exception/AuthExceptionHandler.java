@@ -28,6 +28,12 @@ public class AuthExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler(InstitutionAdminSignUpNotAllowedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleInstitutionAdminSignUp(InstitutionAdminSignUpNotAllowedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler(AccountSuspendedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ApiResponse<Void> handleSuspended(AccountSuspendedException e) {

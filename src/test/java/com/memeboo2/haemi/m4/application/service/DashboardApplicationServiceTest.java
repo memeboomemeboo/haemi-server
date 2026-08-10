@@ -3,20 +3,20 @@ package com.memeboo2.haemi.m4.application.service;
 import com.memeboo2.haemi.m0.domain.model.ElderAccessMode;
 import com.memeboo2.haemi.m0.domain.model.ElderStatus;
 import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
-import com.memeboo2.haemi.m4.application.query.GetInstitutionDashboardQuery;
 import com.memeboo2.haemi.m4.domain.model.dashboard.*;
-import com.memeboo2.haemi.m4.domain.port.InstitutionDashboardExportPort;
 import com.memeboo2.haemi.m4.domain.port.PdfReportPort;
 import com.memeboo2.haemi.m4.domain.repository.AlertRecipientSettingRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveChangeAlertRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveMetricRepository;
 import com.memeboo2.haemi.m4.domain.repository.CognitiveReportRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,9 +42,9 @@ class DashboardApplicationServiceTest {
     @Mock AlertRecipientSettingRepository alertRecipientRepository;
     @Mock AlbumRepository albumRepository;
     @Mock PdfReportPort pdfReportPort;
-    @Mock InstitutionDashboardExportPort institutionDashboardExportPort;
     @Mock NotificationPort notificationPort;
     @Mock ElderAccessPort elderAccess;
+    @Mock MemberRepository memberRepository;
 
     private DashboardApplicationService service;
     private UUID elderId;
@@ -52,8 +52,8 @@ class DashboardApplicationServiceTest {
     private void setUp() {
         elderId = UUID.randomUUID();
         service = new DashboardApplicationService(metricRepository, reportRepository, alertRepository,
-                alertRecipientRepository, albumRepository, pdfReportPort, institutionDashboardExportPort,
-                notificationPort, elderAccess, new ActivityChangeLanguagePolicy());
+                alertRecipientRepository, albumRepository, pdfReportPort,
+                notificationPort, elderAccess, new ActivityChangeLanguagePolicy(), memberRepository);
     }
 
     @Test
@@ -158,22 +158,13 @@ class DashboardApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("EX-F402-07: 사별 상태에서는 활동 변화 안내를 생성하거나 발송하지 않는다")
     void activityAlertIsNotSentAfterDeath() {
         setUp();
         when(elderAccess.getRequired(elderId)).thenReturn(snapshot(ElderStatus.DECEASED));
 
         assertThat(service.detectEarlyAlerts(elderId.toString())).isEmpty();
         verifyNoInteractions(alertRecipientRepository, metricRepository, notificationPort);
-    }
-
-    @Test
-    void institutionDashboardStillRejectsAnEmptyInstitution() {
-        setUp();
-        when(metricRepository.findByInstitutionIdAndDateBetween(anyString(), any(), any())).thenReturn(List.of());
-
-        assertThatThrownBy(() -> service.getInstitutionDashboard(new GetInstitutionDashboardQuery(
-                "institution-1", LocalDate.now().minusDays(6), LocalDate.now(), null)))
-                .isInstanceOf(InstitutionSeniorsNotFoundException.class);
     }
 
     private ElderAccessPort.ElderAccessSnapshot snapshot(ElderStatus status) {

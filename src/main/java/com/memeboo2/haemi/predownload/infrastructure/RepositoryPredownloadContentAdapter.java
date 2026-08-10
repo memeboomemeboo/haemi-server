@@ -1,6 +1,5 @@
 package com.memeboo2.haemi.predownload.infrastructure;
 
-import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.m3.domain.model.training.CognitiveTrainingSession;
 import com.memeboo2.haemi.m3.domain.repository.AccruedHintRepository;
@@ -32,11 +31,7 @@ public class RepositoryPredownloadContentAdapter implements PredownloadContentPo
     @Override
     @Transactional(readOnly = true)
     public List<String> eligibleElderIds(LocalDate date) {
-        return albumRepository.findAll().stream()
-                .map(Album::getElderProfileId)
-                .filter(id -> id != null && !id.isBlank())
-                .distinct()
-                .toList();
+        return albumRepository.findDistinctElderProfileIds();
     }
 
     @Override

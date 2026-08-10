@@ -27,6 +27,13 @@ public class Elder {
     @Column(name = "group_id", nullable = false, unique = true, columnDefinition = "uuid")
     private UUID groupId;
 
+    /**
+     * Mode A에서 어르신 본인이 로그인할 때 사용하는 계정이다.
+     * Mode B에서는 보호자 계정으로 대행할 수 있으므로 기기 토큰의 소유자와는 별개다.
+     */
+    @Column(name = "member_id", unique = true, columnDefinition = "uuid")
+    private UUID memberId;
+
     @Column(name = "org_id", length = 100)
     private String orgId;
 
@@ -113,6 +120,15 @@ public class Elder {
             throw new M0ValidationException("접근 모드는 A 또는 B로 설정해야 해요.");
         }
         this.accessMode = accessMode;
+        touch();
+    }
+
+    /** Mode A 어르신 계정 연결. 계정 자체의 역할 검증은 애플리케이션 계층에서 수행한다. */
+    public void linkMember(UUID memberId) {
+        if (memberId == null) {
+            throw new M0ValidationException("연결할 어르신 계정은 필수예요.");
+        }
+        this.memberId = memberId;
         touch();
     }
 

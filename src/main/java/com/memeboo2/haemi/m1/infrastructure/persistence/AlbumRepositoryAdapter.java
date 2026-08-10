@@ -4,10 +4,13 @@ import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -31,8 +34,28 @@ public class AlbumRepositoryAdapter implements AlbumRepository {
     }
 
     @Override
-    public List<Album> findAll() {
-        return jpa.findAll();
+    public List<Album> findPage(int page, int size) {
+        return jpa.findAll(pageRequest(page, size)).getContent();
+    }
+
+    @Override
+    public List<Album> findPageWithAtLeastPhotos(int minPhotos, int page, int size) {
+        return jpa.findAllWithAtLeastPhotos(minPhotos, pageRequest(page, size)).getContent();
+    }
+
+    @Override
+    public boolean existsPhotoInGroup(String groupId, UUID photoId) {
+        return jpa.existsPhotoInGroup(groupId, photoId);
+    }
+
+    @Override
+    public List<String> findDistinctElderProfileIds() {
+        return jpa.findDistinctElderProfileIds();
+    }
+
+    // 페이지 경계가 흔들리지 않도록 항상 같은 기준으로 정렬한다.
+    private PageRequest pageRequest(int page, int size) {
+        return PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"));
     }
 
     @Override

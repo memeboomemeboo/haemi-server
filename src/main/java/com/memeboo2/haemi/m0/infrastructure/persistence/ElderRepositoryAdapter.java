@@ -30,6 +30,11 @@ public class ElderRepositoryAdapter implements ElderRepository {
     }
 
     @Override
+    public Optional<Elder> findByMemberId(UUID memberId) {
+        return elders.findByMemberId(memberId);
+    }
+
+    @Override
     public boolean existsByGroupId(UUID groupId) {
         return elders.existsByGroupId(groupId);
     }

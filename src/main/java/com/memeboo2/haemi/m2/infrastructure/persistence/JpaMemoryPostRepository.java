@@ -47,4 +47,7 @@ public interface JpaMemoryPostRepository extends JpaRepository<MemoryPost, UUID>
               AND p.publishedAt >= :since
             """)
     int countPublishedSince(UUID albumId, LocalDateTime since);
+
+    boolean existsByAlbumIdAndStatusAndReadByElderFalseAndPublishedAtGreaterThanEqual(
+            UUID albumId, PostStatus status, LocalDateTime since);
 }
