@@ -57,16 +57,18 @@ public class ContentSafetyValidator {
             int from = Math.max(0, index - 4);
             int to = Math.min(prompt.length(), index + personName.length() + 10);
             String context = prompt.substring(from, to);
-            // 명시적 현재형 언급은 과거 문맥 단서가 곁에 있어도 차단한다.
-            // ("그때 영희는 잘 계세요?"처럼 회고 표현에 현재 안부를 섞는 문장이 통과하면 안 된다.)
+            // 현재형 표지어는 사진·추억 같은 일반 과거 문맥보다 우선한다.
+            // 예: "영희 사진은 지금 어디에 있나요?", "그때 영희는 잘 계세요?"
+            // 회고 어휘 옆에 현재 안부를 섞은 문장이 과거 단서 하나로 통과되면 안 된다.
             if (PRESENT_TENSE_MARKERS.stream().anyMatch(context::contains)) {
                 return true;
             }
-            // 현재형은 아니지만 과거 단서도 없으면 시제가 모호하다. 안전한 쪽으로 막는다.
-            if (PAST_CONTEXT_MARKERS.stream().noneMatch(context::contains)) {
-                return true;
+            if (PAST_CONTEXT_MARKERS.stream().anyMatch(context::contains)) {
+                index = prompt.indexOf(personName, index + personName.length());
+                continue;
             }
-            index = prompt.indexOf(personName, index + personName.length());
+            // 시제를 판단할 수 없는 고인 언급은 안전하게 차단한다.
+            return true;
         }
         return false;
     }

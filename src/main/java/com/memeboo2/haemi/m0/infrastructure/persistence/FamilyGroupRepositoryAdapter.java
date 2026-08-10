@@ -27,6 +27,11 @@ public class FamilyGroupRepositoryAdapter implements FamilyGroupRepository {
     }
 
     @Override
+    public Optional<FamilyGroup> findByIdForUpdate(UUID groupId) {
+        return groups.findByIdForUpdate(groupId);
+    }
+
+    @Override
     public Optional<FamilyGroup> findByOwnerMemberId(UUID ownerMemberId) {
         return groups.findByOwnerMemberId(ownerMemberId);
     }

@@ -8,6 +8,7 @@ import java.util.UUID;
 public interface FamilyGroupRepository {
     FamilyGroup save(FamilyGroup group);
     Optional<FamilyGroup> findById(UUID groupId);
+    Optional<FamilyGroup> findByIdForUpdate(UUID groupId);
     Optional<FamilyGroup> findByOwnerMemberId(UUID ownerMemberId);
     boolean existsActiveMembershipByMemberId(UUID memberId);
 }
