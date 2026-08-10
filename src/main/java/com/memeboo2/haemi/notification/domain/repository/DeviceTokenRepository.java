@@ -13,9 +13,9 @@ public interface DeviceTokenRepository {
 
     Optional<DeviceToken> findByToken(String token);
 
-    List<DeviceToken> findByMemberId(String memberId);
+    List<DeviceToken> findByMemberId(UUID memberId);
 
-    List<DeviceToken> findByMemberIds(Collection<String> memberIds);
+    List<DeviceToken> findByMemberIds(Collection<UUID> memberIds);
 
     List<DeviceToken> findByElderId(UUID elderId);
 

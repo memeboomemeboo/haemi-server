@@ -22,7 +22,7 @@ public class DeviceTokenService {
     private final ElderDeviceAccessValidator elderDeviceAccessValidator;
 
     @Transactional
-    public DeviceTokenResult register(String memberId, String token, DevicePlatform platform) {
+    public DeviceTokenResult register(UUID memberId, String token, DevicePlatform platform) {
         return register(memberId, token, platform, null);
     }
 
@@ -31,9 +31,9 @@ public class DeviceTokenService {
      * Mode B에서는 보호자 계정으로 등록하더라도 elderId를 통해 어르신 기기로 발송된다.
      */
     @Transactional
-    public DeviceTokenResult register(String memberId, String token, DevicePlatform platform, UUID elderId) {
+    public DeviceTokenResult register(UUID memberId, String token, DevicePlatform platform, UUID elderId) {
         if (elderId != null) {
-            elderDeviceAccessValidator.requireCanBind(UUID.fromString(memberId), elderId);
+            elderDeviceAccessValidator.requireCanBind(memberId, elderId);
         }
         LocalDateTime now = LocalDateTime.now();
         // 기기 재로그인 등으로 같은 토큰이 다시 올라오면 소유자를 이전한다.
@@ -47,7 +47,7 @@ public class DeviceTokenService {
     }
 
     @Transactional
-    public void unregister(String memberId, String token) {
+    public void unregister(UUID memberId, String token) {
         deviceTokens.findByToken(token).ifPresent(deviceToken -> {
             if (!deviceToken.isOwnedBy(memberId)) {
                 throw new DeviceTokenAccessDeniedException();
@@ -57,7 +57,7 @@ public class DeviceTokenService {
     }
 
     @Transactional(readOnly = true)
-    public List<DeviceTokenResult> findMyTokens(String memberId) {
+    public List<DeviceTokenResult> findMyTokens(UUID memberId) {
         return deviceTokens.findByMemberId(memberId).stream()
                 .map(DeviceTokenResult::from)
                 .toList();

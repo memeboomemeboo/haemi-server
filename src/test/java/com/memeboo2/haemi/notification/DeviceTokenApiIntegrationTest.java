@@ -101,8 +101,8 @@ class DeviceTokenApiIntegrationTest {
                 .andExpect(status().isOk());
 
         // 토큰은 한 건으로 유지되고 소유자만 바뀐다.
-        assertThat(deviceTokens.findByMemberId(firstOwner.toString())).isEmpty();
-        assertThat(deviceTokens.findByMemberId(secondOwner.toString()))
+        assertThat(deviceTokens.findByMemberId(firstOwner)).isEmpty();
+        assertThat(deviceTokens.findByMemberId(secondOwner))
                 .extracting(DeviceToken::getToken)
                 .containsExactly(fcmToken);
     }
