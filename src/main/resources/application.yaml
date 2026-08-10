@@ -106,5 +106,8 @@ haemi:
     access-token-validity: PT30M
     refresh-token-validity: P14D
   security:
+    institution-admin:
+      # 기관 관리자로 가입할 수 있는 이메일 목록. 비우면 아무도 가입할 수 없다 (#96)
+      allowed-emails: ${INSTITUTION_ADMIN_EMAILS:}
     # 개발 환경용 키. 운영 프로필은 ELDER_HEALTH_ENCRYPTION_KEY 없이는 기동하지 않는다.
     elder-health-encryption-key: ${ELDER_HEALTH_ENCRYPTION_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
