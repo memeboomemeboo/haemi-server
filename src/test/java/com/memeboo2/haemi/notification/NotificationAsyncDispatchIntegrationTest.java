@@ -54,7 +54,7 @@ class NotificationAsyncDispatchIntegrationTest {
     @Test
     @DisplayName("발송은 호출자 스레드가 아니라 알림 전용 스레드에서 처리된다")
     void dispatchesOnNotificationExecutor() throws Exception {
-        String memberId = UUID.randomUUID().toString();
+        UUID memberId = UUID.randomUUID();
         String token = "fcm-" + UUID.randomUUID();
         deviceTokenService.register(memberId, token, DevicePlatform.ANDROID);
 
@@ -67,7 +67,7 @@ class NotificationAsyncDispatchIntegrationTest {
         });
 
         String callerThread = Thread.currentThread().getName();
-        notificationPort.sendToGroup(Set.of(memberId), "제목", "본문");
+        notificationPort.sendToGroup(Set.of(memberId.toString()), "제목", "본문");
 
         assertThat(sent.await(5, TimeUnit.SECONDS)).isTrue();
         assertThat(senderThread.get()).startsWith("push-").isNotEqualTo(callerThread);
@@ -76,14 +76,14 @@ class NotificationAsyncDispatchIntegrationTest {
     @Test
     @DisplayName("FCM이 영구 실패로 답한 토큰은 저장소에서 정리된다")
     void prunesInvalidTokensAfterDispatch() {
-        String memberId = UUID.randomUUID().toString();
+        UUID memberId = UUID.randomUUID();
         String token = "fcm-" + UUID.randomUUID();
         deviceTokenService.register(memberId, token, DevicePlatform.ANDROID);
 
         when(pushSender.send(anyList(), any()))
                 .thenReturn(new PushSendResult(0, 1, List.of(token)));
 
-        notificationPort.sendToMember(memberId, "제목", "본문");
+        notificationPort.sendToMember(memberId.toString(), "제목", "본문");
 
         await().atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> assertThat(deviceTokens.findByToken(token)).isEmpty());

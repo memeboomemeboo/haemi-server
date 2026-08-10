@@ -76,7 +76,7 @@ class TestPushApiIntegrationTest {
     @DisplayName("등록된 본인 기기로 발송하고 결과 건수를 돌려준다")
     void sendsToSelfAndReportsResult() throws Exception {
         UUID memberId = UUID.randomUUID();
-        deviceTokenService.register(memberId.toString(), "fcm-" + UUID.randomUUID(), DevicePlatform.WEB);
+        deviceTokenService.register(memberId, "fcm-" + UUID.randomUUID(), DevicePlatform.WEB);
         when(pushSender.send(anyList(), any())).thenReturn(new PushSendResult(1, 0, List.of()));
 
         mockMvc.perform(post("/api/v1/device-tokens/test-send")
@@ -105,7 +105,7 @@ class TestPushApiIntegrationTest {
     void distinguishesFailureFromNoDevice() throws Exception {
         UUID memberId = UUID.randomUUID();
         String token = "fcm-" + UUID.randomUUID();
-        deviceTokenService.register(memberId.toString(), token, DevicePlatform.ANDROID);
+        deviceTokenService.register(memberId, token, DevicePlatform.ANDROID);
         when(pushSender.send(anyList(), any())).thenReturn(new PushSendResult(0, 1, List.of(token)));
 
         mockMvc.perform(post("/api/v1/device-tokens/test-send")
@@ -148,7 +148,7 @@ class TestPushApiIntegrationTest {
         assertThat(deviceTokens.findByToken(token))
                 .get()
                 .satisfies(saved -> {
-                    assertThat(saved.getMemberId()).isEqualTo(caregiverId.toString());
+                    assertThat(saved.getMemberId()).isEqualTo(caregiverId);
                     assertThat(saved.getElderId()).isEqualTo(elder.getId());
                 });
     }

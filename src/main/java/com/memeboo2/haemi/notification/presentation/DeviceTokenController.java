@@ -40,7 +40,7 @@ public class DeviceTokenController {
     public ApiResponse<DeviceTokenResult> register(@AuthenticationPrincipal AuthenticatedMember member,
                                                    @Valid @RequestBody RegisterDeviceTokenRequest request) {
         DeviceTokenResult result = deviceTokens.register(
-                member.memberId().toString(), request.token(), request.platform(), request.elderId());
+                member.memberId(), request.token(), request.platform(), request.elderId());
         return ApiResponse.ok(result, "이 기기로 알림을 받을 수 있어요.");
     }
 
@@ -51,13 +51,13 @@ public class DeviceTokenController {
     @DeleteMapping
     public ApiResponse<Void> unregister(@AuthenticationPrincipal AuthenticatedMember member,
                                         @Valid @RequestBody UnregisterDeviceTokenRequest request) {
-        deviceTokens.unregister(member.memberId().toString(), request.token());
+        deviceTokens.unregister(member.memberId(), request.token());
         return ApiResponse.ok(null, "이 기기로는 알림을 보내지 않아요.");
     }
 
     @Operation(summary = "내 기기 알림 토큰 목록 [#80]")
     @GetMapping
     public ApiResponse<List<DeviceTokenResult>> myTokens(@AuthenticationPrincipal AuthenticatedMember member) {
-        return ApiResponse.ok(deviceTokens.findMyTokens(member.memberId().toString()));
+        return ApiResponse.ok(deviceTokens.findMyTokens(member.memberId()));
     }
 }
