@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(24);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(25);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -92,6 +92,7 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "device_tokens", "elder_id")).isTrue();
             // #86: 회원 식별자 타입을 다른 테이블과 맞춘다
             assertThat(columnType(connection, "device_tokens", "member_id")).isEqualTo("UUID");
+            assertThat(tableExists(connection, "institution_assignments")).isTrue();
         }
     }
 

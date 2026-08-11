@@ -4,6 +4,7 @@ import com.memeboo2.haemi.auth.domain.model.MemberRole;
 import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
 import com.memeboo2.haemi.m0.domain.model.M0AccessDeniedException;
 import com.memeboo2.haemi.m0.domain.port.ElderMembershipQuery;
+import com.memeboo2.haemi.m0.domain.port.InstitutionElderAccessQuery;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
 import com.memeboo2.haemi.m4.application.command.RecordReminiscenceMetricCommand;
@@ -41,12 +42,13 @@ public class DashboardController {
 
     private final DashboardApplicationService dashboardService;
     private final ElderMembershipQuery elderMemberships;
+    private final InstitutionElderAccessQuery institutionAssignments;
 
     @Operation(summary = "회상 기록 일별 집계 [F4-01]", description = "발화 감지·사진 체류·힌트 반응과 가족 기록만 집계하며 음성 내용과 정오답은 저장하지 않습니다.")
     @PostMapping("/metrics")
     public ApiResponse<ReminiscenceMetricResult> recordMetric(@AuthenticationPrincipal AuthenticatedMember member,
                                                                @RequestBody RecordReminiscenceMetricCommand command) {
-        requireFamilyMember(member, command.elderId());
+        requireDashboardAccess(member, command.elderId());
         return ApiResponse.ok(dashboardService.recordReminiscenceMetric(command), "회상 기록이 집계되었습니다.");
     }
 
@@ -57,7 +59,7 @@ public class DashboardController {
             @RequestParam String elderId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        requireFamilyMember(member, elderId);
+        requireDashboardAccess(member, elderId);
         return ApiResponse.ok(dashboardService.getReminiscenceMetrics(new GetCognitiveMetricQuery(elderId, from, to)));
     }
 
@@ -72,7 +74,7 @@ public class DashboardController {
             @RequestParam(required = false) String albumId,
             @RequestParam(defaultValue = "WEEKLY") ReportPeriod period,
             @RequestParam(defaultValue = "IN_APP") ReportDeliveryMethod deliveryMethod) {
-        requireFamilyMember(member, elderId);
+        requireDashboardAccess(member, elderId);
         return ApiResponse.ok(dashboardService.generateReport(
                 new GenerateCognitiveReportCommand(elderId, albumId, period, deliveryMethod)));
     }
@@ -81,7 +83,7 @@ public class DashboardController {
     @PostMapping("/reports/{reportId}/viewed")
     public ApiResponse<ReminiscenceReportResult> markReportViewed(@AuthenticationPrincipal AuthenticatedMember member,
                                                                    @PathVariable String reportId) {
-        requireFamilyMember(member, dashboardService.getReport(reportId).getElderId());
+        requireDashboardAccess(member, dashboardService.getReport(reportId).getElderId());
         return ApiResponse.ok(dashboardService.markReportViewed(reportId), "리포트 열람 시각이 기록되었습니다.");
     }
 
@@ -90,7 +92,7 @@ public class DashboardController {
     public ResponseEntity<Resource> downloadReportPdf(@AuthenticationPrincipal AuthenticatedMember member,
                                                        @PathVariable String reportId) {
         var report = dashboardService.getReport(reportId);
-        requireFamilyMember(member, report.getElderId());
+        requireDashboardAccess(member, report.getElderId());
         Resource resource = new FileSystemResource(report.getPdfKey());
         // FileSystemResource는 생성 시점에 존재를 확인하지 않는다. 여기서 막지 않으면
         // 200 헤더가 나간 뒤 본문을 쓰다 깨져서 원인을 알 수 없는 오류가 된다. (#93)
@@ -111,7 +113,7 @@ public class DashboardController {
     @PostMapping("/alerts/detect")
     public ApiResponse<List<CognitiveAlertResult>> detectAlerts(@AuthenticationPrincipal AuthenticatedMember member,
                                                                  @RequestParam String elderId) {
-        requireFamilyMember(member, elderId);
+        requireDashboardAccess(member, elderId);
         return ApiResponse.ok(dashboardService.detectEarlyAlerts(elderId));
     }
 
@@ -154,5 +156,16 @@ public class DashboardController {
                 || !elderMemberships.isActiveGroupMember(elderId, member.memberId())) {
             throw new M0AccessDeniedException("해당 어르신의 가족 그룹 구성원만 이용할 수 있어요.");
         }
+    }
+
+    private void requireDashboardAccess(AuthenticatedMember member, String elderId) {
+        if (member.role() == MemberRole.FAMILY && elderMemberships.isActiveGroupMember(elderId, member.memberId())) {
+            return;
+        }
+        if (member.role() == MemberRole.INSTITUTION_ADMIN
+                && institutionAssignments.hasActiveAssignment(elderId, member.memberId())) {
+            return;
+        }
+        throw new M0AccessDeniedException("해당 어르신에 배정된 가족 또는 기관 담당자만 이용할 수 있어요.");
     }
 }

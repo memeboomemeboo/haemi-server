@@ -5,6 +5,7 @@ import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m0.application.command.*;
 import com.memeboo2.haemi.m0.application.dto.*;
 import com.memeboo2.haemi.m0.domain.model.*;
+import com.memeboo2.haemi.m0.domain.port.InstitutionElderAccessQuery;
 import com.memeboo2.haemi.m0.domain.repository.*;
 import com.memeboo2.haemi.m0.infrastructure.security.ElderHealthCrypto;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class ElderApplicationService {
     private final SensitiveTopicRepository sensitiveTopics;
     private final MemberRepository members;
     private final ElderHealthCrypto healthCrypto;
+    private final InstitutionElderAccessQuery institutionAccess;
 
     public ElderResult create(UUID actorId, UUID groupId, CreateElderCommand command) {
         FamilyGroup group = loadGroup(groupId);
@@ -109,7 +111,11 @@ public class ElderApplicationService {
     @Transactional(readOnly = true)
     public ElderResult get(UUID actorId, UUID elderId) {
         Elder elder = loadElder(elderId);
-        loadGroup(elder.getGroupId()).requireActiveMember(actorId);
+        FamilyGroup group = loadGroup(elder.getGroupId());
+        if (!group.isActiveMember(actorId)
+                && !institutionAccess.hasActiveAssignment(elderId.toString(), actorId)) {
+            throw new M0AccessDeniedException("가족 그룹 구성원 또는 배정된 기관 담당자만 조회할 수 있어요.");
+        }
         return toResult(elder);
     }
 
