@@ -10,6 +10,8 @@ import com.memeboo2.haemi.auth.domain.model.*;
 import com.memeboo2.haemi.auth.domain.port.PasswordEncoderPort;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
 import com.memeboo2.haemi.auth.domain.port.TotpPort;
+import com.memeboo2.haemi.auth.domain.port.VerificationEmailPort;
+import com.memeboo2.haemi.auth.domain.repository.EmailVerificationRepository;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.auth.infrastructure.security.InstitutionAdminProperties;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,8 @@ public class AuthApplicationService {
     private final TokenPort tokenPort;
     private final TotpPort totpPort;
     private final InstitutionAdminProperties institutionAdminProperties;
+    private final EmailVerificationRepository emailVerifications;
+    private final VerificationEmailPort verificationEmail;
 
     // ─────────── 회원가입 ───────────
 
@@ -39,10 +43,36 @@ public class AuthApplicationService {
         }
 
         String encoded = passwordEncoder.encode(cmd.password());
-        Member member = Member.create(normalizedEmail, encoded, cmd.name(), cmd.role());
+        Member member = Member.createUnverified(normalizedEmail, encoded, cmd.name(), cmd.role());
         member = memberRepository.save(member);
+        issueEmailVerification(member);
 
         return MemberResult.from(member);
+    }
+
+    public void confirmEmail(String token) {
+        EmailVerification verification = emailVerifications.findByToken(token)
+                .orElseThrow(EmailVerificationInvalidException::new);
+        verification.consume();
+        Member member = memberRepository.findById(verification.getMemberId())
+                .orElseThrow(() -> new MemberNotFoundException(verification.getMemberId().toString()));
+        member.verifyEmail();
+        memberRepository.save(member);
+        emailVerifications.save(verification);
+    }
+
+    public void resendEmailVerification(String email) {
+        Member member = memberRepository.findByEmail(email.trim().toLowerCase())
+                .orElseThrow(InvalidCredentialsException::new);
+        if (!member.isEmailVerified()) {
+            issueEmailVerification(member);
+        }
+    }
+
+    private void issueEmailVerification(Member member) {
+        emailVerifications.deleteByMemberId(member.getId());
+        EmailVerification verification = emailVerifications.save(EmailVerification.issue(member.getId()));
+        verificationEmail.send(member.getEmail(), verification.getToken());
     }
 
     /**

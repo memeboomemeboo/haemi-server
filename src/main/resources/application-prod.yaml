@@ -16,6 +16,9 @@ springdoc:
     enabled: ${API_DOCS_ENABLED:true}
 
 haemi:
+  mail:
+    from: ${MAIL_FROM}
+    public-url: ${APP_PUBLIC_URL}
   openapi:
     include-local-server: false
   jwt:

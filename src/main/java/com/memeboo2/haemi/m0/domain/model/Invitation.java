@@ -33,8 +33,8 @@ public class Invitation {
     @Column(name = "inviter_member_id", nullable = false, columnDefinition = "uuid")
     private UUID inviterMemberId;
 
-    @Column(name = "invitee_phone_hash", nullable = false, length = 64)
-    private String inviteePhoneHash;
+    @Column(name = "invitee_email_hash", nullable = false, length = 64)
+    private String inviteeEmailHash;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -56,13 +56,13 @@ public class Invitation {
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
 
-    public static Invitation create(UUID groupId, UUID inviterMemberId, String inviteePhoneHash,
+    public static Invitation create(UUID groupId, UUID inviterMemberId, String inviteeEmailHash,
                                     FamilyRelation relation) {
         Invitation invitation = new Invitation();
         invitation.id = UUID.randomUUID();
         invitation.groupId = groupId;
         invitation.inviterMemberId = inviterMemberId;
-        invitation.inviteePhoneHash = inviteePhoneHash;
+        invitation.inviteeEmailHash = inviteeEmailHash;
         invitation.relation = relation;
         invitation.token = newToken();
         invitation.createdAt = LocalDateTime.now();

@@ -63,4 +63,10 @@ public class AuthExceptionHandler {
     public ApiResponse<Void> handleValidation(RuntimeException e) {
         return ApiResponse.error(e.getMessage());
     }
+
+    @ExceptionHandler(EmailVerificationInvalidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleEmailVerification(EmailVerificationInvalidException e) {
+        return ApiResponse.error(e.getMessage());
+    }
 }

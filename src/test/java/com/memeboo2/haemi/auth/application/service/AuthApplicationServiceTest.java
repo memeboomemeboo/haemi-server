@@ -12,6 +12,8 @@ import com.memeboo2.haemi.auth.domain.port.TokenPort;
 import com.memeboo2.haemi.auth.domain.port.TotpPort;
 import com.memeboo2.haemi.auth.infrastructure.security.InstitutionAdminProperties;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
+import com.memeboo2.haemi.auth.domain.repository.EmailVerificationRepository;
+import com.memeboo2.haemi.auth.domain.port.VerificationEmailPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,13 +37,15 @@ class AuthApplicationServiceTest {
     @Mock PasswordEncoderPort passwordEncoder;
     @Mock TokenPort tokenPort;
     @Mock TotpPort totpPort;
+    @Mock EmailVerificationRepository emailVerifications;
+    @Mock VerificationEmailPort verificationEmail;
 
     private AuthApplicationService service;
 
     @BeforeEach
     void setUp() {
         service = new AuthApplicationService(memberRepository, passwordEncoder, tokenPort, totpPort,
-                new InstitutionAdminProperties(List.of("admin@haemi.kr")));
+                new InstitutionAdminProperties(List.of("admin@haemi.kr")), emailVerifications, verificationEmail);
     }
 
     @Test
@@ -50,6 +54,7 @@ class AuthApplicationServiceTest {
         when(memberRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password")).thenReturn("encoded");
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(emailVerifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MemberResult result = service.signUp(
                 new SignUpCommand(" USER@Example.com ", "password", "홍길동", MemberRole.FAMILY));
@@ -168,6 +173,8 @@ class AuthApplicationServiceTest {
     }
 
     private Member member(MemberRole role) {
-        return Member.create("user@example.com", "encoded", "홍길동", role);
+        Member member = Member.create("user@example.com", "encoded", "홍길동", role);
+        member.verifyEmail();
+        return member;
     }
 }

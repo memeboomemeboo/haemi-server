@@ -17,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(InstitutionAdminProperties.class)
+@EnableConfigurationProperties({InstitutionAdminProperties.class, com.memeboo2.haemi.auth.infrastructure.mail.VerificationEmailProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -35,7 +35,8 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         // 인증 불필요
-                        .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+                        .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh",
+                                "/api/v1/auth/email-verifications/**").permitAll()
 
                         // 2FA를 켜지 않은 기관 관리자는 로그인이 막혀 토큰을 받을 수 없다.
                         // 이 경로만 자격증명으로 직접 열어 최초 등록을 마치게 한다. (#96)
