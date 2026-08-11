@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m2.domain.model.notification;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import java.time.LocalTime;
 
 /**
@@ -16,7 +18,7 @@ public class ElderNotificationPolicy {
 
     public ElderNotificationPolicy(int dailyLimit, QuietHours quietHours) {
         if (dailyLimit < 0) {
-            throw new IllegalArgumentException("일일 알림 한도는 0 이상이어야 합니다: " + dailyLimit);
+            throw new DomainValidationException("일일 알림 한도는 0 이상이어야 합니다: " + dailyLimit);
         }
         this.dailyLimit = dailyLimit;
         this.quietHours = quietHours;

@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.infrastructure.tts;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +26,6 @@ class SsmlTrainingSpeechAdapterTest {
     @Test
     void rejectsBlankSpeechText() {
         assertThatThrownBy(() -> adapter.synthesize(" "))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainValidationException.class);
     }
 }

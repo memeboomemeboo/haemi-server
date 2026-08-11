@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m4.domain.model.dashboard;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -44,10 +46,10 @@ public class AlertRecipientSetting {
             Set<String> institutionManagerMemberIds
     ) {
         if (elderId == null || elderId.isBlank()) {
-            throw new IllegalArgumentException("어르신 ID는 필수입니다.");
+            throw new DomainValidationException("어르신 ID는 필수입니다.");
         }
         if (primaryCaregiverMemberId == null || primaryCaregiverMemberId.isBlank()) {
-            throw new IllegalArgumentException("주 보호자 회원 ID는 필수입니다.");
+            throw new DomainValidationException("주 보호자 회원 ID는 필수입니다.");
         }
         AlertRecipientSetting setting = existing != null ? existing : new AlertRecipientSetting();
         if (setting.id == null) {

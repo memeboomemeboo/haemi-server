@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m1.domain.model.album;
 
+import com.memeboo2.haemi.common.support.DomainIds;
+
 import java.io.Serializable;
 import java.util.UUID;
 
@@ -10,7 +12,7 @@ public record PhotoId(UUID value) implements Serializable {
     }
 
     public static PhotoId of(String id) {
-        return new PhotoId(UUID.fromString(id));
+        return new PhotoId(DomainIds.parseUuid(id, "사진 ID"));
     }
 
     public static PhotoId of(UUID id) {

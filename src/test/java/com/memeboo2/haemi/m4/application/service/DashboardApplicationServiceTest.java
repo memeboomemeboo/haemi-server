@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m4.application.service;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import com.memeboo2.haemi.m0.domain.model.ElderAccessMode;
 import com.memeboo2.haemi.m0.domain.model.ElderStatus;
 import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
@@ -132,7 +134,7 @@ class DashboardApplicationServiceTest {
     void activityLanguageGateRejectsDiagnosticVocabulary() {
         assertThatThrownBy(() -> new ActivityChangeLanguagePolicy()
                 .requireSafe("인지 기능이 악화되었습니다"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainValidationException.class);
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m5.application.service;
 
+import com.memeboo2.haemi.common.support.DomainIds;
+
 import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
@@ -65,7 +67,7 @@ public class CareApplicationService {
     // F5-01: 로테이션용 가족 음성 추가
     @Transactional
     public VoiceAlarmResult addAlarmVoice(AddAlarmVoiceCommand command) {
-        VoiceAlarm alarm = voiceAlarmRepository.findById(UUID.fromString(command.alarmId()))
+        VoiceAlarm alarm = voiceAlarmRepository.findById(DomainIds.parseUuid(command.alarmId(), "음성 알람 ID"))
                 .orElseThrow(() -> new VoiceAlarmNotFoundException(command.alarmId()));
         if (!alarm.getElderId().equals(command.elderId())) {
             throw new AlarmAccessDeniedException();
@@ -95,7 +97,7 @@ public class CareApplicationService {
     // F5-01: 어르신 확인 처리
     @Transactional
     public VoiceAlarmResult acknowledgeAlarm(AcknowledgeVoiceAlarmCommand command) {
-        VoiceAlarm alarm = voiceAlarmRepository.findById(UUID.fromString(command.alarmId()))
+        VoiceAlarm alarm = voiceAlarmRepository.findById(DomainIds.parseUuid(command.alarmId(), "음성 알람 ID"))
                 .orElseThrow(() -> new VoiceAlarmNotFoundException(command.alarmId()));
         if (!alarm.getElderId().equals(command.elderId())) {
             throw new AlarmAccessDeniedException();
@@ -118,7 +120,7 @@ public class CareApplicationService {
     // F5-02: 산책 시작. 악천후면 실내 운동 안내 상태로 종료.
     @Transactional
     public WalkRecordResult startWalk(StartWalkCommand command) {
-        WalkRoutine routine = walkRoutineRepository.findById(UUID.fromString(command.routineId()))
+        WalkRoutine routine = walkRoutineRepository.findById(DomainIds.parseUuid(command.routineId(), "산책 루틴 ID"))
                 .orElseThrow(() -> new WalkRoutineNotFoundException(command.routineId()));
         WeatherCondition condition = weatherPort.currentCondition(routine.getElderId());
         WalkRecord record = WalkRecord.start(routine, condition);
@@ -133,7 +135,7 @@ public class CareApplicationService {
     // F5-02: 산책 완료
     @Transactional
     public WalkRecordResult completeWalk(CompleteWalkCommand command) {
-        WalkRecord record = walkRecordRepository.findById(UUID.fromString(command.walkRecordId()))
+        WalkRecord record = walkRecordRepository.findById(DomainIds.parseUuid(command.walkRecordId(), "산책 기록 ID"))
                 .orElseThrow(() -> new WalkRoutineNotFoundException(command.walkRecordId()));
         record.complete(command.durationMinutes(), command.stepCount());
         walkRecordRepository.save(record);

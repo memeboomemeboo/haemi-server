@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.domain.model.training;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import com.memeboo2.haemi.m3.domain.event.GrandchildChanceUnusedBadgeAwardedEvent;
 import com.memeboo2.haemi.m3.domain.event.HintRequestedEvent;
 import com.memeboo2.haemi.m3.domain.event.TrainingSessionCompletedEvent;
@@ -202,7 +204,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             throw new TrainingSessionAlreadyCompletedException();
         }
         if (hintText == null || hintText.isBlank()) {
-            throw new IllegalArgumentException("힌트 내용이 없습니다.");
+            throw new DomainValidationException("힌트 내용이 없습니다.");
         }
         currentQuestion().orElseThrow(TrainingSessionAlreadyCompletedException::new);
         if (chanceUsedCount >= MAX_CHANCE_PER_SESSION) {
@@ -221,14 +223,14 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     void applyHint(String responderName, String hintText, LocalDateTime respondedAt) {
         if (hintText == null || hintText.isBlank()) {
-            throw new IllegalArgumentException("힌트 내용을 입력해주세요.");
+            throw new DomainValidationException("힌트 내용을 입력해주세요.");
         }
         expireGrandchildChanceIfNeeded(respondedAt);
         if (lastChanceStatus == GrandchildChanceStatus.EXPIRED) {
             throw new GrandchildChanceExpiredException();
         }
         if (lastChanceStatus != GrandchildChanceStatus.PENDING) {
-            throw new IllegalArgumentException("진행 중인 손주 찬스 요청이 없습니다.");
+            throw new DomainValidationException("진행 중인 손주 찬스 요청이 없습니다.");
         }
         lastChanceStatus = GrandchildChanceStatus.ANSWERED;
         this.lastHintResponder = responderName;
@@ -338,11 +340,11 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     private static void validateQuestions(List<TrainingQuestion> questions) {
         if (questions == null || questions.size() < MIN_QUESTION_COUNT || questions.size() > MAX_QUESTION_COUNT) {
-            throw new IllegalArgumentException("인지 훈련 문제는 3~5개여야 합니다.");
+            throw new DomainValidationException("인지 훈련 문제는 3~5개여야 합니다.");
         }
         for (int i = 1; i < questions.size(); i++) {
             if (questions.get(i - 1).getType() == questions.get(i).getType()) {
-                throw new IllegalArgumentException("같은 유형의 문제가 연속 배치될 수 없습니다.");
+                throw new DomainValidationException("같은 유형의 문제가 연속 배치될 수 없습니다.");
             }
         }
     }

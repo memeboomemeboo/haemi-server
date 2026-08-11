@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m2.domain.model.notification;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import java.time.LocalTime;
 
 /**
@@ -10,7 +12,7 @@ public record QuietHours(int startHour, int endHour) {
 
     public QuietHours {
         if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23) {
-            throw new IllegalArgumentException("야간 차단 시간대는 0~23시여야 합니다: " + startHour + "~" + endHour);
+            throw new DomainValidationException("야간 차단 시간대는 0~23시여야 합니다: " + startHour + "~" + endHour);
         }
     }
 

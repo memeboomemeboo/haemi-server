@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.domain.model.hint;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -55,10 +57,10 @@ public class AccruedHint {
     private AccruedHint(String elderId, UUID photoId, String personName, AccrualSource source,
                         String authorMemberId, String authorName, String text) {
         if (text == null || text.isBlank()) {
-            throw new IllegalArgumentException("힌트 내용을 입력해주세요.");
+            throw new DomainValidationException("힌트 내용을 입력해주세요.");
         }
         if (source == null) {
-            throw new IllegalArgumentException("적립 경로는 필수입니다.");
+            throw new DomainValidationException("적립 경로는 필수입니다.");
         }
         this.id = UUID.randomUUID();
         this.elderId = elderId;
