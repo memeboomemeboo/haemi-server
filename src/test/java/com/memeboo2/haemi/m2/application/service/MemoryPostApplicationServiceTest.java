@@ -5,6 +5,10 @@ import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
 import com.memeboo2.haemi.m2.domain.model.post.AuthorInfo;
 import com.memeboo2.haemi.m2.domain.model.post.MemoryPost;
 import com.memeboo2.haemi.m2.domain.model.post.MemoryPostId;
+import com.memeboo2.haemi.m2.domain.model.post.ReplyType;
+import com.memeboo2.haemi.m2.domain.model.post.ForbiddenWordException;
+import com.memeboo2.haemi.m2.application.command.ReplyToPostCommand;
+import com.memeboo2.haemi.m2.application.query.GeneratePoemDraftQuery;
 import com.memeboo2.haemi.m2.domain.port.AiPoemGeneratorPort;
 import com.memeboo2.haemi.m2.domain.port.ContentFilterPort;
 import com.memeboo2.haemi.m2.domain.port.SttPort;
@@ -19,7 +23,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.io.ByteArrayInputStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -34,6 +41,7 @@ class MemoryPostApplicationServiceTest {
     @Mock ContentFilterPort contentFilterPort;
     @Mock AiPoemGeneratorPort aiPoemGeneratorPort;
     @Mock SttPort sttPort;
+    @Mock MemoryPostAiPersistenceService aiPersistenceService;
     @Mock NotificationPort notificationPort;
     @Mock com.memeboo2.haemi.m0.domain.port.ElderStatusQuery elderStatusQuery;
 
@@ -46,7 +54,7 @@ class MemoryPostApplicationServiceTest {
     void setUp() {
         service = new MemoryPostApplicationService(
                 postRepository, photoStoragePort, contentFilterPort,
-                aiPoemGeneratorPort, sttPort, notificationPort, elderStatusQuery);
+                aiPoemGeneratorPort, sttPort, aiPersistenceService, notificationPort, elderStatusQuery);
         lenient().when(elderStatusQuery.isDispatchable(elderId)).thenReturn(true);
         ReflectionTestUtils.setField(service, "elderDailyLimit", 3);
         // 야간 창을 빈 구간(0==0)으로 두어 시각과 무관하게 결정되도록 한다.
@@ -119,5 +127,50 @@ class MemoryPostApplicationServiceTest {
         service.handleElderNotification(UUID.randomUUID().toString(), albumId, elderId);
 
         verify(notificationPort, never()).sendToElder(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("시 초안은 게시글 원문을 실제 AI 포트에 전달한다")
+    void generatesPoemThroughAiPort() {
+        MemoryPost post = publishedPost();
+        when(aiPersistenceService.loadPoemSource(post.getPostId().toString())).thenReturn("보고싶어요");
+        when(aiPoemGeneratorPort.generatePoem("보고싶어요")).thenReturn("보고 싶은 마음이 피어납니다");
+
+        String poem = service.generatePoemDraft(new GeneratePoemDraftQuery(post.getPostId().toString()));
+
+        assertThat(poem).isEqualTo("보고 싶은 마음이 피어납니다");
+        verify(aiPersistenceService).loadPoemSource(post.getPostId().toString());
+        verify(aiPoemGeneratorPort).generatePoem("보고싶어요");
+    }
+
+    @Test
+    @DisplayName("음성 답변은 STT 포트 전사 결과를 저장한다")
+    void savesVoiceReplyFromSttTranscript() {
+        MemoryPost post = publishedPost();
+        when(sttPort.transcribe(any(), eq("audio/mpeg"), eq("reply.mp3"))).thenReturn("고마워요");
+        when(aiPersistenceService.saveReply(post.getPostId().toString(), ReplyType.VOICE, "고마워요"))
+                .thenReturn(com.memeboo2.haemi.m2.application.dto.MemoryPostResult.from(post));
+
+        service.replyToPost(new ReplyToPostCommand(post.getPostId().toString(), elderId, ReplyType.VOICE,
+                null, new ByteArrayInputStream(new byte[]{1, 2}), "audio/mpeg", "reply.mp3"));
+
+        verify(aiPersistenceService).verifyCanReply(post.getPostId().toString());
+        verify(aiPersistenceService).saveReply(post.getPostId().toString(), ReplyType.VOICE, "고마워요");
+    }
+
+    @Test
+    @DisplayName("전사된 음성 답변도 가족 텍스트 글과 동일하게 금칙어를 검사한다")
+    void rejectsForbiddenTranscriptBeforePersistence() {
+        MemoryPost post = publishedPost();
+        when(sttPort.transcribe(any(), anyString(), anyString())).thenReturn("욕설1");
+        when(contentFilterPort.containsForbiddenWord("욕설1")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.replyToPost(new ReplyToPostCommand(
+                post.getPostId().toString(), elderId, ReplyType.VOICE,
+                null, new ByteArrayInputStream(new byte[]{1}), "audio/mpeg", "reply.mp3")))
+                .isInstanceOf(ForbiddenWordException.class);
+
+        verify(aiPersistenceService).verifyCanReply(post.getPostId().toString());
+        verify(aiPersistenceService, never()).saveReply(anyString(), any(), anyString());
     }
 }
