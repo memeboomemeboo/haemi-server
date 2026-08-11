@@ -16,6 +16,8 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
       OPENAPI_SERVER_URL: ${OPENAPI_SERVER_URL:-}
+      # Swagger UI와 /v3/api-docs를 비인증으로 열지 여부. 끄면 전체 API 표면이 가려진다 (#100)
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-true}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
       # 서비스 계정 JSON 파일 경로. 비우면 푸시가 발송되지 않고 로그 폴백으로만 동작한다 (#92)
