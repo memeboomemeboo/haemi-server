@@ -14,5 +14,7 @@ public interface InstitutionAssignmentRepository {
 
     List<InstitutionAssignment> findAllByElderIdAndActiveTrue(UUID elderId);
 
+    List<InstitutionAssignment> findAllByInstitutionAdminMemberIdAndActiveTrue(UUID institutionAdminMemberId);
+
     boolean existsByElderIdAndInstitutionAdminMemberIdAndActiveTrue(UUID elderId, UUID institutionAdminMemberId);
 }

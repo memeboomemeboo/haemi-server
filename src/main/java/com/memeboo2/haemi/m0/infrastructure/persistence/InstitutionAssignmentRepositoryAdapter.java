@@ -32,6 +32,11 @@ public class InstitutionAssignmentRepositoryAdapter implements InstitutionAssign
     }
 
     @Override
+    public List<InstitutionAssignment> findAllByInstitutionAdminMemberIdAndActiveTrue(UUID institutionAdminMemberId) {
+        return assignments.findAllByInstitutionAdminMemberIdAndActiveTrue(institutionAdminMemberId);
+    }
+
+    @Override
     public boolean existsByElderIdAndInstitutionAdminMemberIdAndActiveTrue(
             UUID elderId, UUID institutionAdminMemberId) {
         return assignments.existsByElderIdAndInstitutionAdminMemberIdAndActiveTrue(elderId, institutionAdminMemberId);
