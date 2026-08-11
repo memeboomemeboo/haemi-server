@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.presentation.exception;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
 import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m3.domain.model.training.*;
@@ -51,7 +52,7 @@ public class M3ExceptionHandler {
             GrandchildChanceResponderNotMemberException.class,
             TrainingQuestionPassUnavailableException.class,
             TrainingPrerequisiteNotMetException.class,
-            IllegalArgumentException.class
+            DomainValidationException.class
     })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleBadRequest(RuntimeException e) {
