@@ -58,6 +58,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           ELDER_HEALTH_ENCRYPTION_KEY: ${{ secrets.ELDER_HEALTH_ENCRYPTION_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.6-flash
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
@@ -68,7 +69,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          envs: ELDER_HEALTH_ENCRYPTION_KEY,GEMINI_API_KEY,GEMINI_MODEL,FIREBASE_CREDENTIALS,FIREBASE_PROJECT_ID,INSTITUTION_ADMIN_EMAILS
+          envs: ELDER_HEALTH_ENCRYPTION_KEY,JWT_SECRET,GEMINI_API_KEY,GEMINI_MODEL,FIREBASE_CREDENTIALS,FIREBASE_PROJECT_ID,INSTITUTION_ADMIN_EMAILS
           command_timeout: 10m
           script: |
             set -eu
@@ -91,6 +92,11 @@ jobs:
               exit 1
             }
             save_env ELDER_HEALTH_ENCRYPTION_KEY "$ELDER_HEALTH_ENCRYPTION_KEY"
+            test -n "$JWT_SECRET" || {
+              echo "JWT_SECRET GitHub Secret이 필요합니다." >&2
+              exit 1
+            }
+            save_env JWT_SECRET "$JWT_SECRET"
             save_env GEMINI_API_KEY "$GEMINI_API_KEY"
             save_env GEMINI_MODEL "$GEMINI_MODEL"
 
