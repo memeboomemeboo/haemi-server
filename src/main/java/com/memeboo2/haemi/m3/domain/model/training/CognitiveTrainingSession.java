@@ -137,6 +137,14 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return attempt;
     }
 
+    /** 사별·입원 전이 뒤에는 진행 중 세션을 즉시 중단한다. */
+    public void abandonForElderStatus() {
+        if (status == TrainingSessionStatus.IN_PROGRESS) {
+            status = TrainingSessionStatus.ABANDONED;
+            completedAt = LocalDateTime.now();
+        }
+    }
+
     // F3-01: 60초 무응답 허용 — 발화 없이 다음 사진으로 진행 (손주 찬스 게이팅과 무관)
     public QuestionAttempt recordNoResponse(String questionId) {
         if (status == TrainingSessionStatus.COMPLETED) {

@@ -107,6 +107,7 @@ public class TrainingApplicationService {
     @Transactional
     public AnswerResult answerQuestion(AnswerTrainingQuestionCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         QuestionAttempt attempt = session.answer(
                 command.questionId(), command.submittedAnswer(), command.responseSeconds());
 
@@ -136,6 +137,7 @@ public class TrainingApplicationService {
     @Transactional
     public HintServeResult serveGrandchildHint(ServeGrandchildHintCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         var photoId = session.currentQuestion()
                 .map(TrainingQuestion::getPhotoId)
                 .orElse(null);
@@ -173,6 +175,7 @@ public class TrainingApplicationService {
     @Transactional
     public TrainingSessionResult recordNoResponse(RecordNoResponseCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         session.recordNoResponse(command.questionId());
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             adjustDifficulty(session);
@@ -184,6 +187,7 @@ public class TrainingApplicationService {
     @Transactional
     public TrainingSessionResult passQuestion(PassTrainingQuestionCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         session.passCurrentQuestion();
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             adjustDifficulty(session);
@@ -206,6 +210,15 @@ public class TrainingApplicationService {
     private CognitiveTrainingSession loadSessionOrThrow(String sessionId) {
         return sessionRepository.findById(TrainingSessionId.of(sessionId))
                 .orElseThrow(() -> new TrainingSessionNotFoundException(sessionId));
+    }
+
+    private void requireSessionDispatchable(CognitiveTrainingSession session) {
+        if (elderStatusQuery.isDispatchable(session.getElderId())) {
+            return;
+        }
+        session.abandonForElderStatus();
+        sessionRepository.save(session);
+        throw new SessionStartBlockedByElderStatusException(session.getElderId());
     }
 
     private Album loadEligibleAlbum(StartTrainingSessionCommand command) {
