@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m4.application.service;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,7 +18,7 @@ public class ActivityChangeLanguagePolicy {
     public void requireSafe(String message) {
         String normalized = message == null ? "" : message.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         if (FORBIDDEN.stream().anyMatch(normalized::contains)) {
-            throw new IllegalArgumentException("활동 안내에 사용할 수 없는 판정 표현이 포함되어 있어요.");
+            throw new DomainValidationException("활동 안내에 사용할 수 없는 판정 표현이 포함되어 있어요.");
         }
     }
 }

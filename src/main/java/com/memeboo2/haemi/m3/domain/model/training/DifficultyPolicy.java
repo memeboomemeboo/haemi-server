@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.domain.model.training;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -109,20 +111,20 @@ public class DifficultyPolicy {
                                  Set<QuestionType> questionTypes,
                                  String reviewedBy) {
         if (maxAverageResponseSeconds <= 0.0) {
-            throw new IllegalArgumentException("평균 반응 시간 기준은 0초보다 커야 합니다.");
+            throw new DomainValidationException("평균 반응 시간 기준은 0초보다 커야 합니다.");
         }
         if (increaseAccuracyThreshold < 0.0 || increaseAccuracyThreshold > 1.0
                 || decreaseAccuracyThreshold < 0.0 || decreaseAccuracyThreshold > 1.0) {
-            throw new IllegalArgumentException("정답률 기준은 0.0~1.0 범위여야 합니다.");
+            throw new DomainValidationException("정답률 기준은 0.0~1.0 범위여야 합니다.");
         }
         if (decreaseAccuracyThreshold >= increaseAccuracyThreshold) {
-            throw new IllegalArgumentException("하락 정답률 기준은 상승 정답률 기준보다 낮아야 합니다.");
+            throw new DomainValidationException("하락 정답률 기준은 상승 정답률 기준보다 낮아야 합니다.");
         }
         if (questionTypes == null || questionTypes.size() < 2) {
-            throw new IllegalArgumentException("연속 유형 중복 방지를 위해 문제 유형을 두 개 이상 선택해야 합니다.");
+            throw new DomainValidationException("연속 유형 중복 방지를 위해 문제 유형을 두 개 이상 선택해야 합니다.");
         }
         if (reviewedBy == null || reviewedBy.isBlank()) {
-            throw new IllegalArgumentException("검토자를 입력해야 합니다.");
+            throw new DomainValidationException("검토자를 입력해야 합니다.");
         }
     }
 

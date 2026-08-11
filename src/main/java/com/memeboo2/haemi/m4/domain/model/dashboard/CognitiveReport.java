@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m4.domain.model.dashboard;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -164,7 +166,7 @@ public class CognitiveReport {
 
     public void assignPdfKey(String pdfKey) {
         if (pdfKey == null || pdfKey.isBlank()) {
-            throw new IllegalArgumentException("PDF 경로는 비어 있을 수 없습니다.");
+            throw new DomainValidationException("PDF 경로는 비어 있을 수 없습니다.");
         }
         this.pdfKey = pdfKey;
     }

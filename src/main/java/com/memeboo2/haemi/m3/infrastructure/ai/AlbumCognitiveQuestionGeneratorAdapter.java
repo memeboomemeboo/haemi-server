@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.infrastructure.ai;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.Photo;
 import com.memeboo2.haemi.m1.domain.model.album.PhotoMetadata;
@@ -24,7 +26,7 @@ public class AlbumCognitiveQuestionGeneratorAdapter implements CognitiveQuestion
     ) {
         List<Photo> photos = album.getPhotos();
         if (photos.isEmpty()) {
-            throw new IllegalArgumentException("인지 훈련 문제 생성에 사용할 사진이 없습니다.");
+            throw new DomainValidationException("인지 훈련 문제 생성에 사용할 사진이 없습니다.");
         }
 
         int normalizedLevel = Math.max(1, Math.min(5, difficultyLevel));
@@ -58,7 +60,7 @@ public class AlbumCognitiveQuestionGeneratorAdapter implements CognitiveQuestion
                 return candidate;
             }
         }
-        throw new IllegalArgumentException("연속 중복 방지를 위해 문제 유형이 두 개 이상 필요합니다.");
+        throw new DomainValidationException("연속 중복 방지를 위해 문제 유형이 두 개 이상 필요합니다.");
     }
 
     private TrainingQuestion createQuestion(QuestionType type, Photo photo, int difficultyLevel) {
