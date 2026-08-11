@@ -39,8 +39,8 @@ class DeploymentConfigurationTest {
     }
 
     @ParameterizedTest(name = "compose.yaml이 {0}를 앱에 전달한다")
-    @ValueSource(strings = {"JWT_SECRET", "FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "GEMINI_API_KEY",
-            "INSTITUTION_ADMIN_EMAILS"})
+    @ValueSource(strings = {"POSTGRES_PASSWORD", "JWT_SECRET", "FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID",
+            "GEMINI_API_KEY", "INSTITUTION_ADMIN_EMAILS"})
     @DisplayName("application.yaml이 읽는 외부 자격증명은 compose에서 앱 컨테이너로 전달된다")
     void composePassesCredentialsToApp(String variable) throws Exception {
         String appService = appServiceSection();
@@ -51,8 +51,8 @@ class DeploymentConfigurationTest {
     }
 
     @ParameterizedTest(name = "배포 워크플로가 {0}를 EC2로 전달한다")
-    @ValueSource(strings = {"JWT_SECRET", "FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID",
-            "INSTITUTION_ADMIN_EMAILS"})
+    @ValueSource(strings = {"POSTGRES_PASSWORD", "JWT_SECRET", "FIREBASE_CREDENTIALS",
+            "FIREBASE_PROJECT_ID", "INSTITUTION_ADMIN_EMAILS"})
     @DisplayName("배포 워크플로가 자격증명을 .env까지 실어 나른다")
     void deployWorkflowCarriesCredentialsToEnvFile(String variable) throws Exception {
         String workflow = Files.readString(DEPLOY_WORKFLOW);
@@ -60,6 +60,9 @@ class DeploymentConfigurationTest {
         assertThat(workflow)
                 .as("%s가 ssh-action의 envs 목록에 없으면 원격 셸에 전달되지 않는다", variable)
                 .containsPattern("envs:[^\\n]*" + variable);
+        assertThat(workflow)
+                .as("%s가 GitHub Secret에서 ssh-action 환경으로 주입돼야 한다", variable)
+                .contains(variable + ": ${{ secrets." + variable + " }}");
         assertThat(workflow)
                 .as("%s를 save_env로 .env에 쓰지 않으면 compose가 읽을 수 없다", variable)
                 .contains("save_env " + variable);
