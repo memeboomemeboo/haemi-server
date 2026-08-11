@@ -89,34 +89,4 @@ public class TrainingController {
         return ApiResponse.ok(result, "손주 한마디를 들려드립니다.");
     }
 
-    @Operation(
-            summary = "손주 찬스 요청 [F3-03] (deprecated)",
-            description = "실시간 소진형 요청. 사전 적립형(POST /{sessionId}/hints/served)으로 대체 예정입니다."
-    )
-    @Deprecated
-    @PostMapping("/{sessionId}/chances")
-    public ApiResponse<ChanceResult> requestChance(
-            @PathVariable String sessionId,
-            @Valid @RequestBody RequestGrandchildChanceRequest request) {
-        return ApiResponse.ok(trainingService.requestGrandchildChance(
-                new RequestGrandchildChanceCommand(sessionId, request.elderId())));
-    }
-
-    @Operation(summary = "가족 힌트 전달 [F3-03]")
-    @PostMapping("/{sessionId}/hints")
-    public ApiResponse<TrainingSessionResult> provideHint(
-            @PathVariable String sessionId,
-            @Valid @RequestBody ProvideHintRequest request) {
-        TrainingSessionResult result = trainingService.provideHint(new ProvideHintCommand(
-                sessionId, request.responderMemberId(), request.responderName(), request.hintText()));
-        return ApiResponse.ok(result, "힌트를 전달했습니다.");
-    }
-
-    @Operation(summary = "30분 미응답 문제 건너뛰기 [F3-03]")
-    @PostMapping("/{sessionId}/pass")
-    public ApiResponse<TrainingSessionResult> passQuestion(@PathVariable String sessionId) {
-        TrainingSessionResult result = trainingService.passQuestion(
-                new PassTrainingQuestionCommand(sessionId));
-        return ApiResponse.ok(result, "문제를 건너뛰었습니다.");
-    }
 }
