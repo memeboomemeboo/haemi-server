@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.domain.model.training;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +60,7 @@ class DifficultyPolicyTest {
                 Set.of(QuestionType.PLACE_MATCH, QuestionType.PERSON_RECALL),
                 "expert",
                 LocalDate.now()
-        )).isInstanceOf(IllegalArgumentException.class);
+        )).isInstanceOf(DomainValidationException.class);
 
         assertThatThrownBy(() -> policy.update(
                 25.0,
@@ -67,6 +69,6 @@ class DifficultyPolicyTest {
                 Set.of(QuestionType.PERSON_RECALL),
                 "expert",
                 LocalDate.now()
-        )).isInstanceOf(IllegalArgumentException.class);
+        )).isInstanceOf(DomainValidationException.class);
     }
 }

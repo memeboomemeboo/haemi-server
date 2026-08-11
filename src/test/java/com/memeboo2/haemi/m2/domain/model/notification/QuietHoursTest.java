@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m2.domain.model.notification;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,6 +46,6 @@ class QuietHoursTest {
     @DisplayName("범위를 벗어난 시(hour)는 거부한다")
     void rejectsInvalidHours() {
         assertThatThrownBy(() -> new QuietHours(24, 8))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainValidationException.class);
     }
 }

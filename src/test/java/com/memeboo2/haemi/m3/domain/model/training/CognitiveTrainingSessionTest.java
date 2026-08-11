@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m3.domain.model.training;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -121,7 +123,7 @@ class CognitiveTrainingSessionTest {
     void start_validatesQuestions() {
         assertThatThrownBy(() -> CognitiveTrainingSession.start(
                 "elder", UUID.randomUUID(), StartMode.AUTO, 2, questions().subList(0, 2)))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainValidationException.class);
 
         List<TrainingQuestion> repeated = List.of(
                 question("q1", QuestionType.PERSON_RECALL),
@@ -129,7 +131,7 @@ class CognitiveTrainingSessionTest {
                 question("q3", QuestionType.PLACE_MATCH));
         assertThatThrownBy(() -> CognitiveTrainingSession.start(
                 "elder", UUID.randomUUID(), StartMode.AUTO, 2, repeated))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainValidationException.class);
     }
 
     @Test
@@ -184,7 +186,7 @@ class CognitiveTrainingSessionTest {
         CognitiveTrainingSession session = session(2);
 
         assertThatThrownBy(() -> session.applyHint("손녀", " "))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainValidationException.class);
 
         session.requestGrandchildChance(Set.of("family-1"));
         session.applyHint("손녀", "첫 글자는 사입니다");
