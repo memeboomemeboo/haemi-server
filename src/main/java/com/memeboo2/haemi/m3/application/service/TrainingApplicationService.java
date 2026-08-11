@@ -141,12 +141,15 @@ public class TrainingApplicationService {
         var photoId = session.currentQuestion()
                 .map(TrainingQuestion::getPhotoId)
                 .orElse(null);
+        LocalDateTime now = LocalDateTime.now();
         var l1 = photoId == null
                 ? java.util.Optional.<AccruedHint>empty()
-                : accruedHintRepository.findLatestActiveByPhoto(session.getElderId(), photoId);
+                : accruedHintRepository.findLatestReusableByPhoto(session.getElderId(), photoId, now.minusDays(14));
         var l2 = accruedHintRepository.findLatestActiveGeneral(session.getElderId());
         ResolvedHint resolved = HintBankResolver.resolve(l1, l2);
         int remaining = session.serveAccruedHint(resolved.text(), resolved.responderName());
+        l1.ifPresent(hint -> hint.markServed(now));
+        l1.ifPresent(accruedHintRepository::save);
         sessionRepository.save(session);
         return new HintServeResult(toResult(session), resolved.tier(), resolved.text(), remaining);
     }

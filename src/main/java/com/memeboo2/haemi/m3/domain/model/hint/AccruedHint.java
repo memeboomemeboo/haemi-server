@@ -54,6 +54,9 @@ public class AccruedHint {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "last_served_at")
+    private LocalDateTime lastServedAt;
+
     private AccruedHint(String elderId, UUID photoId, String personName, AccrualSource source,
                         String authorMemberId, String authorName, String text) {
         if (text == null || text.isBlank()) {
@@ -85,5 +88,14 @@ public class AccruedHint {
 
     public void suppress() {
         this.active = false;
+    }
+
+    /** 사진별 L1 힌트는 같은 문구를 14일 안에 반복하지 않는다. */
+    public void markServed(LocalDateTime now) {
+        this.lastServedAt = now;
+    }
+
+    public boolean isReusableAt(LocalDateTime now) {
+        return lastServedAt == null || !lastServedAt.plusDays(14).isAfter(now);
     }
 }

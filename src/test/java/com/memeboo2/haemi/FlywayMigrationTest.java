@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(29);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(30);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -61,6 +61,7 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "cognitive_daily_metrics", "voice_detected_count")).isTrue();
             // #41: 사전 적립형 손주 한마디
             assertThat(tableExists(connection, "accrued_hints")).isTrue();
+            assertThat(columnExists(connection, "accrued_hints", "last_served_at")).isTrue();
             // #42: M2 랭킹 폐기
             assertThat(tableExists(connection, "family_rankings")).isFalse();
             assertThat(tableExists(connection, "ranking_entries")).isFalse();

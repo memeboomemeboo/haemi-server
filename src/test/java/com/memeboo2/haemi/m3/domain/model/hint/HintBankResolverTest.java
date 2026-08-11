@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,5 +58,17 @@ class HintBankResolverTest {
         hint.suppress();
 
         assertThat(hint.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("L1 사진 힌트는 재생 뒤 14일 동안 다시 제공하지 않는다")
+    void l1Hint_cannotBeReusedForFourteenDays() {
+        AccruedHint hint = AccruedHint.accrue("elder", UUID.randomUUID(), "손녀",
+                AccrualSource.MEMO, "m1", "지민", "힌트");
+        LocalDateTime servedAt = LocalDateTime.of(2026, 8, 11, 9, 0);
+        hint.markServed(servedAt);
+
+        assertThat(hint.isReusableAt(servedAt.plusDays(13))).isFalse();
+        assertThat(hint.isReusableAt(servedAt.plusDays(14))).isTrue();
     }
 }
