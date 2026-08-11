@@ -37,6 +37,9 @@ public class CognitiveChangeAlert {
     @Column(name = "sent_at", nullable = false)
     private LocalDateTime sentAt;
 
+    @Column(name = "false_positive_at")
+    private LocalDateTime falsePositiveAt;
+
     public static CognitiveChangeAlert create(String elderId, UUID albumId, AlertType alertType,
                                               String message, String guideLink) {
         CognitiveChangeAlert alert = new CognitiveChangeAlert();
@@ -48,5 +51,12 @@ public class CognitiveChangeAlert {
         alert.guideLink = guideLink;
         alert.sentAt = LocalDateTime.now();
         return alert;
+    }
+
+    /** 기관 담당자의 오탐 피드백은 이후 안내 임계값을 보수적으로 조정하는 근거가 된다. */
+    public void markFalsePositive(LocalDateTime now) {
+        if (falsePositiveAt == null) {
+            falsePositiveAt = now;
+        }
     }
 }

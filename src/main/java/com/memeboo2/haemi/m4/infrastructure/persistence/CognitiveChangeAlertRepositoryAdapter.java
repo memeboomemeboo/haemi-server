@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -20,7 +21,17 @@ public class CognitiveChangeAlertRepositoryAdapter implements CognitiveChangeAle
     }
 
     @Override
+    public Optional<CognitiveChangeAlert> findById(UUID alertId) {
+        return jpa.findById(alertId);
+    }
+
+    @Override
     public Optional<CognitiveChangeAlert> findLatestByElderIdSince(String elderId, LocalDateTime since) {
         return jpa.findFirstByElderIdAndSentAtAfterOrderBySentAtDesc(elderId, since);
+    }
+
+    @Override
+    public boolean existsFalsePositiveByElderIdSince(String elderId, LocalDateTime since) {
+        return jpa.existsByElderIdAndFalsePositiveAtAfter(elderId, since);
     }
 }

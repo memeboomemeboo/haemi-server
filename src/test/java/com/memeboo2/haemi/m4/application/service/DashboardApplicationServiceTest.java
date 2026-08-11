@@ -169,6 +169,21 @@ class DashboardApplicationServiceTest {
         verifyNoInteractions(alertRecipientRepository, metricRepository, notificationPort);
     }
 
+    @Test
+    void falsePositiveFeedbackIsPersistedForConservativeFutureDetection() {
+        setUp();
+        CognitiveChangeAlert alert = CognitiveChangeAlert.create(elderId.toString(), UUID.randomUUID(),
+                AlertType.VOICE_ACTIVITY_DROP, "활동 변화 안내", "https://haemi.kr/guide");
+        when(alertRepository.findById(alert.getId())).thenReturn(Optional.of(alert));
+        when(alertRepository.save(alert)).thenReturn(alert);
+
+        var result = service.markAlertFalsePositive(alert.getId().toString());
+
+        assertThat(result.alertId()).isEqualTo(alert.getId().toString());
+        assertThat(alert.getFalsePositiveAt()).isNotNull();
+        verify(alertRepository).save(alert);
+    }
+
     private ElderAccessPort.ElderAccessSnapshot snapshot(ElderStatus status) {
         return new ElderAccessPort.ElderAccessSnapshot(elderId, UUID.randomUUID(), status, ElderAccessMode.A, 2);
     }

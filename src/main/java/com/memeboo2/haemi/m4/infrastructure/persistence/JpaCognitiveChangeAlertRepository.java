@@ -9,4 +9,5 @@ import java.util.UUID;
 
 public interface JpaCognitiveChangeAlertRepository extends JpaRepository<CognitiveChangeAlert, UUID> {
     Optional<CognitiveChangeAlert> findFirstByElderIdAndSentAtAfterOrderBySentAtDesc(String elderId, LocalDateTime since);
+    boolean existsByElderIdAndFalsePositiveAtAfter(String elderId, LocalDateTime since);
 }

@@ -117,6 +117,17 @@ public class DashboardController {
         return ApiResponse.ok(dashboardService.detectEarlyAlerts(elderId));
     }
 
+    @Operation(summary = "활동 변화 안내 오탐 피드백 [F4-02]",
+            description = "기관 담당자의 오탐 피드백은 이후 28일간 안내 임계값을 보수적으로 조정합니다.")
+    @PostMapping("/alerts/{alertId}/false-positive")
+    public ApiResponse<CognitiveAlertResult> markAlertFalsePositive(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @PathVariable String alertId) {
+        var alert = dashboardService.getAlert(alertId);
+        requireDashboardAccess(member, alert.getElderId());
+        return ApiResponse.ok(dashboardService.markAlertFalsePositive(alertId), "오탐 피드백이 반영되었습니다.");
+    }
+
     @Operation(summary = "활동 변화 안내 수신자 설정 [F4-02]")
     @PutMapping("/alerts/recipients/{elderId}")
     public ApiResponse<AlertRecipientSettingResult> updateAlertRecipients(
