@@ -26,6 +26,13 @@ cp .env.example .env
 - `JWT_SECRET`: JWT 서명용 secret
 - `SPRING_PROFILES_ACTIVE`: `prod` 또는 `dev`
 
+`prod`에서는 아래 외부 연동 값도 필수입니다. 값 하나라도 비어 있으면 앱이 기동하지
+않습니다.
+
+- FCM: `FIREBASE_CREDENTIALS`, `FIREBASE_PROJECT_ID`
+- SMTP: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`
+- 공개 확인 링크 주소: `APP_PUBLIC_URL`
+
 안전한 값을 생성할 때 다음 명령을 사용할 수 있습니다.
 
 ```shell
@@ -72,7 +79,7 @@ Compose는 `.env`의 `SPRING_PROFILES_ACTIVE`를 사용하며 기본값은 `prod
 SPRING_PROFILES_ACTIVE=prod
 ```
 
-- `prod`: Swagger와 OpenAPI 비활성화, DB/JWT 환경변수 필수
+- `prod`: SMTP·FCM·DB·JWT 환경변수 필수. 이메일 확인, 초대 수락, 기기 알림을 실제로 전달합니다.
 - `dev`: Swagger와 OpenAPI 활성화
 
 개발 프로필로 변경한 뒤 앱 컨테이너를 재생성합니다.
@@ -198,3 +205,41 @@ curl --fail http://localhost:8080/actuator/health
 ```
 
 운영에서는 `.env`를 저장소에 커밋하지 않고 배포 환경의 secret 관리 기능을 사용합니다.
+
+## 이메일과 기기 연동 확인
+
+### 이메일 확인
+
+가입과 가족 초대 수락은 전화번호 OTP가 아니라 이메일 확인 링크를 사용합니다. 가입 API는
+즉시 로그인 토큰을 발급하지 않으며, 받은 메일의 링크를 열어야 계정이 활성화됩니다.
+
+SMTP 계정은 발신자 주소와 일치해야 합니다. 배포 전에는 테스트 이메일로 가입한 뒤 다음을
+확인합니다.
+
+1. 메일 본문의 링크가 `APP_PUBLIC_URL/api/v1/auth/email-verifications/confirm?token=...` 형식인지 확인합니다.
+2. 링크를 한 번 열면 계정이 활성화되는지 확인합니다.
+3. 같은 링크를 다시 열거나 24시간 뒤 열면 거부되는지 확인합니다.
+4. 가족 초대는 72시간 내, 초대받은 이메일과 동일하고 확인 완료된 계정만 수락되는지 확인합니다.
+
+### Firebase 및 iOS
+
+서버는 Firebase Admin SDK를 통해 FCM data payload를 발송합니다. iOS의 APNs 키·인증서는
+Firebase Console에 등록하며 서버 환경변수로 APNs 자격증명을 넣지 않습니다. 배포 전 Firebase
+프로젝트에 iOS 앱과 APNs 키를 연결하고, 실제 기기 토큰으로 회상 알림과 목소리 알람을 각각
+수신·확인합니다.
+
+사별 확정 뒤에는 예약을 취소하고 `LOCK_AND_OPEN_MEMORIAL` 기기 명령을 DB 아웃박스에 기록합니다.
+단말 또는 MDM이 응답하지 않으면 최대 10회, 최대 60분 간격으로 재시도합니다. 단말은 잠금 확인 전
+로컬 선다운로드 콘텐츠를 재생하면 안 됩니다.
+
+### 기관 포털 권한
+
+기관 담당자는 기관 관리자 계정의 TOTP 등록과 어르신 배정을 모두 충족해야 합니다. 기관 화면에는
+배정된 어르신의 회상 집계만 제공하고, 가족 추억 본문과 memorial 활동 데이터는 제공하지 않습니다.
+권한 거부와 내보내기 요청은 운영 감사 로그에서 점검합니다.
+
+### 빈 운영 DB 초기화
+
+이번 배포는 운영 시작 전 빈 PostgreSQL DB를 전제로 합니다. 기존 운영 DB를 재사용하지 말고,
+배포 전에 데이터베이스와 Docker volume을 백업한 뒤 필요할 때만 `docker compose down -v`로
+초기화합니다. 운영을 시작한 뒤에는 이메일 확인·초대·기기 명령 데이터를 초기화하지 않습니다.
