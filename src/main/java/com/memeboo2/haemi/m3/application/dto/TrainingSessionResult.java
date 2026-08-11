@@ -75,8 +75,8 @@ public record TrainingSessionResult(
 
     public record AttemptResult(
             String questionId,
-            String submittedAnswer,
             boolean responded,
+            int vadDurationMs,
             int responseSeconds,
             LocalDateTime answeredAt
     ) {}
@@ -88,8 +88,8 @@ public record TrainingSessionResult(
                         q.getPhotoId() == null ? null : q.getPhotoId().toString()))
                 .toList();
         List<AttemptResult> attempts = session.getAttempts().stream()
-                .map(a -> new AttemptResult(a.getQuestionId(), a.getSubmittedAnswer(),
-                        a.isResponded(), a.getResponseSeconds(), a.getAnsweredAt()))
+                .map(a -> new AttemptResult(a.getQuestionId(), a.isResponded(), a.getVadDurationMs(),
+                        a.getResponseSeconds(), a.getAnsweredAt()))
                 .toList();
         QuestionResult current = session.currentQuestion()
                 .map(q -> new QuestionResult(q.getQuestionId(), q.getType(),

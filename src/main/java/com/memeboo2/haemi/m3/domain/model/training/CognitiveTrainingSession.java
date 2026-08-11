@@ -117,7 +117,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return session;
     }
 
-    public QuestionAttempt answer(String questionId, String submittedAnswer, int responseSeconds) {
+    /** 단말 VAD 결과만 기록한다. 음성 원문/전사문은 이 도메인에 들어오지 않는다. */
+    public QuestionAttempt answer(String questionId, boolean voiceDetected, int vadDurationMs) {
         if (status == TrainingSessionStatus.COMPLETED) {
             throw new TrainingSessionAlreadyCompletedException();
         }
@@ -126,8 +127,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .filter(q -> q.getQuestionId().equals(questionId))
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
 
-        QuestionAttempt attempt = QuestionAttempt.of(
-                questionId, submittedAnswer, hasResponse(submittedAnswer), responseSeconds);
+        QuestionAttempt attempt = QuestionAttempt.ofVad(questionId, voiceDetected, vadDurationMs);
         attempts.add(attempt);
         currentQuestionIndex++;
 
@@ -135,6 +135,13 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             complete();
         }
         return attempt;
+    }
+
+    /** @deprecated 원문은 버리고 VAD 신호로만 변환하는 내부 호환 경로다. */
+    @Deprecated
+    public QuestionAttempt answer(String questionId, String ignoredSubmittedAnswer, int responseSeconds) {
+        return answer(questionId, ignoredSubmittedAnswer != null && !ignoredSubmittedAnswer.isBlank(),
+                Math.max(responseSeconds, 0) * 1_000);
     }
 
     /** 사별·입원 전이 뒤에는 진행 중 세션을 즉시 중단한다. */
@@ -154,8 +161,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         TrainingQuestion question = currentQuestion()
                 .filter(q -> q.getQuestionId().equals(questionId))
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
-        QuestionAttempt attempt = QuestionAttempt.of(
-                question.getQuestionId(), null, false, NO_RESPONSE_ALLOWANCE_SECONDS);
+        QuestionAttempt attempt = QuestionAttempt.ofVad(
+                question.getQuestionId(), false, 0, NO_RESPONSE_ALLOWANCE_SECONDS);
         attempts.add(attempt);
         currentQuestionIndex++;
         if (currentQuestionIndex >= questions.size()) {
@@ -171,8 +178,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         }
         TrainingQuestion question = currentQuestion()
                 .orElseThrow(TrainingSessionAlreadyCompletedException::new);
-        QuestionAttempt attempt = QuestionAttempt.of(
-                question.getQuestionId(), null, false, 61);
+        QuestionAttempt attempt = QuestionAttempt.ofVad(question.getQuestionId(), false, 0, 61);
         // 손주 찬스 만료 후 넘긴 문제는 무응답으로 기록
         attempts.add(attempt);
         currentQuestionIndex++;
@@ -361,7 +367,4 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return Math.max(1, Math.min(5, level));
     }
 
-    private static boolean hasResponse(String submittedAnswer) {
-        return submittedAnswer != null && !submittedAnswer.isBlank();
-    }
 }

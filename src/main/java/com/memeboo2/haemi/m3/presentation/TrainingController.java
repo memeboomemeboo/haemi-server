@@ -51,14 +51,14 @@ public class TrainingController {
 
     @Operation(
             summary = "발화 응답 제출 [F3-01/F3-02]",
-            description = "어르신의 발화(음성 응답)와 반응 시간을 기록합니다. 세션 완료 시 난이도 프로필을 자동 조정합니다."
+            description = "단말 VAD의 발화 감지 여부와 길이만 기록합니다. 음성 원문과 전사문은 서버로 전송하거나 저장하지 않습니다."
     )
     @PostMapping("/{sessionId}/answers")
     public ApiResponse<AnswerResult> answer(
             @PathVariable String sessionId,
             @Valid @RequestBody AnswerTrainingQuestionRequest request) {
         return ApiResponse.ok(trainingService.answerQuestion(new AnswerTrainingQuestionCommand(
-                sessionId, request.questionId(), request.submittedAnswer(), request.responseSeconds())));
+                sessionId, request.questionId(), request.voiceDetected(), request.vadDurationMs())));
     }
 
     @Operation(

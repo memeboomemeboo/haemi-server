@@ -109,7 +109,7 @@ public class TrainingApplicationService {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
         requireSessionDispatchable(session);
         QuestionAttempt attempt = session.answer(
-                command.questionId(), command.submittedAnswer(), command.responseSeconds());
+                command.questionId(), command.voiceDetected(), command.vadDurationMs());
 
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             adjustDifficulty(session);

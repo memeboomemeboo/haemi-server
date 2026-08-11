@@ -239,6 +239,23 @@ class TrainingApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("발화 응답은 원문 없이 VAD 감지 여부와 길이만 결과에 노출한다")
+    void answerQuestion_exposesOnlyVadMetadata() {
+        CognitiveTrainingSession session = session();
+        when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
+
+        var result = service.answerQuestion(new AnswerTrainingQuestionCommand(
+                session.getId().toString(), "q1", true, 1_800));
+
+        assertThat(result.responded()).isTrue();
+        assertThat(result.session().attempts()).singleElement().satisfies(attempt -> {
+            assertThat(attempt.vadDurationMs()).isEqualTo(1_800);
+            assertThat(attempt.getClass().getRecordComponents())
+                    .noneMatch(component -> component.getName().equals("submittedAnswer"));
+        });
+    }
+
+    @Test
     void publishesDifficultyChangeWhenCompletedSessionRaisesLevel() {
         Album album = albumWithPhotos("elder-profile-1", 5);
         CognitiveTrainingSession session = CognitiveTrainingSession.start(

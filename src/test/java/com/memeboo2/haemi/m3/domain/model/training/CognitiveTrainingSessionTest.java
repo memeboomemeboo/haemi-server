@@ -149,6 +149,19 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
+    @DisplayName("VAD 응답은 감지 여부와 길이만 보관하고 음성 원문은 보관하지 않는다")
+    void answer_keepsVadMetadataWithoutSpeechText() {
+        CognitiveTrainingSession session = session(2);
+
+        QuestionAttempt attempt = session.answer("q1", true, 2_450);
+
+        assertThat(attempt.isResponded()).isTrue();
+        assertThat(attempt.getVadDurationMs()).isEqualTo(2_450);
+        assertThat(QuestionAttempt.class.getDeclaredFields())
+                .noneMatch(field -> field.getName().equals("submittedAnswer"));
+    }
+
+    @Test
     @DisplayName("마지막 문제에 응답하면 세션을 완료하고 응답률과 평균 응답 시간을 계산한다")
     void answer_lastQuestionCompletesSession() {
         CognitiveTrainingSession session = session(2);
