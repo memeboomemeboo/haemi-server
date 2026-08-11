@@ -125,6 +125,8 @@ public class MemoryPostController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "답변 완료"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "음성 형식·크기 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "음성 전사 요청 과다"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "AI가 요청을 거절함"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 음성 전사 일시 불가"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
                     description = "이미 답변한 추억글"),
@@ -136,14 +138,15 @@ public class MemoryPostController {
             @PathVariable String albumId,
             @PathVariable String postId,
             @RequestPart("data") @Valid ReplyToPostRequest request,
-            @Parameter(description = "음성 입력 파일 (VOICE 유형일 때 STT 변환)")
+            @Parameter(description = "음성 입력 파일 (VOICE 유형일 때 STT 변환). application/octet-stream은 mp3·m4a 등 파일 확장자로 형식을 판별합니다.")
             @RequestPart(value = "voice", required = false) MultipartFile voice) throws IOException {
 
         MemoryPostResult result = postService.replyToPost(new ReplyToPostCommand(
                 postId, request.elderId(), request.replyType(),
                 request.heartEmojiCode(),
                 voice != null ? voice.getInputStream() : null,
-                voice != null ? voice.getContentType() : null
+                voice != null ? voice.getContentType() : null,
+                voice != null ? voice.getOriginalFilename() : null
         ));
         return ApiResponse.ok(result, "답장을 보냈습니다.");
     }
@@ -154,6 +157,8 @@ public class MemoryPostController {
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "시 초안 생성 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "AI 요청 과다"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "AI가 요청을 거절함"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 시 생성 일시 불가")
     })
     @GetMapping("/{postId}/poem-draft")

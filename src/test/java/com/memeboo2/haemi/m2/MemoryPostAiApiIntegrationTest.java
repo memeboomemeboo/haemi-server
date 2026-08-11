@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,12 +22,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /** API가 Gemini 키 미설정 시 Stub 문구를 반환하지 않고 명시적으로 실패하는지 검증한다. */
 @SpringBootTest(properties = {
         "springdoc.api-docs.enabled=false",
-        "springdoc.swagger-ui.enabled=false",
-        "haemi.ai.gemini.api-key="
+        "springdoc.swagger-ui.enabled=false"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -35,6 +36,14 @@ class MemoryPostAiApiIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired TokenPort tokenPort;
     @Autowired MemoryPostRepository posts;
+    @Autowired Environment environment;
+
+    @Test
+    void configuresMultipartIngressAboveTheVoiceAiLimit() {
+        assertThat(environment.getProperty("spring.servlet.multipart.max-file-size")).isEqualTo("20MB");
+        assertThat(environment.getProperty("spring.servlet.multipart.max-request-size")).isEqualTo("650MB");
+        assertThat(environment.getProperty("haemi.ai.gemini.inline-audio-max-bytes")).isEqualTo("12MB");
+    }
 
     @Test
     void poemDraftReturns503InsteadOfAStubWhenGeminiIsNotConfigured() throws Exception {

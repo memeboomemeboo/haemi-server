@@ -63,7 +63,8 @@ public class M2ExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
-    @ExceptionHandler({UnsupportedVoiceContentTypeException.class, VoiceInputTooLargeException.class})
+    @ExceptionHandler({UnsupportedVoiceContentTypeException.class, VoiceInputTooLargeException.class,
+            VoiceTranscriptTooLongException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleInvalidVoiceInput(RuntimeException e) {
         return ApiResponse.error(e.getMessage());
@@ -72,6 +73,18 @@ public class M2ExceptionHandler {
     @ExceptionHandler(AiGenerationUnavailableException.class)
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     public ApiResponse<Void> handleAiGenerationUnavailable(AiGenerationUnavailableException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(AiGenerationRateLimitedException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public ApiResponse<Void> handleAiGenerationRateLimited(AiGenerationRateLimitedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(AiGenerationRejectedException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public ApiResponse<Void> handleAiGenerationRejected(AiGenerationRejectedException e) {
         return ApiResponse.error(e.getMessage());
     }
 

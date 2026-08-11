@@ -1,6 +1,6 @@
 package com.memeboo2.haemi.m2.infrastructure.ai;
 
-import com.memeboo2.haemi.m2.domain.model.post.AiGenerationUnavailableException;
+import com.memeboo2.haemi.m2.domain.model.post.AiGenerationRejectedException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +31,7 @@ class GeminiPoemGeneratorAdapterTest {
         when(gemini.generatePoem(anyString())).thenReturn("가".repeat(201));
 
         assertThatThrownBy(() -> adapter.generatePoem("추억글"))
-                .isInstanceOf(AiGenerationUnavailableException.class)
-                .hasMessageContaining("너무 긴 시 초안");
+                .isInstanceOf(AiGenerationRejectedException.class)
+                .hasMessageContaining("길이 제한");
     }
 }

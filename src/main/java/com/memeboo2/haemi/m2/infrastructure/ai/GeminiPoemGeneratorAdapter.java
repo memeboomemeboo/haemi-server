@@ -1,12 +1,14 @@
 package com.memeboo2.haemi.m2.infrastructure.ai;
 
-import com.memeboo2.haemi.m2.domain.model.post.AiGenerationUnavailableException;
+import com.memeboo2.haemi.m2.domain.model.post.AiGenerationRejectedException;
 import com.memeboo2.haemi.m2.domain.port.AiPoemGeneratorPort;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /** 추억글을 입력으로 실제 Gemini 모델이 생성한 시 초안을 반환한다. */
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class GeminiPoemGeneratorAdapter implements AiPoemGeneratorPort {
 
@@ -28,7 +30,8 @@ public class GeminiPoemGeneratorAdapter implements AiPoemGeneratorPort {
                 """.formatted(postText));
         String normalized = poem.replace("\r\n", "\n").replace('\r', '\n').trim();
         if (normalized.length() > MAX_POEM_LENGTH) {
-            throw new AiGenerationUnavailableException("AI가 너무 긴 시 초안을 만들었어요. 잠시 후 다시 시도해주세요.");
+            log.warn("Gemini M2 시 초안 계약 위반: length={}, maxLength={}", normalized.length(), MAX_POEM_LENGTH);
+            throw new AiGenerationRejectedException("AI가 시 초안 길이 제한을 지키지 못했어요. 다시 시도해주세요.");
         }
         return normalized;
     }

@@ -21,6 +21,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      # 앨범 사진 계약(파일당 20MB, 최대 30장)을 보장한다. 음성 AI 한도는 아래 Gemini 설정에서 별도 강제한다.
+      max-file-size: ${haemi.upload.max-file-size}
+      max-request-size: ${haemi.upload.max-request-size}
 
 management:
   endpoints:
@@ -46,6 +51,10 @@ springdoc:
   default-produces-media-type: application/json
 
 haemi:
+  upload:
+    # 전역 multipart는 사진 업로드 계약을 보장하고, 음성은 Gemini adapter에서 12MB로 더 엄격히 제한한다.
+    max-file-size: ${MULTIPART_MAX_FILE_SIZE:20MB}
+    max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:650MB}
   openapi:
     server-url: ${OPENAPI_SERVER_URL:}
     local-server-url: ${OPENAPI_LOCAL_SERVER_URL:http://localhost:8080}
@@ -70,8 +79,10 @@ haemi:
       # 타임아웃이 없으면 업스트림이 멈췄을 때 야간 배치가 무한 대기한다 (#98)
       connect-timeout: ${GEMINI_CONNECT_TIMEOUT:5s}
       read-timeout: ${GEMINI_READ_TIMEOUT:20s}
-      # Gemini inline audio 요청은 20MB 미만이어야 한다. HTTP 요청·프롬프트 여유를 남긴다.
-      inline-audio-max-bytes: ${GEMINI_INLINE_AUDIO_MAX_BYTES:15MB}
+      # 12MB raw audio는 base64 후 약 16MB다. Gemini inlineData 20MB 제한과 JSON·힙 여유를 남긴다.
+      inline-audio-max-bytes: ${GEMINI_INLINE_AUDIO_MAX_BYTES:12MB}
+      # 12MB 음성은 byte[]·base64·JSON 버퍼를 함께 사용하므로 작은 인스턴스의 힙을 보호한다.
+      max-concurrent-audio-requests: ${GEMINI_MAX_CONCURRENT_AUDIO_REQUESTS:2}
   reminiscence:
     cron: "0 0 8 * * *"
     time-zone: Asia/Seoul
