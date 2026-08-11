@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m2.application.service;
 
+import com.memeboo2.haemi.common.support.DomainIds;
+
 import com.memeboo2.haemi.m2.application.command.RecordGoalContributionCommand;
 import com.memeboo2.haemi.m2.application.dto.GroupGoalResult;
 import com.memeboo2.haemi.m2.application.dto.HighlightCardResult;
@@ -42,7 +44,7 @@ public class GroupGoalApplicationService {
     // 진행 중 그룹 협력 목표 조회 (없으면 주간 목표 자동 개시)
     @Transactional
     public GroupGoalResult getCurrentGoal(GetCurrentGoalQuery query) {
-        UUID albumId = UUID.fromString(query.albumId());
+        UUID albumId = DomainIds.parseUuid(query.albumId(), "앨범 ID");
         GroupGoal goal = loadOrStartActiveGoal(albumId);
         return GroupGoalResult.from(goal);
     }
@@ -61,7 +63,7 @@ public class GroupGoalApplicationService {
     // 기간 하이라이트 카드
     @Transactional(readOnly = true)
     public HighlightCardResult getHighlightCard(GetHighlightCardQuery query) {
-        UUID albumId = UUID.fromString(query.albumId());
+        UUID albumId = DomainIds.parseUuid(query.albumId(), "앨범 ID");
         LocalDate today = LocalDate.now();
 
         GroupGoal goal = goalRepository.findActiveByAlbumId(albumId, today).orElse(null);

@@ -39,8 +39,9 @@ class DatabaseConfigurationTest {
                 .containsEntry("spring.jpa.hibernate.ddl-auto", "validate")
                 .containsEntry("haemi.jwt.secret", "${JWT_SECRET}")
                 .containsEntry("haemi.openapi.include-local-server", false)
-                .containsEntry("springdoc.api-docs.enabled", true)
-                .containsEntry("springdoc.swagger-ui.enabled", true);
+                // #100: 기본은 지금처럼 켜 두되, 배포 설정만으로 끌 수 있어야 한다.
+                .containsEntry("springdoc.api-docs.enabled", "${API_DOCS_ENABLED:true}")
+                .containsEntry("springdoc.swagger-ui.enabled", "${API_DOCS_ENABLED:true}");
     }
 
     @Test

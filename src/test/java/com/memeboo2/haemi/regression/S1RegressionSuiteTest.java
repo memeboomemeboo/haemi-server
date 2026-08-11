@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.regression;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+
 import com.memeboo2.haemi.m0.domain.model.Elder;
 import com.memeboo2.haemi.m0.domain.model.Gender;
 import com.memeboo2.haemi.m0.domain.model.PersonContentTense;
@@ -221,7 +223,7 @@ class S1RegressionSuiteTest {
             ActivityChangeLanguagePolicy policy = new ActivityChangeLanguagePolicy();
 
             assertThatThrownBy(() -> policy.requireSafe("인지 기능이 악화되었습니다"))
-                    .isInstanceOf(IllegalArgumentException.class);
+                    .isInstanceOf(DomainValidationException.class);
             policy.requireSafe("이번 주에도 사진 이야기를 들려주셨어요.");
         }
     }

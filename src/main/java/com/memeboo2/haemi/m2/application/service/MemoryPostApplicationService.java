@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m2.application.service;
 
+import com.memeboo2.haemi.common.support.DomainIds;
+
 import com.memeboo2.haemi.m0.domain.port.ElderStatusQuery;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
 import com.memeboo2.haemi.m1.domain.port.PhotoStoragePort;
@@ -95,7 +97,7 @@ public class MemoryPostApplicationService {
         AuthorInfo authorInfo = AuthorInfo.of(
                 command.memberId(), command.memberName(), command.relation());
         MemoryPost post = MemoryPost.createDraft(
-                UUID.fromString(command.albumId()), authorInfo,
+                DomainIds.parseUuid(command.albumId(), "앨범 ID"), authorInfo,
                 command.textContent(), photoKeys, voiceKey);
 
         if (command.publishImmediately()) {
@@ -209,7 +211,7 @@ public class MemoryPostApplicationService {
     // F2-04: 공동 피드 조회
     @Transactional(readOnly = true)
     public FeedResult getFeed(GetFeedQuery query) {
-        UUID albumId = UUID.fromString(query.albumId());
+        UUID albumId = DomainIds.parseUuid(query.albumId(), "앨범 ID");
         int offset   = query.page() * query.size();
 
         List<MemoryPostResult> posts;

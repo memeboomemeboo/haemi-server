@@ -1,5 +1,7 @@
 package com.memeboo2.haemi.m4.application.service;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
+import com.memeboo2.haemi.common.support.DomainIds;
 import com.memeboo2.haemi.m1.domain.model.album.Album;
 import com.memeboo2.haemi.m1.domain.model.album.AlbumId;
 import com.memeboo2.haemi.m1.domain.port.NotificationPort;
@@ -56,7 +58,7 @@ public class DashboardApplicationService {
         CognitiveDailyMetric metric = metricRepository.findByElderIdAndMetricDate(command.elderId(), date)
                 .orElseGet(() -> CognitiveDailyMetric.create(
                         command.elderId(),
-                        command.albumId() != null ? UUID.fromString(command.albumId()) : null,
+                        command.albumId() != null ? DomainIds.parseUuid(command.albumId(), "앨범 ID") : null,
                         command.institutionId(),
                         date,
                         0,
@@ -297,15 +299,10 @@ public class DashboardApplicationService {
             if (requestedId == null || requestedId.isBlank()) {
                 continue;
             }
-            UUID memberId;
-            try {
-                memberId = UUID.fromString(requestedId.trim());
-            } catch (IllegalArgumentException invalidId) {
-                throw new IllegalArgumentException("기관 담당자 회원 ID는 UUID 형식이어야 해요.");
-            }
+            UUID memberId = DomainIds.parseUuid(requestedId, "기관 담당자 회원 ID");
             members.findById(memberId)
                     .filter(member -> member.isActive() && member.getRole() == MemberRole.INSTITUTION_ADMIN)
-                    .orElseThrow(() -> new IllegalArgumentException("활성 기관 관리자 계정만 알림 수신자로 등록할 수 있어요."));
+                    .orElseThrow(() -> new DomainValidationException("활성 기관 관리자 계정만 알림 수신자로 등록할 수 있어요."));
             validatedIds.add(memberId.toString());
         }
         return validatedIds;
@@ -381,18 +378,14 @@ public class DashboardApplicationService {
     }
 
     private ElderAccessPort.ElderAccessSnapshot loadElder(String elderId) {
-        try {
-            return elderAccess.getRequired(UUID.fromString(elderId));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("어르신 ID는 UUID 형식이어야 해요.");
-        }
+        return elderAccess.getRequired(DomainIds.parseUuid(elderId, "어르신 ID"));
     }
 
     private UUID parseAlbumId(String albumId) {
         if (albumId == null || albumId.isBlank()) {
             return null;
         }
-        return UUID.fromString(albumId);
+        return DomainIds.parseUuid(albumId, "앨범 ID");
     }
 
     private UUID resolveAlbumId(GenerateCognitiveReportCommand command,

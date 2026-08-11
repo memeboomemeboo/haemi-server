@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m1.presentation.exception;
 
+import com.memeboo2.haemi.common.exception.DomainValidationException;
 import com.memeboo2.haemi.m1.application.service.AlbumNotFoundException;
 import com.memeboo2.haemi.m1.application.service.ReminiscenceContentNotFoundException;
 import com.memeboo2.haemi.m1.domain.model.album.*;
@@ -223,9 +224,9 @@ public class GlobalExceptionHandler {
         return ApiResponse.error("요청한 리소스를 찾을 수 없습니다.");
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
+    @ExceptionHandler(DomainValidationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException e) {
+    public ApiResponse<Void> handleDomainValidation(DomainValidationException e) {
         return ApiResponse.error(e.getMessage() != null ? e.getMessage() : "요청 값이 올바르지 않습니다.");
     }
 
