@@ -124,6 +124,10 @@ public class MemoryPostController {
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "답변 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "음성 형식·크기 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "음성 전사 요청 과다"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "AI가 요청을 거절함"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 음성 전사 일시 불가"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
                     description = "이미 답변한 추억글"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
@@ -134,22 +138,29 @@ public class MemoryPostController {
             @PathVariable String albumId,
             @PathVariable String postId,
             @RequestPart("data") @Valid ReplyToPostRequest request,
-            @Parameter(description = "음성 입력 파일 (VOICE 유형일 때 STT 변환)")
+            @Parameter(description = "음성 입력 파일 (VOICE 유형일 때 STT 변환). application/octet-stream은 mp3·m4a 등 파일 확장자로 형식을 판별합니다.")
             @RequestPart(value = "voice", required = false) MultipartFile voice) throws IOException {
 
         MemoryPostResult result = postService.replyToPost(new ReplyToPostCommand(
                 postId, request.elderId(), request.replyType(),
                 request.heartEmojiCode(),
                 voice != null ? voice.getInputStream() : null,
-                voice != null ? voice.getContentType() : null
+                voice != null ? voice.getContentType() : null,
+                voice != null ? voice.getOriginalFilename() : null
         ));
         return ApiResponse.ok(result, "답장을 보냈습니다.");
     }
 
     @Operation(
             summary = "AI 시 초안 생성 [F2-03]",
-            description = "추억글 내용을 기반으로 AI가 시 초안을 생성합니다. 어르신이 음성으로 수정한 뒤 최종 답변으로 전송할 수 있습니다."
+            description = "추억글 내용을 기반으로 Gemini가 시 초안을 생성합니다. AI 설정 또는 업스트림이 일시 불가하면 503을 반환합니다."
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "시 초안 생성 완료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "AI 요청 과다"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "502", description = "AI가 요청을 거절함"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 시 생성 일시 불가")
+    })
     @GetMapping("/{postId}/poem-draft")
     public ApiResponse<String> getPoemDraft(
             @PathVariable String albumId,

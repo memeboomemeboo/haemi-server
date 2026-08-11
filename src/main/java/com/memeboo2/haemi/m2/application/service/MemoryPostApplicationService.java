@@ -38,6 +38,7 @@ public class MemoryPostApplicationService {
     private final ContentFilterPort contentFilterPort;
     private final AiPoemGeneratorPort aiPoemGeneratorPort;
     private final SttPort sttPort;
+    private final MemoryPostAiPersistenceService aiPersistenceService;
     private final NotificationPort notificationPort;
     private final ElderStatusQuery elderStatusQuery;
 
@@ -167,32 +168,33 @@ public class MemoryPostApplicationService {
 
     // F2-03: 어르신 답변 — STT 변환 후 시/짧은 글
     // F2-02: 어르신 답변 — 음성(STT) 또는 마음 이모지. 텍스트 직접 입력은 받지 않으며 즉시 전송된다.
-    @Transactional
     public MemoryPostResult replyToPost(ReplyToPostCommand command) {
-        MemoryPost post = loadPostOrThrow(command.postId());
-
         String content = switch (command.replyType()) {
             case VOICE -> {
                 if (command.voiceInputStream() == null) {
                     throw new EmptyReplyContentException();
                 }
-                yield sttPort.transcribe(command.voiceInputStream(), command.voiceContentType());
+                // 존재·중복 여부만 짧게 확인한 뒤, 네트워크 STT는 트랜잭션 밖에서 수행한다.
+                aiPersistenceService.verifyCanReply(command.postId());
+                String transcript = sttPort.transcribe(
+                        command.voiceInputStream(), command.voiceContentType(), command.voiceOriginalFilename());
+                if (contentFilterPort.containsForbiddenWord(transcript)) {
+                    throw new ForbiddenWordException();
+                }
+                yield transcript;
             }
             case EMOJI -> HeartEmoji.fromCode(command.heartEmojiCode()).getCode();
         };
 
-        post.submitElderReply(command.replyType(), content);
-        postRepository.save(post);
+        MemoryPostResult result = aiPersistenceService.saveReply(command.postId(), command.replyType(), content);
         log.info("어르신 답변 완료: postId={}, type={}", command.postId(), command.replyType());
-        return MemoryPostResult.from(post);
+        return result;
     }
 
     // F2-03: AI 시 초안 생성
-    @Transactional(readOnly = true)
     public String generatePoemDraft(GeneratePoemDraftQuery query) {
-        MemoryPost post = loadPostOrThrow(query.postId());
-        String baseText = post.getTextContent() != null ? post.getTextContent() : "소중한 추억";
-        return aiPoemGeneratorPort.generatePoem(baseText);
+        // 원문 조회 트랜잭션은 여기서 종료한다. AI HTTP 요청 중 DB 커넥션을 유지하지 않는다.
+        return aiPoemGeneratorPort.generatePoem(aiPersistenceService.loadPoemSource(query.postId()));
     }
 
     // F2-04: 좋아요 토글
