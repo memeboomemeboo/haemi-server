@@ -192,7 +192,14 @@ public class CareApplicationService {
                     alarmTitle(alarm.getAlarmType()),
                     alarm.usesTtsFallback()
                             ? "가족이 설정한 알람이에요. 화면의 안내 문구를 읽어드릴게요."
-                            : "가족의 목소리 알람이 도착했어요.");
+                            : "가족의 목소리 알람이 도착했어요.",
+                    java.util.Map.of(
+                            "type", "VOICE_ALARM",
+                            "alarmId", alarm.getId().toString(),
+                            "alarmType", alarm.getAlarmType().name(),
+                            "ttsFallback", Boolean.toString(alarm.usesTtsFallback()),
+                            "voiceKey", alarm.getVoiceKey() == null ? "" : alarm.getVoiceKey()
+                    ));
             alarm.rotateVoice(); // 다음 발송을 위해 로테이션
             voiceAlarmRepository.save(alarm);
         }

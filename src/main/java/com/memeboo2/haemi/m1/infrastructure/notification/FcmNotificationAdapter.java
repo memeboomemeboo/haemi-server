@@ -37,6 +37,12 @@ public class FcmNotificationAdapter implements NotificationPort {
     }
 
     @Override
+    public void sendToElder(String elderId, String title, String body, java.util.Map<String, String> data) {
+        PushMessage message = new PushMessage(title, body, data);
+        notificationDispatcher.execute(() -> pushDispatch.dispatchToElder(elderId, message));
+    }
+
+    @Override
     public void sendToGroup(Set<String> memberIds, String title, String body) {
         PushMessage message = PushMessage.of(title, body);
         // 호출자가 넘긴 컬렉션이 이후에 바뀌어도 안전하도록 복사해 넘긴다.
