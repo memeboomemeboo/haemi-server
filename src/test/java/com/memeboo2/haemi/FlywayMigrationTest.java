@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(26);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(29);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -95,6 +95,13 @@ class FlywayMigrationTest {
             assertThat(tableExists(connection, "institution_assignments")).isTrue();
             assertThat(tableExists(connection, "email_verifications")).isTrue();
             assertThat(columnExists(connection, "members", "email_verified_at")).isTrue();
+            // 사별 기기 명령은 실패해도 아웃박스에 남아 재시도한다.
+            assertThat(tableExists(connection, "device_commands")).isTrue();
+            assertThat(columnExists(connection, "device_commands", "next_attempt_at")).isTrue();
+            // 회상 세션은 음성 원문 대신 VAD 길이만 보관한다.
+            assertThat(columnExists(connection, "training_question_attempts", "submitted_answer")).isFalse();
+            assertThat(columnExists(connection, "training_question_attempts", "vad_duration_ms")).isTrue();
+            assertThat(columnExists(connection, "cognitive_change_alerts", "false_positive_at")).isTrue();
         }
     }
 

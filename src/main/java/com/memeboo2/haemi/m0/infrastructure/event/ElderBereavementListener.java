@@ -5,7 +5,8 @@ import com.memeboo2.haemi.m0.application.service.DeviceCommandDispatchService;
 import com.memeboo2.haemi.m0.domain.port.ScheduledJobCancelPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,7 +21,8 @@ public class ElderBereavementListener {
     private final ScheduledJobCancelPort scheduledJobCancelPort;
     private final DeviceCommandDispatchService deviceCommands;
 
-    @EventListener
+    /** 사별 상태가 실제 커밋된 뒤에만 예약 취소와 기기 잠금 명령을 발행한다. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBereaved(ElderBereavedEvent event) {
         try {
             scheduledJobCancelPort.cancelAllForElder(event.elderId());
