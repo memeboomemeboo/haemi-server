@@ -7,11 +7,13 @@ spring:
     hibernate:
       ddl-auto: validate
 
+# 전체 API 표면이 인증 없이 공개된다. 클라이언트 개발 중이라 기본은 켜 두고,
+# 정식 오픈 시점에 배포 설정만 바꿔서 끈다. (#100)
 springdoc:
   api-docs:
-    enabled: true
+    enabled: ${API_DOCS_ENABLED:true}
   swagger-ui:
-    enabled: true
+    enabled: ${API_DOCS_ENABLED:true}
 
 haemi:
   openapi:
