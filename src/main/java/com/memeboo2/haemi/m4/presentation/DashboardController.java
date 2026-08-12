@@ -124,7 +124,10 @@ public class DashboardController {
             @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable String alertId) {
         var alert = dashboardService.getAlert(alertId);
-        requireDashboardAccess(member, alert.getElderId());
+        if (member.role() != MemberRole.INSTITUTION_ADMIN
+                || !institutionAssignments.hasActiveAssignment(alert.getElderId(), member.memberId())) {
+            throw new M0AccessDeniedException("배정된 기관 담당자만 오탐 피드백을 남길 수 있어요.");
+        }
         return ApiResponse.ok(dashboardService.markAlertFalsePositive(alertId), "오탐 피드백이 반영되었습니다.");
     }
 

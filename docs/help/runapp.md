@@ -221,6 +221,14 @@ SMTP 계정은 발신자 주소와 일치해야 합니다. 배포 전에는 테�
 3. 같은 링크를 다시 열거나 24시간 뒤 열면 거부되는지 확인합니다.
 4. 가족 초대는 72시간 내, 초대받은 이메일과 동일하고 확인 완료된 계정만 수락되는지 확인합니다.
 
+### 클라이언트 계약 변경
+
+- `POST /api/v1/auth/signup`은 `201` 대신 `202 Accepted`를 반환하며 즉시 로그인 토큰을 주지 않습니다.
+- 가족 초대 요청 필드는 `phoneNumber`에서 `email`로 변경됐습니다.
+- `POST /api/v1/training/sessions/{sessionId}/answers`는 `submittedAnswer`, `responseSeconds` 대신
+  `voiceDetected`, `vadDurationMs`만 받습니다. `AttemptResult`도 답변 원문을 반환하지 않습니다.
+- 실시간 손주 찬스·힌트·패스 엔드포인트는 폐기됐으며, `/{sessionId}/hints/served`를 사용합니다.
+
 ### Firebase 및 iOS
 
 서버는 Firebase Admin SDK를 통해 FCM data payload를 발송합니다. iOS의 APNs 키·인증서는

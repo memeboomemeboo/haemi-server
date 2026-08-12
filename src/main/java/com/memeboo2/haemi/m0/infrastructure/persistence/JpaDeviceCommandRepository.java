@@ -12,4 +12,5 @@ public interface JpaDeviceCommandRepository extends JpaRepository<DeviceCommand,
 
     List<DeviceCommand> findAllByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
             DeviceCommandStatus status, LocalDateTime nextAttemptAt);
+    List<DeviceCommand> findAllByElderIdAndStatus(UUID elderId, DeviceCommandStatus status);
 }

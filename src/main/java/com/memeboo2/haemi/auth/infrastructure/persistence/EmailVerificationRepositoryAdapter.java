@@ -14,5 +14,6 @@ public class EmailVerificationRepositoryAdapter implements EmailVerificationRepo
     private final JpaEmailVerificationRepository jpa;
     public EmailVerification save(EmailVerification verification) { return jpa.save(verification); }
     public Optional<EmailVerification> findByToken(String token) { return jpa.findByToken(token); }
+    public Optional<EmailVerification> findLatestByMemberId(UUID memberId) { return jpa.findFirstByMemberIdOrderByCreatedAtDesc(memberId); }
     public void deleteByMemberId(UUID memberId) { jpa.deleteByMemberId(memberId); }
 }

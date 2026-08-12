@@ -113,9 +113,8 @@ public class ElderApplicationService {
     public ElderResult get(UUID actorId, UUID elderId) {
         Elder elder = loadElder(elderId);
         FamilyGroup group = loadGroup(elder.getGroupId());
-        if (!group.isActiveMember(actorId)
-                && !institutionAccess.hasActiveAssignment(elderId.toString(), actorId)) {
-            throw new M0AccessDeniedException("가족 그룹 구성원 또는 배정된 기관 담당자만 조회할 수 있어요.");
+        if (!group.isActiveMember(actorId)) {
+            throw new M0AccessDeniedException("가족 그룹 구성원만 어르신 프로필을 조회할 수 있어요.");
         }
         return toResult(elder);
     }
@@ -134,11 +133,10 @@ public class ElderApplicationService {
     }
 
     private void requireProfileManager(UUID actorId, Elder elder) {
-        if (loadGroup(elder.getGroupId()).isActiveMember(actorId)
-                || institutionAccess.hasActiveAssignment(elder.getId().toString(), actorId)) {
+        if (loadGroup(elder.getGroupId()).isActiveMember(actorId)) {
             return;
         }
-        throw new M0AccessDeniedException("가족 그룹 구성원 또는 배정된 기관 담당자만 프로필을 관리할 수 있어요.");
+        throw new M0AccessDeniedException("가족 그룹 구성원만 프로필을 관리할 수 있어요.");
     }
 
 }

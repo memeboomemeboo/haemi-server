@@ -43,7 +43,7 @@ class InstitutionAssignmentApiIntegrationTest {
     }
 
     @Test
-    void onlyAssignedInstitutionAdminCanReadElderProfileAndDashboard() throws Exception {
+    void institutionAdminUsesAggregatePortalAndCannotReadElderProfile() throws Exception {
         UUID ownerId = UUID.randomUUID();
         String ownerToken = token(ownerId, MemberRole.FAMILY);
         String groupId = createGroup(ownerToken);
@@ -61,7 +61,7 @@ class InstitutionAssignmentApiIntegrationTest {
 
         mockMvc.perform(get("/api/v1/elders/{elderId}", elderId)
                         .header("Authorization", "Bearer " + token(assignedAdmin.getId(), MemberRole.INSTITUTION_ADMIN)))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/cognitive-dashboard/metrics")
                         .queryParam("elderId", elderId)

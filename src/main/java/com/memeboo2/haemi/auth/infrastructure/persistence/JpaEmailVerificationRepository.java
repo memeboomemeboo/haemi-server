@@ -8,5 +8,6 @@ import java.util.UUID;
 
 interface JpaEmailVerificationRepository extends JpaRepository<EmailVerification, UUID> {
     Optional<EmailVerification> findByToken(String token);
+    Optional<EmailVerification> findFirstByMemberIdOrderByCreatedAtDesc(UUID memberId);
     void deleteByMemberId(UUID memberId);
 }

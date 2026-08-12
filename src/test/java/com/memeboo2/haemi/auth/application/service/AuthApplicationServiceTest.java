@@ -120,6 +120,25 @@ class AuthApplicationServiceTest {
     }
 
     @Test
+    @DisplayName("미확인 계정은 로그인할 수 없고, 정지 계정은 이메일 확인으로 활성화되지 않는다")
+    void pendingAccountCannotLoginAndSuspendedAccountCannotVerifyEmail() {
+        Member pending = Member.createUnverified("pending@example.com", "encoded", "홍길동", MemberRole.FAMILY);
+        when(memberRepository.findByEmail("pending@example.com")).thenReturn(Optional.of(pending));
+        assertThatThrownBy(() -> service.login(new LoginCommand("pending@example.com", "password", null)))
+                .isInstanceOf(AccountSuspendedException.class);
+
+        Member suspended = Member.createUnverified("suspended@example.com", "encoded", "홍길동", MemberRole.FAMILY);
+        suspended.suspend();
+        EmailVerification verification = EmailVerification.issue(suspended.getId());
+        when(emailVerifications.findByToken("token")).thenReturn(Optional.of(verification));
+        when(memberRepository.findById(suspended.getId())).thenReturn(Optional.of(suspended));
+
+        assertThatThrownBy(() -> service.confirmEmail("token"))
+                .isInstanceOf(AccountSuspendedException.class);
+        assertThat(suspended.isActive()).isFalse();
+    }
+
+    @Test
     @DisplayName("TOTP 설정 회원은 코드가 없거나 틀리면 로그인을 거부한다")
     void login_validatesTotp() {
         Member member = member(MemberRole.FAMILY);

@@ -82,4 +82,10 @@ public class DeviceCommand {
         long backoffMinutes = Math.min(60, 1L << Math.min(attempts - 1, 6));
         nextAttemptAt = now.plusMinutes(backoffMinutes);
     }
+
+    public void cancel() {
+        if (status == DeviceCommandStatus.PENDING) {
+            status = DeviceCommandStatus.CANCELLED;
+        }
+    }
 }

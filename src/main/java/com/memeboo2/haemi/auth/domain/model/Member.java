@@ -126,6 +126,9 @@ public class Member extends AbstractAggregateRoot<Member> {
         if (status == MemberStatus.WITHDRAWN) {
             throw new AlreadyWithdrawnException(this.id);
         }
+        if (status == MemberStatus.SUSPENDED) {
+            throw new AccountSuspendedException();
+        }
         this.emailVerifiedAt = LocalDateTime.now();
         activate();
     }

@@ -43,6 +43,14 @@ public class DeviceCommandDispatchService {
         return attempted;
     }
 
+    @Transactional
+    public int cancelPendingForRecoveredElder(UUID elderId) {
+        var pending = commands.findPendingByElderId(elderId);
+        pending.forEach(DeviceCommand::cancel);
+        pending.forEach(commands::save);
+        return pending.size();
+    }
+
     private void dispatch(DeviceCommand command, LocalDateTime now) {
         try {
             deviceLockPort.lock(command.getElderId());

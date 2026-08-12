@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -24,5 +25,10 @@ public class DeviceCommandRepositoryAdapter implements DeviceCommandRepository {
     public List<DeviceCommand> findPendingBefore(LocalDateTime now) {
         return commands.findAllByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
                 DeviceCommandStatus.PENDING, now);
+    }
+
+    @Override
+    public List<DeviceCommand> findPendingByElderId(UUID elderId) {
+        return commands.findAllByElderIdAndStatus(elderId, DeviceCommandStatus.PENDING);
     }
 }

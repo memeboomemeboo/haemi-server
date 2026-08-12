@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -63,8 +64,11 @@ public class AuthApplicationService {
 
     public void resendEmailVerification(String email) {
         Member member = memberRepository.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(InvalidCredentialsException::new);
-        if (!member.isEmailVerified()) {
+                .orElse(null);
+        if (member != null && !member.isEmailVerified()
+                && emailVerifications.findLatestByMemberId(member.getId())
+                .map(verification -> verification.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(1)))
+                .orElse(true)) {
             issueEmailVerification(member);
         }
     }

@@ -27,7 +27,9 @@ public class AccruedHintRepositoryAdapter implements AccruedHintRepository {
 
     @Override
     public Optional<AccruedHint> findLatestReusableByPhoto(String elderId, UUID photoId, LocalDateTime servedBefore) {
-        return jpa.findLatestReusableByPhoto(elderId, photoId, servedBefore);
+        return jpa.findLatestReusableByPhoto(elderId, photoId, servedBefore,
+                        org.springframework.data.domain.PageRequest.of(0, 1))
+                .stream().findFirst();
     }
 
     @Override

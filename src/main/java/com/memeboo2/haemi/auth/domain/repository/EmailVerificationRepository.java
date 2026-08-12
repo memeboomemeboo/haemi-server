@@ -8,5 +8,6 @@ import java.util.UUID;
 public interface EmailVerificationRepository {
     EmailVerification save(EmailVerification verification);
     Optional<EmailVerification> findByToken(String token);
+    Optional<EmailVerification> findLatestByMemberId(UUID memberId);
     void deleteByMemberId(UUID memberId);
 }

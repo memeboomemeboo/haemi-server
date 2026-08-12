@@ -73,4 +73,18 @@ class DeviceCommandDispatchServiceTest {
         verify(deviceLockPort).lock(due.getElderId());
         assertThat(due.getStatus()).isEqualTo(DeviceCommandStatus.DELIVERED);
     }
+
+    @Test
+    void recoveryCancelsEveryPendingLockCommandForTheElder() {
+        DeviceCommand first = DeviceCommand.lockAndOpenMemorial(UUID.randomUUID(), LocalDateTime.now());
+        DeviceCommand second = DeviceCommand.lockAndOpenMemorial(first.getElderId(), LocalDateTime.now());
+        when(commands.findPendingByElderId(first.getElderId())).thenReturn(List.of(first, second));
+
+        int cancelled = service.cancelPendingForRecoveredElder(first.getElderId());
+
+        assertThat(cancelled).isEqualTo(2);
+        assertThat(first.getStatus()).isEqualTo(DeviceCommandStatus.CANCELLED);
+        assertThat(second.getStatus()).isEqualTo(DeviceCommandStatus.CANCELLED);
+        verify(commands, org.mockito.Mockito.times(2)).save(any(DeviceCommand.class));
+    }
 }
