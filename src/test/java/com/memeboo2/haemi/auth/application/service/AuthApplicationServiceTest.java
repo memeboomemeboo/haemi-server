@@ -45,7 +45,8 @@ class AuthApplicationServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuthApplicationService(memberRepository, passwordEncoder, tokenPort, totpPort,
-                new InstitutionAdminProperties(List.of("admin@haemi.kr")), emailVerifications, verificationEmail);
+                new InstitutionAdminProperties(List.of("admin@haemi.kr")), emailVerifications, verificationEmail,
+                new EmailVerificationResendRateLimiter());
     }
 
     @Test
@@ -125,7 +126,7 @@ class AuthApplicationServiceTest {
         Member pending = Member.createUnverified("pending@example.com", "encoded", "홍길동", MemberRole.FAMILY);
         when(memberRepository.findByEmail("pending@example.com")).thenReturn(Optional.of(pending));
         assertThatThrownBy(() -> service.login(new LoginCommand("pending@example.com", "password", null)))
-                .isInstanceOf(AccountSuspendedException.class);
+                .isInstanceOf(EmailNotVerifiedException.class);
 
         Member suspended = Member.createUnverified("suspended@example.com", "encoded", "홍길동", MemberRole.FAMILY);
         suspended.suspend();

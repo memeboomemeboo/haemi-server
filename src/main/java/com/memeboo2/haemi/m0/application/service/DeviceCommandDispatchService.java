@@ -56,9 +56,12 @@ public class DeviceCommandDispatchService {
             deviceLockPort.lock(command.getElderId());
             command.delivered(now);
         } catch (Exception exception) {
-            command.failed(now, exception.getMessage());
+            command.failed(now, exception.getMessage(), maxAttempts);
             log.warn("기기 명령 전달 실패, 재시도 예정: commandId={}, elderId={}, attempts={}",
                     command.getId(), command.getElderId(), command.getAttempts(), exception);
+            if (command.getStatus() == com.memeboo2.haemi.m0.domain.model.DeviceCommandStatus.EXHAUSTED) {
+                log.error("기기 잠금 명령 재시도 소진: commandId={}, elderId={}", command.getId(), command.getElderId());
+            }
         }
         commands.save(command);
     }

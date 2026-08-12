@@ -76,11 +76,20 @@ public class DeviceCommand {
         lastError = null;
     }
 
-    public void failed(LocalDateTime now, String error) {
+    public void failed(LocalDateTime now, String error, int maxAttempts) {
         attempts++;
         lastError = error == null ? "unknown device command failure" : error.substring(0, Math.min(500, error.length()));
+        if (attempts >= maxAttempts) {
+            status = DeviceCommandStatus.EXHAUSTED;
+            return;
+        }
         long backoffMinutes = Math.min(60, 1L << Math.min(attempts - 1, 6));
         nextAttemptAt = now.plusMinutes(backoffMinutes);
+    }
+
+    /** 테스트·운영 도구용 기본 실패 전이. */
+    public void failed(LocalDateTime now, String error) {
+        failed(now, error, 10);
     }
 
     public void cancel() {

@@ -82,7 +82,7 @@ class InstitutionPortalApplicationServiceTest {
     void blocksRecordOlderThanTwelveMonthsBeforeLookup() {
         assertThatThrownBy(() -> service.getRecord(manager.getId(), elder.getId(),
                 LocalDate.now().minusMonths(12).minusDays(1), LocalDate.now()))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(com.memeboo2.haemi.m0.domain.model.M0ValidationException.class);
         verifyNoInteractions(assignments);
     }
 }

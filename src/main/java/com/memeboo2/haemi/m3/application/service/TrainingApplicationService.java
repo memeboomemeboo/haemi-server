@@ -145,11 +145,13 @@ public class TrainingApplicationService {
         var l1 = photoId == null
                 ? java.util.Optional.<AccruedHint>empty()
                 : accruedHintRepository.findLatestReusableByPhoto(session.getElderId(), photoId, now.minusDays(14));
-        var l2 = accruedHintRepository.findLatestActiveGeneral(session.getElderId());
+        var l2 = accruedHintRepository.findLatestReusableGeneral(session.getElderId(), now.minusDays(14));
         ResolvedHint resolved = HintBankResolver.resolve(l1, l2);
         int remaining = session.serveAccruedHint(resolved.text(), resolved.responderName());
-        l1.ifPresent(hint -> hint.markServed(now));
-        l1.ifPresent(accruedHintRepository::save);
+        l1.or(() -> l2).ifPresent(hint -> {
+            hint.markServed(now);
+            accruedHintRepository.save(hint);
+        });
         sessionRepository.save(session);
         return new HintServeResult(toResult(session), resolved.tier(), resolved.text(), remaining);
     }

@@ -328,7 +328,7 @@ class TrainingApplicationServiceTest {
         when(sessionRepository.findById(session.getSessionId())).thenReturn(Optional.of(session));
         when(sessionRepository.save(any(CognitiveTrainingSession.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(accruedHintRepository.findLatestActiveGeneral("elder-1")).thenReturn(Optional.empty());
+        when(accruedHintRepository.findLatestReusableGeneral(eq("elder-1"), any())).thenReturn(Optional.empty());
 
         var result = service.serveGrandchildHint(
                 new com.memeboo2.haemi.m3.application.command.ServeGrandchildHintCommand(

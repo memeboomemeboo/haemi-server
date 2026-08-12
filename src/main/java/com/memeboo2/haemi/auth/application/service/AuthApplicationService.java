@@ -33,6 +33,7 @@ public class AuthApplicationService {
     private final InstitutionAdminProperties institutionAdminProperties;
     private final EmailVerificationRepository emailVerifications;
     private final VerificationEmailPort verificationEmail;
+    private final EmailVerificationResendRateLimiter resendRateLimiter;
 
     // ─────────── 회원가입 ───────────
 
@@ -63,7 +64,11 @@ public class AuthApplicationService {
     }
 
     public void resendEmailVerification(String email) {
-        Member member = memberRepository.findByEmail(email.trim().toLowerCase())
+        String normalizedEmail = email.trim().toLowerCase();
+        if (!resendRateLimiter.allow(normalizedEmail, LocalDateTime.now())) {
+            return;
+        }
+        Member member = memberRepository.findByEmail(normalizedEmail)
                 .orElse(null);
         if (member != null && !member.isEmailVerified()
                 && emailVerifications.findLatestByMemberId(member.getId())
@@ -145,6 +150,9 @@ public class AuthApplicationService {
         if (!member.isActive()) {
             if (member.getStatus() == MemberStatus.WITHDRAWN) {
                 throw new InvalidCredentialsException();
+            }
+            if (member.getStatus() == MemberStatus.PENDING_VERIFICATION) {
+                throw new EmailNotVerifiedException();
             }
             throw new AccountSuspendedException();
         }

@@ -36,4 +36,10 @@ public class AccruedHintRepositoryAdapter implements AccruedHintRepository {
     public Optional<AccruedHint> findLatestActiveGeneral(String elderId) {
         return jpa.findFirstByElderIdAndPhotoIdIsNullAndActiveTrueOrderByCreatedAtDesc(elderId);
     }
+
+    @Override
+    public Optional<AccruedHint> findLatestReusableGeneral(String elderId, LocalDateTime servedBefore) {
+        return jpa.findLatestReusableGeneral(elderId, servedBefore, org.springframework.data.domain.PageRequest.of(0, 1))
+                .stream().findFirst();
+    }
 }

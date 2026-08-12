@@ -115,7 +115,7 @@ public class InstitutionPortalApplicationService {
 
     private void validatePeriod(LocalDate from, LocalDate to) {
         if (from == null || to == null || from.isAfter(to) || from.isBefore(LocalDate.now().minusMonths(MAX_LOOKBACK_MONTHS))) {
-            throw new IllegalArgumentException("기관 기록은 최근 12개월 범위에서만 조회할 수 있어요.");
+            throw new com.memeboo2.haemi.m0.domain.model.M0ValidationException("기관 기록은 최근 12개월 범위에서만 조회할 수 있어요.");
         }
     }
 }
