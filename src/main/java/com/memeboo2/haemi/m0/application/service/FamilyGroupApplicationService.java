@@ -9,6 +9,7 @@ import com.memeboo2.haemi.m0.domain.model.*;
 import com.memeboo2.haemi.m0.domain.repository.FamilyGroupRepository;
 import com.memeboo2.haemi.m0.domain.repository.InvitationRepository;
 import com.memeboo2.haemi.m0.domain.repository.OwnershipTransferRepository;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class FamilyGroupApplicationService {
     private final FamilyGroupRepository groups;
     private final InvitationRepository invitations;
     private final OwnershipTransferRepository ownershipTransfers;
+    private final MemberRepository members;
 
     public FamilyGroupResult create(UUID ownerId, CreateFamilyGroupCommand command) {
         if (groups.existsActiveMembershipByMemberId(ownerId)) {
@@ -42,11 +44,11 @@ public class FamilyGroupApplicationService {
     public InvitationResult invite(UUID actorId, UUID groupId, CreateInvitationCommand command) {
         FamilyGroup group = loadGroup(groupId);
         group.requireOwner(actorId);
-        if (command.phoneNumber() == null || command.phoneNumber().isBlank() || command.relation() == null) {
-            throw new M0ValidationException("초대 대상 연락처와 관계는 필수예요.");
+        if (command.email() == null || command.email().isBlank() || command.relation() == null) {
+            throw new M0ValidationException("초대 대상 이메일과 관계는 필수예요.");
         }
         group.reserveInvitationSlot(invitations.countPendingByGroupId(groupId));
-        Invitation invitation = Invitation.create(groupId, actorId, hashPhone(command.phoneNumber()), command.relation());
+        Invitation invitation = Invitation.create(groupId, actorId, hashEmail(command.email()), command.relation());
         return InvitationResult.from(invitations.save(invitation));
     }
 
@@ -55,6 +57,10 @@ public class FamilyGroupApplicationService {
                 .orElseThrow(() -> new M0NotFoundException("초대 링크"));
         if (groups.existsActiveMembershipByMemberId(actorId)) {
             throw new M0ConflictException("이미 참여 중인 가족 그룹이 있어요.");
+        }
+        var member = members.findById(actorId).orElseThrow(() -> new M0NotFoundException("회원"));
+        if (!member.isEmailVerified() || !hashEmail(member.getEmail()).equals(invitation.getInviteeEmailHash())) {
+            throw new M0ValidationException("초대받은 이메일을 확인한 계정으로만 수락할 수 있어요.");
         }
         FamilyGroup group = loadGroup(invitation.getGroupId());
         invitation.accept();
@@ -109,18 +115,18 @@ public class FamilyGroupApplicationService {
         return groups.findById(groupId).orElseThrow(() -> new M0NotFoundException("가족 그룹"));
     }
 
-    private String hashPhone(String phoneNumber) {
+    private String hashEmail(String email) {
         try {
-            String normalized = phoneNumber.replaceAll("[^0-9]", "");
-            if (normalized.length() < 9 || normalized.length() > 15) {
-                throw new M0ValidationException("올바른 연락처를 입력해주세요.");
+            String normalized = email.trim().toLowerCase();
+            if (!normalized.contains("@")) {
+                throw new M0ValidationException("올바른 이메일을 입력해주세요.");
             }
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(normalized.getBytes(StandardCharsets.UTF_8)));
         } catch (M0ValidationException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("연락처를 안전하게 처리할 수 없습니다.", e);
+            throw new IllegalStateException("이메일을 안전하게 처리할 수 없습니다.", e);
         }
     }
 }

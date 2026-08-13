@@ -5,6 +5,7 @@ import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.notification.application.DeviceTokenResult;
 import com.memeboo2.haemi.notification.application.DeviceTokenService;
 import com.memeboo2.haemi.notification.presentation.dto.RegisterDeviceTokenRequest;
+import com.memeboo2.haemi.notification.presentation.dto.DeviceTokenHeartbeatRequest;
 import com.memeboo2.haemi.notification.presentation.dto.UnregisterDeviceTokenRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,6 +43,14 @@ public class DeviceTokenController {
         DeviceTokenResult result = deviceTokens.register(
                 member.memberId(), request.token(), request.platform(), request.elderId());
         return ApiResponse.ok(result, "이 기기로 알림을 받을 수 있어요.");
+    }
+
+    @Operation(summary = "가족 앱 포그라운드 하트비트", description = "L2 실시간 힌트는 최근 하트비트가 있는 가족 앱 한 대에만 요청합니다.")
+    @PostMapping("/heartbeat")
+    public ApiResponse<Void> heartbeat(@AuthenticationPrincipal AuthenticatedMember member,
+                                       @Valid @RequestBody DeviceTokenHeartbeatRequest request) {
+        deviceTokens.heartbeat(member.memberId(), request.token());
+        return ApiResponse.ok(null);
     }
 
     @Operation(

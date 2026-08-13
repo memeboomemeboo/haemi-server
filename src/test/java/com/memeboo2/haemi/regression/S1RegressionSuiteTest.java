@@ -90,7 +90,7 @@ class S1RegressionSuiteTest {
         @DisplayName("EX-F303-08: 작고한 가족 힌트도 동일 억제 훅으로 제공에서 제외된다")
         void ex_f303_08_deceasedFamilyHintSuppressed() {
             AccruedHint hint = AccruedHint.accrue(
-                    "elder-1", null, "작고가족",
+                    "elder-1", UUID.randomUUID(), "작고가족",
                     AccrualSource.ONBOARDING, "member-2", "아들", "아버지가 좋아하시던 노래예요.");
 
             hint.suppress();
@@ -233,10 +233,15 @@ class S1RegressionSuiteTest {
     class PendingElderStateMachine {
 
         @Test
-        @Disabled(PENDING_36)
         @DisplayName("EX-F005-06: 사별 시 기기 잠금 실패는 복구 경로로 처리된다")
         void ex_f005_06_deviceLockFailureRecovers() {
-            // seam: 사별 처리 실패 시 재시도/복구 큐
+            com.memeboo2.haemi.m0.domain.model.DeviceCommand command =
+                    com.memeboo2.haemi.m0.domain.model.DeviceCommand.lockAndOpenMemorial(
+                            UUID.randomUUID(), LocalDateTime.now());
+            command.failed(LocalDateTime.now(), "MDM timeout");
+
+            assertThat(command.getStatus()).isEqualTo(com.memeboo2.haemi.m0.domain.model.DeviceCommandStatus.PENDING);
+            assertThat(command.isRetryableAt(command.getNextAttemptAt(), 10)).isTrue();
         }
 
         @Test

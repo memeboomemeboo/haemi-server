@@ -8,6 +8,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,12 +46,9 @@ class PushSenderConfigTest {
     }
 
     @Test
-    @DisplayName("운영 프로필에서 자격증명이 없어도 기동은 막지 않고 폴백으로 뜬다")
-    void prodStillFallsBackInsteadOfFailingStartup() {
-        PushSenderPort sender = config.pushSenderPort(provider(null), environment("prod"));
-
-        // 알림은 부가 기능이다. 이것 때문에 서비스 전체가 안 뜨면 더 나쁘다.
-        // 대신 이 경로는 WARN을 남겨 운영 로그에서 드러난다.
-        assertThat(sender).isInstanceOf(LoggingPushSenderAdapter.class);
+    @DisplayName("운영 프로필에서 자격증명이 없으면 기동을 거부한다")
+    void prodFailsWithoutFirebase() {
+        assertThatThrownBy(() -> config.pushSenderPort(provider(null), environment("prod")))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

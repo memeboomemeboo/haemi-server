@@ -13,9 +13,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -79,6 +81,32 @@ class DeviceTokenApiIntegrationTest {
         mockMvc.perform(get("/api/v1/device-tokens").header("Authorization", "Bearer " + jwt))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].token").value(fcmToken));
+    }
+
+    @Test
+    @DisplayName("가족 앱 하트비트 API는 본인 토큰의 최근 사용 시각을 갱신한다")
+    void heartbeatRefreshesRegisteredToken() throws Exception {
+        UUID memberId = UUID.randomUUID();
+        String jwt = accessToken(memberId);
+        String fcmToken = "heartbeat-" + UUID.randomUUID();
+        mockMvc.perform(post("/api/v1/device-tokens")
+                        .header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody(fcmToken)))
+                .andExpect(status().isOk());
+        DeviceToken token = deviceTokens.findByToken(fcmToken).orElseThrow();
+        ReflectionTestUtils.setField(token, "lastUsedAt", LocalDateTime.now().minusMinutes(5));
+        deviceTokens.save(token);
+
+        mockMvc.perform(post("/api/v1/device-tokens/heartbeat")
+                        .header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"%s\"}".formatted(fcmToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        assertThat(deviceTokens.findByToken(fcmToken).orElseThrow().getLastUsedAt())
+                .isAfter(LocalDateTime.now().minusMinutes(1));
     }
 
     @Test

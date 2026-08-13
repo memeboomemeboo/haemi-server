@@ -24,8 +24,7 @@ public class PushSenderConfig {
             // 로컬·테스트에서는 자격증명 없이 도는 게 정상이라 기동을 막지 않는다.
             // 다만 운영에서 조용히 폴백으로 도는 건 사고다. 로그만 봐도 드러나게 한다. (#92)
             if (environment.matchesProfiles("prod")) {
-                log.warn("FCM 자격증명이 없어 푸시 알림이 발송되지 않습니다. "
-                        + "FIREBASE_CREDENTIALS 환경변수를 확인하세요. 지금은 로그만 남깁니다.");
+                throw new IllegalStateException("prod 프로필에는 FIREBASE_CREDENTIALS가 필요합니다.");
             } else {
                 log.info("FCM 자격증명이 없어 푸시 알림을 로그로만 남깁니다.");
             }

@@ -121,6 +121,9 @@ haemi:
     secret: ${JWT_SECRET:haemi-dev-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256!!}
     access-token-validity: PT30M
     refresh-token-validity: P14D
+  mail:
+    from: ${MAIL_FROM:no-reply@haemi.local}
+    public-url: ${APP_PUBLIC_URL:http://localhost:8080}
   security:
     institution-admin:
       # 기관 관리자로 가입할 수 있는 이메일 목록. 비우면 아무도 가입할 수 없다 (#96)

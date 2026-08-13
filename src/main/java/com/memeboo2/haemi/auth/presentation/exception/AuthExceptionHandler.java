@@ -40,6 +40,12 @@ public class AuthExceptionHandler {
         return ApiResponse.error(e.getMessage());
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleEmailNotVerified(EmailNotVerifiedException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
     @ExceptionHandler(TotpRequiredException.class)
     @ResponseStatus(HttpStatus.PRECONDITION_REQUIRED)
     public ApiResponse<Void> handleTotpRequired(TotpRequiredException e) {
@@ -61,6 +67,12 @@ public class AuthExceptionHandler {
     @ExceptionHandler({InvalidEmailException.class, InvalidNameException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleValidation(RuntimeException e) {
+        return ApiResponse.error(e.getMessage());
+    }
+
+    @ExceptionHandler(EmailVerificationInvalidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleEmailVerification(EmailVerificationInvalidException e) {
         return ApiResponse.error(e.getMessage());
     }
 }

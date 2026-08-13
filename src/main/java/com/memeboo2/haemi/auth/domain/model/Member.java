@@ -52,6 +52,9 @@ public class Member extends AbstractAggregateRoot<Member> {
     @Column(length = 512)
     private String refreshTokenHash;
 
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -76,6 +79,13 @@ public class Member extends AbstractAggregateRoot<Member> {
 
         m.registerEvent(new MemberRegisteredEvent(m.id, m.email, m.name, m.role));
         return m;
+    }
+
+    /** 공개 가입은 이메일 링크를 확인하기 전까지 로그인할 수 없다. */
+    public static Member createUnverified(String email, String encodedPassword, String name, MemberRole role) {
+        Member member = create(email, encodedPassword, name, role);
+        member.status = MemberStatus.PENDING_VERIFICATION;
+        return member;
     }
 
     // ───────────────── Commands ─────────────────
@@ -110,6 +120,21 @@ public class Member extends AbstractAggregateRoot<Member> {
     public void activate() {
         this.status = MemberStatus.ACTIVE;
         touch();
+    }
+
+    public void verifyEmail() {
+        if (status == MemberStatus.WITHDRAWN) {
+            throw new AlreadyWithdrawnException(this.id);
+        }
+        if (status == MemberStatus.SUSPENDED) {
+            throw new AccountSuspendedException();
+        }
+        this.emailVerifiedAt = LocalDateTime.now();
+        activate();
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
     }
 
     // ──────── 2FA (TOTP) ────────

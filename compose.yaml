@@ -23,6 +23,12 @@ services:
       # 서비스 계정 JSON 파일 경로. 비우면 푸시가 발송되지 않고 로그 폴백으로만 동작한다 (#92)
       FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
       HAEMI_STORAGE_UPLOAD_PATH: /data/haemi/photos
       HAEMI_REPORT_PDF_OUTPUT_DIR: /data/haemi/reports
     ports:

@@ -1,11 +1,12 @@
 package com.memeboo2.haemi.m0.infrastructure.event;
 
 import com.memeboo2.haemi.m0.domain.event.ElderBereavedEvent;
-import com.memeboo2.haemi.m0.domain.port.DeviceLockPort;
+import com.memeboo2.haemi.m0.application.service.DeviceCommandDispatchService;
 import com.memeboo2.haemi.m0.domain.port.ScheduledJobCancelPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,21 +19,22 @@ import org.springframework.stereotype.Component;
 public class ElderBereavementListener {
 
     private final ScheduledJobCancelPort scheduledJobCancelPort;
-    private final DeviceLockPort deviceLockPort;
+    private final DeviceCommandDispatchService deviceCommands;
 
-    @EventListener
+    /** 사별 상태가 실제 커밋된 뒤에만 예약 취소와 기기 잠금 명령을 발행한다. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBereaved(ElderBereavedEvent event) {
-        scheduledJobCancelPort.cancelAllForElder(event.elderId());
-        lockDeviceWithRecovery(event);
-    }
-
-    // 기기 잠금 실패 시 예외를 전파하지 않고 재시도 경로로 흡수한다 (EX-F005-06).
-    private void lockDeviceWithRecovery(ElderBereavedEvent event) {
         try {
-            deviceLockPort.lock(event.elderId());
+            scheduledJobCancelPort.cancelAllForElder(event.elderId());
         } catch (Exception e) {
-            log.warn("기기 원격 잠금 실패, 복구 재시도 예약: elderId={}", event.elderId(), e);
-            // 운영에서는 재시도 큐에 적재. 사별 처리 자체는 유지된다.
+            log.warn("사별 후 예약 취소 실패: elderId={}", event.elderId(), e);
+        }
+        // 실패해도 DB 아웃박스에 남아 스케줄러가 잠금/기억보관함 전환을 재시도한다.
+        try {
+            deviceCommands.enqueueBereavementLock(event.elderId());
+        } catch (Exception e) {
+            // DB 장애는 운영 경보 대상이지만, 이미 확정한 사별 상태를 롤백하지 않는다.
+            log.error("사별 기기 명령 아웃박스 적재 실패: elderId={}", event.elderId(), e);
         }
     }
 }

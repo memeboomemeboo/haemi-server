@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 
 import java.util.UUID;
 
@@ -39,11 +40,13 @@ class InstitutionAdminProvisioningApiIntegrationTest {
     private static final String PASSWORD = "Haemi123!";
 
     private final MockMvc mockMvc;
+    private final MemberRepository members;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
-    InstitutionAdminProvisioningApiIntegrationTest(MockMvc mockMvc) {
+    InstitutionAdminProvisioningApiIntegrationTest(MockMvc mockMvc, MemberRepository members) {
         this.mockMvc = mockMvc;
+        this.members = members;
     }
 
     /** 인증 앱이 만들어 낼 코드를 테스트에서 그대로 계산한다. TotpAdapter와 같은 라이브러리다. */
@@ -73,14 +76,15 @@ class InstitutionAdminProvisioningApiIntegrationTest {
     @DisplayName("가족 계정 가입은 그대로 열려 있다")
     void familySignUpStaysOpen() throws Exception {
         mockMvc.perform(signUp("family-%s@haemi.kr".formatted(UUID.randomUUID()), "FAMILY"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
     }
 
     @Test
     @DisplayName("허용된 관리자는 가입 → 2FA 등록 → 로그인까지 끝난다")
     void allowedAdminCanProvisionAndFinallyLogIn() throws Exception {
         mockMvc.perform(signUp(ALLOWED_EMAIL, "INSTITUTION_ADMIN"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
+        verifyEmail(ALLOWED_EMAIL);
 
         // 2FA 전에는 로그인이 막혀 있다. 이게 잠금의 정체다.
         mockMvc.perform(login(ALLOWED_EMAIL, null))
@@ -125,7 +129,8 @@ class InstitutionAdminProvisioningApiIntegrationTest {
     @DisplayName("일반 사용자는 이 경로로 2FA를 켤 수 없다")
     void enrollmentIsNotAWayForRegularUsersToEnableTotp() throws Exception {
         String email = "family-enroll-%s@haemi.kr".formatted(UUID.randomUUID());
-        mockMvc.perform(signUp(email, "FAMILY")).andExpect(status().isCreated());
+        mockMvc.perform(signUp(email, "FAMILY")).andExpect(status().isAccepted());
+        verifyEmail(email);
 
         // 잠긴 기관 관리자 전용이다. 일반 사용자는 인증된 /totp/setup을 써야 한다.
         mockMvc.perform(post("/api/v1/auth/totp/enrollment")
@@ -143,6 +148,12 @@ class InstitutionAdminProvisioningApiIntegrationTest {
                 .content("""
                         {"email":"%s","password":"%s","name":"검사자","role":"%s"}
                         """.formatted(email, PASSWORD, role));
+    }
+
+    private void verifyEmail(String email) {
+        var member = members.findByEmail(email).orElseThrow();
+        member.verifyEmail();
+        members.save(member);
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder login(

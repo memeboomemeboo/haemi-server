@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Repository
@@ -25,7 +26,10 @@ public class AccruedHintRepositoryAdapter implements AccruedHintRepository {
     }
 
     @Override
-    public Optional<AccruedHint> findLatestActiveGeneral(String elderId) {
-        return jpa.findFirstByElderIdAndPhotoIdIsNullAndActiveTrueOrderByCreatedAtDesc(elderId);
+    public Optional<AccruedHint> findLatestReusableByPhoto(String elderId, UUID photoId, LocalDateTime servedBefore) {
+        return jpa.findLatestReusableByPhoto(elderId, photoId, servedBefore,
+                        org.springframework.data.domain.PageRequest.of(0, 1))
+                .stream().findFirst();
     }
+
 }

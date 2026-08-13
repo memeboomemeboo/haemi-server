@@ -91,4 +91,9 @@ public class DeviceToken {
     public boolean isOwnedBy(UUID memberId) {
         return this.memberId.equals(memberId);
     }
+
+    /** 앱이 포그라운드에 있음을 알리는 하트비트다. */
+    public void touch(LocalDateTime now) {
+        this.lastUsedAt = now;
+    }
 }
