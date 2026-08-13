@@ -62,6 +62,12 @@ public class InstitutionPortalApplicationService {
                                                      LocalDate from, LocalDate to) {
         validatePeriod(from, to);
         requireAssigned(memberId, elderId, InstitutionAuditAction.ELDER_RECORD_VIEW);
+        if (elders.findById(elderId)
+                .map(elder -> elder.getStatus() == ElderStatus.MEMORIAL)
+                .orElse(false)) {
+            // 기억 보관함에서는 사진·메모 같은 기록만 제공하고 활동 지표는 노출하지 않는다.
+            return List.of();
+        }
         return metrics.findByElderIdAndDateBetween(elderId.toString(), from, to).stream()
                 .map(ReminiscenceMetricResult::from)
                 .toList();

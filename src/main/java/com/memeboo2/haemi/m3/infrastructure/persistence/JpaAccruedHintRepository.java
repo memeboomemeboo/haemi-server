@@ -22,13 +22,4 @@ public interface JpaAccruedHintRepository extends JpaRepository<AccruedHint, UUI
     List<AccruedHint> findLatestReusableByPhoto(String elderId, UUID photoId, LocalDateTime servedBefore,
                                                 org.springframework.data.domain.Pageable pageable);
 
-    Optional<AccruedHint> findFirstByElderIdAndPhotoIdIsNullAndActiveTrueOrderByCreatedAtDesc(
-            String elderId);
-
-    @org.springframework.data.jpa.repository.Query("""
-            SELECT h FROM AccruedHint h WHERE h.elderId = :elderId AND h.photoId IS NULL AND h.active = true
-              AND (h.lastServedAt IS NULL OR h.lastServedAt <= :servedBefore) ORDER BY h.createdAt DESC
-            """)
-    List<AccruedHint> findLatestReusableGeneral(String elderId, LocalDateTime servedBefore,
-                                                org.springframework.data.domain.Pageable pageable);
 }

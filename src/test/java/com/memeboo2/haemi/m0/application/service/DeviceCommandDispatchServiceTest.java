@@ -87,4 +87,19 @@ class DeviceCommandDispatchServiceTest {
         assertThat(second.getStatus()).isEqualTo(DeviceCommandStatus.CANCELLED);
         verify(commands, org.mockito.Mockito.times(2)).save(any(DeviceCommand.class));
     }
+
+    @Test
+    void recoveryEnqueuesAndDispatchesAnUnlockCommand() {
+        UUID elderId = UUID.randomUUID();
+        when(commands.save(any(DeviceCommand.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.enqueueBereavementRecoveryUnlock(elderId);
+
+        ArgumentCaptor<DeviceCommand> captor = ArgumentCaptor.forClass(DeviceCommand.class);
+        verify(commands, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues().getLast().getAction())
+                .isEqualTo(com.memeboo2.haemi.m0.domain.model.DeviceCommandAction.UNLOCK_AND_RESUME);
+        assertThat(captor.getAllValues().getLast().getStatus()).isEqualTo(DeviceCommandStatus.DELIVERED);
+        verify(deviceLockPort).unlock(elderId);
+    }
 }

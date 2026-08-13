@@ -31,6 +31,12 @@ public class DeviceCommandDispatchService {
     }
 
     @Transactional
+    public void enqueueBereavementRecoveryUnlock(UUID elderId) {
+        DeviceCommand command = commands.save(DeviceCommand.unlockAndResume(elderId, LocalDateTime.now()));
+        dispatch(command, LocalDateTime.now());
+    }
+
+    @Transactional
     public int retryDueCommands(LocalDateTime now) {
         int attempted = 0;
         for (DeviceCommand command : commands.findPendingBefore(now)) {
@@ -53,7 +59,11 @@ public class DeviceCommandDispatchService {
 
     private void dispatch(DeviceCommand command, LocalDateTime now) {
         try {
-            deviceLockPort.lock(command.getElderId());
+            if (command.getAction() == com.memeboo2.haemi.m0.domain.model.DeviceCommandAction.LOCK_AND_OPEN_MEMORIAL) {
+                deviceLockPort.lock(command.getElderId());
+            } else {
+                deviceLockPort.unlock(command.getElderId());
+            }
             command.delivered(now);
         } catch (Exception exception) {
             command.failed(now, exception.getMessage(), maxAttempts);

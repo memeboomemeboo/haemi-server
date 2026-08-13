@@ -51,6 +51,22 @@ public class PushDispatchService {
     }
 
     /**
+     * 사별 전환/복구처럼 상태를 바꾸기 위해 단말에 반드시 도달해야 하는 기기 명령 발송 경로다.
+     * 일반 알림과 달리 사별 상태에서도 토큰을 조회한다. 호출자는 명령 아웃박스로 제한한다.
+     */
+    public PushSendResult dispatchDeviceCommandToElder(String elderId, PushMessage message) {
+        try {
+            List<String> tokens = deviceTokens.findByElderId(UUID.fromString(elderId)).stream()
+                    .map(DeviceToken::getToken)
+                    .toList();
+            return sendAndPrune(tokens, message, "device-command elder=" + elderId);
+        } catch (Exception e) {
+            log.error("[PUSH] 기기 명령 발송에 실패했습니다. elderId={}, title={}", elderId, message.title(), e);
+            return PushSendResult.empty();
+        }
+    }
+
+    /**
      * 발송 결과를 돌려주지만, 업무 흐름에서 호출하는 어댑터는 이 값을 쓰지 않는다.
      * 결과가 필요한 곳은 개발용 테스트 발송처럼 "무슨 일이 일어났는지" 보여줘야 하는 경로다.
      */

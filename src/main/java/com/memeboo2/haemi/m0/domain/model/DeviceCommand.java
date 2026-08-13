@@ -53,10 +53,18 @@ public class DeviceCommand {
     private LocalDateTime createdAt;
 
     public static DeviceCommand lockAndOpenMemorial(UUID elderId, LocalDateTime now) {
+        return issue(elderId, DeviceCommandAction.LOCK_AND_OPEN_MEMORIAL, now);
+    }
+
+    public static DeviceCommand unlockAndResume(UUID elderId, LocalDateTime now) {
+        return issue(elderId, DeviceCommandAction.UNLOCK_AND_RESUME, now);
+    }
+
+    private static DeviceCommand issue(UUID elderId, DeviceCommandAction action, LocalDateTime now) {
         DeviceCommand command = new DeviceCommand();
         command.id = UUID.randomUUID();
         command.elderId = elderId;
-        command.action = DeviceCommandAction.LOCK_AND_OPEN_MEMORIAL;
+        command.action = action;
         command.status = DeviceCommandStatus.PENDING;
         command.attempts = 0;
         command.nextAttemptAt = now;

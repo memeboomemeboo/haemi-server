@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.presentation;
 
+import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m3.application.command.*;
 import com.memeboo2.haemi.m3.application.dto.AnswerResult;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "M3-Training", description = "F3-01 일일 인지 훈련 / F3-02 난이도 적응 / F3-03 손주 찬스")
@@ -78,8 +80,8 @@ public class TrainingController {
             summary = "손주 한마디 즉시 제공 [F3-03]",
             description = """
                     사전 적립된 손주 한마디를 대기 없이 즉시 제공합니다.
-                    L1(사진 특정) → L2(어르신 일반) → L3(시스템 기본) 순으로 폴백하며, 항상 하나는 제공됩니다.
-                    세션당 최대 2회까지 사용할 수 있습니다.
+                    L1(사진 특정) 힌트가 없으면 L3(시스템 기본) 문구를 즉시 제공합니다.
+                    온라인 가족에게 묻는 L2는 별도 실시간 요청 API로 처리하며, 재생 횟수 제한은 없습니다.
                     """
     )
     @PostMapping("/{sessionId}/hints/served")
@@ -87,6 +89,25 @@ public class TrainingController {
         HintServeResult result = trainingService.serveGrandchildHint(
                 new ServeGrandchildHintCommand(sessionId));
         return ApiResponse.ok(result, "손주 한마디를 들려드립니다.");
+    }
+
+    @Operation(summary = "온라인 가족에게 실시간 힌트 요청 [F3-03]",
+            description = "사진별 사전 적립 힌트가 없을 때 최근 하트비트가 있는 가족 한 명에게만 요청합니다. 60초 내 응답이 없으면 시스템 안내로 전환하세요.")
+    @PostMapping("/{sessionId}/hints/realtime-request")
+    public ApiResponse<ChanceResult> requestRealtimeHint(@PathVariable String sessionId) {
+        return ApiResponse.ok(trainingService.requestGrandchildChance(
+                new RequestGrandchildChanceCommand(sessionId, null)));
+    }
+
+    @Operation(summary = "실시간 힌트 응답 [F3-03]")
+    @PostMapping("/{sessionId}/hints/realtime-response")
+    public ApiResponse<TrainingSessionResult> provideRealtimeHint(
+            @PathVariable String sessionId,
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @Valid @RequestBody ProvideHintRequest request) {
+        TrainingSessionResult result = trainingService.provideHint(new ProvideHintCommand(
+                sessionId, member.memberId().toString(), request.responderName(), request.hintText()));
+        return ApiResponse.ok(result, "가족의 한마디를 전달했어요.");
     }
 
 }

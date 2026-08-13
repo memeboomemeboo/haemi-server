@@ -11,4 +11,6 @@ public interface PersonRepository {
     Person save(Person person);
     Optional<Person> findById(UUID personId);
     List<Person> findAllByGroupIdAndVisibility(UUID groupId, PersonVisibility visibility);
+    List<Person> findAllByGroupIdAndLinkedMemberId(UUID groupId, UUID linkedMemberId);
+    List<Person> findAllByGroupIdAndName(UUID groupId, String name);
 }

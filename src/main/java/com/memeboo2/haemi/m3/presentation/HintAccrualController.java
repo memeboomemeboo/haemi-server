@@ -29,7 +29,7 @@ public class HintAccrualController {
             description = """
                     가족이 손주 한마디를 미리 적립합니다. 적립 경로(source)는
                     메모(MEMO)/온보딩(ONBOARDING)/주간 리마인더(WEEKLY_REMINDER)/반응 유도(REACTION)입니다.
-                    photoId가 있으면 특정 사진(L1), 없으면 어르신 일반(L2) 힌트로 저장됩니다.
+                    힌트는 반드시 특정 사진(L1)에 연결해 저장됩니다.
                     """
     )
     @PostMapping

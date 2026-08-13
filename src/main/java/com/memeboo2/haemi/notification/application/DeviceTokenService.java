@@ -4,6 +4,7 @@ import com.memeboo2.haemi.notification.domain.DevicePlatform;
 import com.memeboo2.haemi.notification.domain.DeviceToken;
 import com.memeboo2.haemi.notification.domain.repository.DeviceTokenRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceTokenService {
 
     private final DeviceTokenRepository deviceTokens;
@@ -54,6 +56,18 @@ public class DeviceTokenService {
             }
             deviceTokens.deleteByToken(token);
         });
+    }
+
+    @Transactional
+    public void heartbeat(UUID memberId, String token) {
+        DeviceToken deviceToken = deviceTokens.findByToken(token)
+                .orElseThrow(DeviceTokenAccessDeniedException::new);
+        if (!deviceToken.isOwnedBy(memberId)) {
+            throw new DeviceTokenAccessDeniedException();
+        }
+        deviceToken.touch(LocalDateTime.now());
+        deviceTokens.save(deviceToken);
+        log.info("[DEVICE-HEARTBEAT] memberId={} tokenLength={}", memberId, token.length());
     }
 
     @Transactional(readOnly = true)

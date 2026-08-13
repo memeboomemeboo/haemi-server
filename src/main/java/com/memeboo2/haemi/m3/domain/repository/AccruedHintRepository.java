@@ -14,7 +14,4 @@ public interface AccruedHintRepository {
 
     Optional<AccruedHint> findLatestReusableByPhoto(String elderId, UUID photoId, LocalDateTime servedBefore);
 
-    // L2: 사진에 매이지 않은 어르신 일반 최신 활성 힌트
-    Optional<AccruedHint> findLatestActiveGeneral(String elderId);
-    Optional<AccruedHint> findLatestReusableGeneral(String elderId, LocalDateTime servedBefore);
 }

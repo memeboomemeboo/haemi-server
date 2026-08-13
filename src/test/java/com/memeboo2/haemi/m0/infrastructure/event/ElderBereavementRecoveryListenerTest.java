@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 
 class ElderBereavementRecoveryListenerTest {
     @Test
-    void recoveryCancelsPendingDeviceCommands() {
+    void recoveryCancelsPendingDeviceCommandsAndEnqueuesUnlock() {
         DeviceCommandDispatchService commands = mock(DeviceCommandDispatchService.class);
         UUID elderId = UUID.randomUUID();
 
@@ -20,5 +20,6 @@ class ElderBereavementRecoveryListenerTest {
                 new ElderBereavementRecoveredEvent(elderId, UUID.randomUUID(), LocalDateTime.now()));
 
         verify(commands).cancelPendingForRecoveredElder(elderId);
+        verify(commands).enqueueBereavementRecoveryUnlock(elderId);
     }
 }

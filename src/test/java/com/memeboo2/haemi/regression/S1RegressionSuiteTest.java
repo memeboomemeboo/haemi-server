@@ -90,7 +90,7 @@ class S1RegressionSuiteTest {
         @DisplayName("EX-F303-08: 작고한 가족 힌트도 동일 억제 훅으로 제공에서 제외된다")
         void ex_f303_08_deceasedFamilyHintSuppressed() {
             AccruedHint hint = AccruedHint.accrue(
-                    "elder-1", null, "작고가족",
+                    "elder-1", UUID.randomUUID(), "작고가족",
                     AccrualSource.ONBOARDING, "member-2", "아들", "아버지가 좋아하시던 노래예요.");
 
             hint.suppress();

@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * F3-03 사전 적립형 손주 한마디.
  * 가족이 미리 적립해 두고, 회상 세션 중 대기 없이 즉시 제공된다.
- * photoId가 있으면 특정 사진(L1), 없으면 어르신 일반(L2) 힌트다.
+ * 힌트는 반드시 특정 사진(L1)에 귀속된다. L2는 온라인 가족의 실시간 응답으로 처리한다.
  */
 @Entity
 @Table(name = "accrued_hints")
@@ -65,6 +65,9 @@ public class AccruedHint {
         if (source == null) {
             throw new DomainValidationException("적립 경로는 필수입니다.");
         }
+        if (photoId == null) {
+            throw new DomainValidationException("힌트는 연결할 사진이 필요합니다.");
+        }
         this.id = UUID.randomUUID();
         this.elderId = elderId;
         this.photoId = photoId;
@@ -83,7 +86,7 @@ public class AccruedHint {
     }
 
     public HintTier tier() {
-        return photoId != null ? HintTier.L1 : HintTier.L2;
+        return HintTier.L1;
     }
 
     public void suppress() {

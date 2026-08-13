@@ -2,6 +2,7 @@ package com.memeboo2.haemi.m0.infrastructure.care;
 
 import com.memeboo2.haemi.m0.domain.port.DeviceLockPort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -11,10 +12,16 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@Profile("!prod")
 public class LogDeviceLockAdapter implements DeviceLockPort {
 
     @Override
     public void lock(UUID elderId) {
         log.info("[DEVICE-LOCK] elderId={} 기기 원격 잠금 요청", elderId);
+    }
+
+    @Override
+    public void unlock(UUID elderId) {
+        log.info("[DEVICE-UNLOCK] elderId={} 기기 잠금 해제 요청", elderId);
     }
 }

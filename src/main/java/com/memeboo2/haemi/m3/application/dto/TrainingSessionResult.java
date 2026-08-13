@@ -14,7 +14,6 @@ public record TrainingSessionResult(
         StartMode startMode,
         TrainingSessionStatus status,
         int currentQuestionIndex,
-        int remainingChanceCount,
         QuestionResult currentQuestion,
         List<QuestionResult> questions,
         List<AttemptResult> attempts,
@@ -29,7 +28,6 @@ public record TrainingSessionResult(
         LocalDateTime lastChanceRequestedAt,
         String grandchildChanceGuideMessage,
         boolean questionPassAvailable,
-        boolean chanceUnusedCompletionBadgeAwarded,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
@@ -104,7 +102,6 @@ public record TrainingSessionResult(
                 session.getStartMode(),
                 session.getStatus(),
                 session.getCurrentQuestionIndex(),
-                session.getRemainingChanceCount(),
                 current,
                 questions,
                 attempts,
@@ -119,7 +116,6 @@ public record TrainingSessionResult(
                 session.getLastChanceRequestedAt(),
                 grandchildChanceGuideMessage(session),
                 session.isLastGrandchildChanceExpired(),
-                session.isChanceUnusedCompletionBadgeAwarded(),
                 session.getStartedAt(),
                 session.getCompletedAt()
         );

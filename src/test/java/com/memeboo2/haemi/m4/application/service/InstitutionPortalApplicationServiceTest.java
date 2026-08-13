@@ -85,4 +85,20 @@ class InstitutionPortalApplicationServiceTest {
                 .isInstanceOf(com.memeboo2.haemi.m0.domain.model.M0ValidationException.class);
         verifyNoInteractions(assignments);
     }
+
+    @Test
+    void memorialElderRecordDoesNotExposeActivityMetrics() {
+        elder.requestBereavement(java.time.LocalDateTime.now());
+        elder.confirmBereavement(java.time.LocalDateTime.now(), 0);
+        elder.enshrineMemorial(java.time.LocalDateTime.now());
+        when(assignments.existsByElderIdAndInstitutionAdminMemberIdAndActiveTrue(elder.getId(), manager.getId()))
+                .thenReturn(true);
+        when(elders.findById(elder.getId())).thenReturn(Optional.of(elder));
+
+        var records = service.getRecord(manager.getId(), elder.getId(),
+                LocalDate.now().minusDays(7), LocalDate.now());
+
+        assertThat(records).isEmpty();
+        verify(metrics, never()).findByElderIdAndDateBetween(anyString(), any(), any());
+    }
 }
