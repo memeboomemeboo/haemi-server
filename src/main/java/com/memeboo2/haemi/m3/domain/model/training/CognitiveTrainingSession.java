@@ -2,7 +2,6 @@ package com.memeboo2.haemi.m3.domain.model.training;
 
 import com.memeboo2.haemi.common.exception.DomainValidationException;
 
-import com.memeboo2.haemi.m3.domain.event.GrandchildChanceUnusedBadgeAwardedEvent;
 import com.memeboo2.haemi.m3.domain.event.HintRequestedEvent;
 import com.memeboo2.haemi.m3.domain.event.TrainingSessionCompletedEvent;
 import jakarta.persistence.*;
@@ -24,8 +23,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
 
     private static final int MIN_QUESTION_COUNT = 3;
     private static final int MAX_QUESTION_COUNT = 5;
-    private static final int MAX_CHANCE_PER_SESSION = 2;
-    private static final int GRANDCHILD_CHANCE_RESPONSE_LIMIT_MINUTES = 30;
+    private static final int REALTIME_HINT_RESPONSE_LIMIT_SECONDS = 60;
 
     // F3-01 회상 세션 타이밍 (클라이언트 재생/힌트 노출 기준)
     public static final int HINT_DELAY_SECONDS = 4;
@@ -82,6 +80,10 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     @Column(name = "last_chance_requested_at")
     private LocalDateTime lastChanceRequestedAt;
 
+    /** L2 실시간 요청을 받은 가족 한 명. 응답 위조를 막기 위해 서버에서만 검증한다. */
+    @Column(name = "last_chance_recipient_member_id")
+    private String lastChanceRecipientMemberId;
+
     @Column(name = "last_hint_text", length = 500)
     private String lastHintText;
 
@@ -117,7 +119,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return session;
     }
 
-    public QuestionAttempt answer(String questionId, String submittedAnswer, int responseSeconds) {
+    /** 단말 VAD 결과만 기록한다. 음성 원문/전사문은 이 도메인에 들어오지 않는다. */
+    public QuestionAttempt answer(String questionId, boolean voiceDetected, int vadDurationMs) {
         if (status == TrainingSessionStatus.COMPLETED) {
             throw new TrainingSessionAlreadyCompletedException();
         }
@@ -126,8 +129,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
                 .filter(q -> q.getQuestionId().equals(questionId))
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
 
-        QuestionAttempt attempt = QuestionAttempt.of(
-                questionId, submittedAnswer, hasResponse(submittedAnswer), responseSeconds);
+        QuestionAttempt attempt = QuestionAttempt.ofVad(questionId, voiceDetected, vadDurationMs);
         attempts.add(attempt);
         currentQuestionIndex++;
 
@@ -135,6 +137,21 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             complete();
         }
         return attempt;
+    }
+
+    /** @deprecated 원문은 버리고 VAD 신호로만 변환하는 내부 호환 경로다. */
+    @Deprecated
+    public QuestionAttempt answer(String questionId, String ignoredSubmittedAnswer, int responseSeconds) {
+        return answer(questionId, ignoredSubmittedAnswer != null && !ignoredSubmittedAnswer.isBlank(),
+                Math.max(responseSeconds, 0) * 1_000);
+    }
+
+    /** 사별·입원 전이 뒤에는 진행 중 세션을 즉시 중단한다. */
+    public void abandonForElderStatus() {
+        if (status == TrainingSessionStatus.IN_PROGRESS) {
+            status = TrainingSessionStatus.ABANDONED;
+            completedAt = LocalDateTime.now();
+        }
     }
 
     // F3-01: 60초 무응답 허용 — 발화 없이 다음 사진으로 진행 (손주 찬스 게이팅과 무관)
@@ -146,8 +163,8 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         TrainingQuestion question = currentQuestion()
                 .filter(q -> q.getQuestionId().equals(questionId))
                 .orElseThrow(() -> new TrainingQuestionNotFoundException(questionId));
-        QuestionAttempt attempt = QuestionAttempt.of(
-                question.getQuestionId(), null, false, NO_RESPONSE_ALLOWANCE_SECONDS);
+        QuestionAttempt attempt = QuestionAttempt.ofVad(
+                question.getQuestionId(), false, 0, NO_RESPONSE_ALLOWANCE_SECONDS);
         attempts.add(attempt);
         currentQuestionIndex++;
         if (currentQuestionIndex >= questions.size()) {
@@ -163,8 +180,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         }
         TrainingQuestion question = currentQuestion()
                 .orElseThrow(TrainingSessionAlreadyCompletedException::new);
-        QuestionAttempt attempt = QuestionAttempt.of(
-                question.getQuestionId(), null, false, 61);
+        QuestionAttempt attempt = QuestionAttempt.ofVad(question.getQuestionId(), false, 0, 61);
         // 손주 찬스 만료 후 넘긴 문제는 무응답으로 기록
         attempts.add(attempt);
         currentQuestionIndex++;
@@ -174,32 +190,30 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return attempt;
     }
 
-    public int requestGrandchildChance(Set<String> recipientMemberIds) {
-        return requestGrandchildChance(recipientMemberIds, LocalDateTime.now());
+    public void requestGrandchildChance(Set<String> recipientMemberIds) {
+        requestGrandchildChance(recipientMemberIds, LocalDateTime.now());
     }
 
-    int requestGrandchildChance(Set<String> recipientMemberIds, LocalDateTime requestedAt) {
+    void requestGrandchildChance(Set<String> recipientMemberIds, LocalDateTime requestedAt) {
         if (recipientMemberIds == null || recipientMemberIds.isEmpty()) {
             throw new GrandchildChanceUnavailableException();
         }
         expireGrandchildChanceIfNeeded(requestedAt);
-        if (chanceUsedCount >= MAX_CHANCE_PER_SESSION) {
-            throw new GrandchildChanceExhaustedException();
-        }
         String questionId = currentQuestion()
                 .map(TrainingQuestion::getQuestionId)
                 .orElseThrow(() -> new TrainingSessionAlreadyCompletedException());
-        chanceUsedCount++;
         lastChanceStatus = GrandchildChanceStatus.PENDING;
         lastChanceQuestionId = questionId;
         lastChanceRequestedAt = requestedAt;
+        lastChanceRecipientMemberId = recipientMemberIds.size() == 1
+                ? recipientMemberIds.iterator().next()
+                : null;
         registerEvent(new HintRequestedEvent(
-                id, elderId, albumId, questionId, chanceUsedCount, recipientMemberIds, requestedAt));
-        return getRemainingChanceCount();
+                id, elderId, albumId, questionId, 0, recipientMemberIds, requestedAt));
     }
 
-    // F3-03: 사전 적립형 손주 한마디 — 대기 없이 즉시 제공 (찬스 2회 준수)
-    public int serveAccruedHint(String hintText, String responderName) {
+    // F3-03: 사전 적립형 손주 한마디 — 대기 없이 즉시 제공 (세션당 사용 제한 없음)
+    public void serveAccruedHint(String hintText, String responderName) {
         if (status == TrainingSessionStatus.COMPLETED) {
             throw new TrainingSessionAlreadyCompletedException();
         }
@@ -207,21 +221,24 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             throw new DomainValidationException("힌트 내용이 없습니다.");
         }
         currentQuestion().orElseThrow(TrainingSessionAlreadyCompletedException::new);
-        if (chanceUsedCount >= MAX_CHANCE_PER_SESSION) {
-            throw new GrandchildChanceExhaustedException();
-        }
-        chanceUsedCount++;
         lastChanceStatus = GrandchildChanceStatus.ANSWERED;
         this.lastHintText = hintText;
         this.lastHintResponder = responderName;
-        return getRemainingChanceCount();
     }
 
     public void applyHint(String responderName, String hintText) {
-        applyHint(responderName, hintText, LocalDateTime.now());
+        applyHint(lastChanceRecipientMemberId, responderName, hintText, LocalDateTime.now());
     }
 
     void applyHint(String responderName, String hintText, LocalDateTime respondedAt) {
+        applyHint(lastChanceRecipientMemberId, responderName, hintText, respondedAt);
+    }
+
+    public void applyHint(String responderMemberId, String responderName, String hintText) {
+        applyHint(responderMemberId, responderName, hintText, LocalDateTime.now());
+    }
+
+    void applyHint(String responderMemberId, String responderName, String hintText, LocalDateTime respondedAt) {
         if (hintText == null || hintText.isBlank()) {
             throw new DomainValidationException("힌트 내용을 입력해주세요.");
         }
@@ -231,6 +248,9 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         }
         if (lastChanceStatus != GrandchildChanceStatus.PENDING) {
             throw new DomainValidationException("진행 중인 손주 찬스 요청이 없습니다.");
+        }
+        if (lastChanceRecipientMemberId != null && !lastChanceRecipientMemberId.equals(responderMemberId)) {
+            throw new GrandchildChanceResponderNotRecipientException();
         }
         lastChanceStatus = GrandchildChanceStatus.ANSWERED;
         this.lastHintResponder = responderName;
@@ -242,10 +262,6 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
             return Optional.empty();
         }
         return Optional.of(questions.get(currentQuestionIndex));
-    }
-
-    public int getRemainingChanceCount() {
-        return Math.max(0, MAX_CHANCE_PER_SESSION - chanceUsedCount);
     }
 
     public boolean isGrandchildChancePending() {
@@ -320,10 +336,6 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
     private void complete() {
         this.status = TrainingSessionStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
-        if (chanceUsedCount == 0) {
-            this.chanceUnusedCompletionBadgeAwarded = true;
-            registerEvent(new GrandchildChanceUnusedBadgeAwardedEvent(id, elderId, albumId, completedAt));
-        }
         registerEvent(new TrainingSessionCompletedEvent(
                 id, elderId, albumId, sessionDate, getResponseRate(),
                 getAverageResponseSeconds(), attempts.size(), completedAt));
@@ -333,7 +345,7 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         if (lastChanceStatus != GrandchildChanceStatus.PENDING || lastChanceRequestedAt == null) {
             return;
         }
-        if (!lastChanceRequestedAt.plusMinutes(GRANDCHILD_CHANCE_RESPONSE_LIMIT_MINUTES).isAfter(now)) {
+        if (!lastChanceRequestedAt.plusSeconds(REALTIME_HINT_RESPONSE_LIMIT_SECONDS).isAfter(now)) {
             lastChanceStatus = GrandchildChanceStatus.EXPIRED;
         }
     }
@@ -353,7 +365,4 @@ public class CognitiveTrainingSession extends AbstractAggregateRoot<CognitiveTra
         return Math.max(1, Math.min(5, level));
     }
 
-    private static boolean hasResponse(String submittedAnswer) {
-        return submittedAnswer != null && !submittedAnswer.isBlank();
-    }
 }

@@ -160,4 +160,19 @@ class PushDispatchServiceTest {
         verify(pushSender).send(List.of("elder-device"), PushMessage.of("제목", "본문"));
         verify(deviceTokens, never()).findByMemberIds(any());
     }
+
+    @Test
+    @DisplayName("사별 기기 명령은 일반 발송 상태 차단을 우회해 연결된 단말로 전달한다")
+    void dispatchesDeviceCommandEvenWhenElderIsNotDispatchable() {
+        String elderId = UUID.randomUUID().toString();
+        when(deviceTokens.findByElderId(UUID.fromString(elderId))).thenReturn(List.of(
+                DeviceToken.register("elder-device", UUID.randomUUID(), DevicePlatform.ANDROID,
+                        UUID.fromString(elderId), LocalDateTime.now())));
+        when(pushSender.send(anyList(), any())).thenReturn(new PushSendResult(1, 0, List.of()));
+
+        service.dispatchDeviceCommandToElder(elderId, PushMessage.of("기기 명령", "잠금"));
+
+        verify(pushSender).send(List.of("elder-device"), PushMessage.of("기기 명령", "잠금"));
+        verify(elderStatusQuery, never()).isDispatchable(elderId);
+    }
 }

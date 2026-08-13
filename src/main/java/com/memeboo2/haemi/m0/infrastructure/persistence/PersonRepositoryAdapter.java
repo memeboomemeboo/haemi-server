@@ -30,4 +30,14 @@ public class PersonRepositoryAdapter implements PersonRepository {
     public List<Person> findAllByGroupIdAndVisibility(UUID groupId, PersonVisibility visibility) {
         return persons.findAllByGroupIdAndVisibilityAndActiveTrue(groupId, visibility);
     }
+
+    @Override
+    public List<Person> findAllByGroupIdAndLinkedMemberId(UUID groupId, UUID linkedMemberId) {
+        return persons.findAllByGroupIdAndLinkedMemberId(groupId, linkedMemberId);
+    }
+
+    @Override
+    public List<Person> findAllByGroupIdAndName(UUID groupId, String name) {
+        return persons.findAllByGroupIdAndName(groupId, name);
+    }
 }

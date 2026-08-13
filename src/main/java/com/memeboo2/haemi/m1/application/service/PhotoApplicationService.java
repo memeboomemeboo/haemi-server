@@ -157,6 +157,17 @@ public class PhotoApplicationService {
         return PhotoResult.from(updatedPhoto);
     }
 
+    @Transactional(readOnly = true)
+    public void requirePhotoMember(String albumId, String photoId, String memberId) {
+        Album album = loadAlbumOrThrow(albumId);
+        album.requireMember(memberId);
+        PhotoId target = PhotoId.of(photoId);
+        boolean exists = album.getPhotos().stream().anyMatch(photo -> photo.getId().equals(target));
+        if (!exists) {
+            throw new PhotoNotFoundException(target);
+        }
+    }
+
     // 사진 삭제
     @Transactional
     public void removePhoto(RemovePhotoCommand command) {

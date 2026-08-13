@@ -14,7 +14,6 @@ public record TrainingSessionResult(
         StartMode startMode,
         TrainingSessionStatus status,
         int currentQuestionIndex,
-        int remainingChanceCount,
         QuestionResult currentQuestion,
         List<QuestionResult> questions,
         List<AttemptResult> attempts,
@@ -29,7 +28,6 @@ public record TrainingSessionResult(
         LocalDateTime lastChanceRequestedAt,
         String grandchildChanceGuideMessage,
         boolean questionPassAvailable,
-        boolean chanceUnusedCompletionBadgeAwarded,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
@@ -75,8 +73,8 @@ public record TrainingSessionResult(
 
     public record AttemptResult(
             String questionId,
-            String submittedAnswer,
             boolean responded,
+            int vadDurationMs,
             int responseSeconds,
             LocalDateTime answeredAt
     ) {}
@@ -88,8 +86,8 @@ public record TrainingSessionResult(
                         q.getPhotoId() == null ? null : q.getPhotoId().toString()))
                 .toList();
         List<AttemptResult> attempts = session.getAttempts().stream()
-                .map(a -> new AttemptResult(a.getQuestionId(), a.getSubmittedAnswer(),
-                        a.isResponded(), a.getResponseSeconds(), a.getAnsweredAt()))
+                .map(a -> new AttemptResult(a.getQuestionId(), a.isResponded(), a.getVadDurationMs(),
+                        a.getResponseSeconds(), a.getAnsweredAt()))
                 .toList();
         QuestionResult current = session.currentQuestion()
                 .map(q -> new QuestionResult(q.getQuestionId(), q.getType(),
@@ -104,7 +102,6 @@ public record TrainingSessionResult(
                 session.getStartMode(),
                 session.getStatus(),
                 session.getCurrentQuestionIndex(),
-                session.getRemainingChanceCount(),
                 current,
                 questions,
                 attempts,
@@ -119,7 +116,6 @@ public record TrainingSessionResult(
                 session.getLastChanceRequestedAt(),
                 grandchildChanceGuideMessage(session),
                 session.isLastGrandchildChanceExpired(),
-                session.isChanceUnusedCompletionBadgeAwarded(),
                 session.getStartedAt(),
                 session.getCompletedAt()
         );

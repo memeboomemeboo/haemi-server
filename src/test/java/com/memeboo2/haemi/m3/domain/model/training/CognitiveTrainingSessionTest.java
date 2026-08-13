@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CognitiveTrainingSessionTest {
 
     @Test
-    @DisplayName("손주 찬스 요청 후 30분이 지나면 힌트 전달을 거부하고 만료 상태로 처리한다")
+    @DisplayName("L2 실시간 요청 후 60초가 지나면 힌트 전달을 거부하고 만료 상태로 처리한다")
     void applyHint_rejectsExpiredGrandchildChance() {
         CognitiveTrainingSession session = session();
         LocalDateTime requestedAt = LocalDateTime.of(2026, 7, 6, 10, 0);
@@ -30,13 +30,13 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("손주 찬스 요청 후 30분 이내에는 힌트를 적용한다")
-    void applyHint_acceptsResponseWithinThirtyMinutes() {
+    @DisplayName("L2 실시간 요청 후 60초 이내에는 힌트를 적용한다")
+    void applyHint_acceptsResponseWithinSixtySeconds() {
         CognitiveTrainingSession session = session();
         LocalDateTime requestedAt = LocalDateTime.of(2026, 7, 6, 10, 0);
 
         session.requestGrandchildChance(Set.of("family-1"), requestedAt);
-        session.applyHint("손녀", "첫 글자는 사입니다", requestedAt.plusMinutes(29));
+        session.applyHint("손녀", "첫 글자는 사입니다", requestedAt.plusSeconds(59));
 
         assertThat(session.getLastChanceStatus()).isEqualTo(GrandchildChanceStatus.ANSWERED);
         assertThat(session.getLastHintResponder()).isEqualTo("손녀");
@@ -44,13 +44,13 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("30분이 지난 손주 찬스는 조회 갱신 후 안내와 문제 패스를 허용한다")
+    @DisplayName("60초가 지난 L2 요청은 조회 갱신 후 안내와 문제 패스를 허용한다")
     void refreshAndPass_expiredGrandchildChance() {
         CognitiveTrainingSession session = session();
         LocalDateTime requestedAt = LocalDateTime.of(2026, 7, 6, 10, 0);
         session.requestGrandchildChance(Set.of("family-1"), requestedAt);
 
-        boolean changed = session.refreshGrandchildChanceStatus(requestedAt.plusMinutes(30));
+        boolean changed = session.refreshGrandchildChanceStatus(requestedAt.plusSeconds(60));
         QuestionAttempt attempt = session.passCurrentQuestion();
 
         assertThat(changed).isTrue();
@@ -61,7 +61,7 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("30분이 지나지 않은 손주 찬스 문제는 건너뛸 수 없다")
+    @DisplayName("60초가 지나지 않은 L2 요청 문제는 건너뛸 수 없다")
     void pass_rejectsPendingGrandchildChance() {
         CognitiveTrainingSession session = session();
         session.requestGrandchildChance(Set.of("family-1"));
@@ -81,8 +81,8 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("손주 찬스를 쓰지 않고 회상을 완료하면 미사용 완료 뱃지를 수여한다")
-    void complete_awardsChanceUnusedCompletionBadge() {
+    @DisplayName("손주 한마디 미사용 완료 뱃지는 더 이상 수여하지 않는다")
+    void complete_doesNotAwardRemovedUnusedBadge() {
         CognitiveTrainingSession session = session();
 
         session.answer("q1", "a", 10);
@@ -90,11 +90,11 @@ class CognitiveTrainingSessionTest {
         session.answer("q3", "c", 10);
 
         assertThat(session.getStatus()).isEqualTo(TrainingSessionStatus.COMPLETED);
-        assertThat(session.isChanceUnusedCompletionBadgeAwarded()).isTrue();
+        assertThat(session.isChanceUnusedCompletionBadgeAwarded()).isFalse();
     }
 
     @Test
-    @DisplayName("손주 찬스를 사용한 회상 완료에는 미사용 완료 뱃지를 수여하지 않는다")
+    @DisplayName("L2 실시간 요청을 사용해도 미사용 완료 뱃지는 수여하지 않는다")
     void complete_doesNotAwardBadgeWhenChanceWasUsed() {
         CognitiveTrainingSession session = session();
 
@@ -149,6 +149,19 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
+    @DisplayName("VAD 응답은 감지 여부와 길이만 보관하고 음성 원문은 보관하지 않는다")
+    void answer_keepsVadMetadataWithoutSpeechText() {
+        CognitiveTrainingSession session = session(2);
+
+        QuestionAttempt attempt = session.answer("q1", true, 2_450);
+
+        assertThat(attempt.isResponded()).isTrue();
+        assertThat(attempt.getVadDurationMs()).isEqualTo(2_450);
+        assertThat(QuestionAttempt.class.getDeclaredFields())
+                .noneMatch(field -> field.getName().equals("submittedAnswer"));
+    }
+
+    @Test
     @DisplayName("마지막 문제에 응답하면 세션을 완료하고 응답률과 평균 응답 시간을 계산한다")
     void answer_lastQuestionCompletesSession() {
         CognitiveTrainingSession session = session(2);
@@ -169,15 +182,17 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("손주 찬스는 세션당 두 번만 사용할 수 있다")
-    void requestGrandchildChance_enforcesLimit() {
+    @DisplayName("L2 실시간 요청은 세션당 횟수 제한 없이 다시 요청할 수 있다")
+    void requestGrandchildChance_hasNoSessionLimit() {
         CognitiveTrainingSession session = session(2);
         Set<String> family = Set.of("family-1");
 
-        assertThat(session.requestGrandchildChance(family)).isEqualTo(1);
-        assertThat(session.requestGrandchildChance(family)).isZero();
-        assertThatThrownBy(() -> session.requestGrandchildChance(family))
-                .isInstanceOf(GrandchildChanceExhaustedException.class);
+        session.requestGrandchildChance(family);
+        session.requestGrandchildChance(family);
+        session.requestGrandchildChance(family);
+
+        assertThat(session.getChanceUsedCount()).isZero();
+        assertThat(session.getLastChanceStatus()).isEqualTo(GrandchildChanceStatus.PENDING);
     }
 
     @Test
@@ -304,20 +319,19 @@ class CognitiveTrainingSessionTest {
     }
 
     @Test
-    @DisplayName("사전 적립형 손주 한마디: 대기 없이 즉시 제공하고 찬스를 소진한다")
-    void serveAccruedHint_appliesImmediatelyAndConsumesChance() {
+    @DisplayName("사전 적립형 손주 한마디는 세션당 횟수 제한 없이 즉시 제공한다")
+    void serveAccruedHint_appliesImmediatelyWithoutSessionLimit() {
         CognitiveTrainingSession session = session();
 
-        int remaining = session.serveAccruedHint("그때 바닷가 기억나세요?", "지민");
+        session.serveAccruedHint("그때 바닷가 기억나세요?", "지민");
 
-        assertThat(remaining).isEqualTo(1);
         assertThat(session.getLastChanceStatus()).isEqualTo(GrandchildChanceStatus.ANSWERED);
         assertThat(session.getLastHintText()).isEqualTo("그때 바닷가 기억나세요?");
         assertThat(session.getLastHintResponder()).isEqualTo("지민");
 
         session.serveAccruedHint("두 번째 힌트", "지호");
-        assertThatThrownBy(() -> session.serveAccruedHint("세 번째 힌트", "지수"))
-                .isInstanceOf(GrandchildChanceExhaustedException.class);
+        session.serveAccruedHint("세 번째 힌트", "지수");
+        assertThat(session.getLastHintText()).isEqualTo("세 번째 힌트");
     }
 
     @Test

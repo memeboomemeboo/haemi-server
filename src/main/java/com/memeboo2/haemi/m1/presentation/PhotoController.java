@@ -12,6 +12,11 @@ import com.memeboo2.haemi.m1.application.service.PhotoApplicationService;
 import com.memeboo2.haemi.m1.domain.model.album.NetworkType;
 import com.memeboo2.haemi.m1.presentation.dto.request.UpdatePhotoMemoRequest;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
+import com.memeboo2.haemi.m3.application.command.AccrueHintCommand;
+import com.memeboo2.haemi.m3.application.dto.AccruedHintResult;
+import com.memeboo2.haemi.m3.application.service.TrainingApplicationService;
+import com.memeboo2.haemi.m3.domain.model.hint.AccrualSource;
+import com.memeboo2.haemi.m3.presentation.dto.request.AccrueHintRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,6 +44,7 @@ import java.util.List;
 public class PhotoController {
 
     private final PhotoApplicationService photoService;
+    private final TrainingApplicationService trainingService;
 
     @Operation(
             summary = "사진 개별 저장 [F1-01]",
@@ -182,6 +188,22 @@ public class PhotoController {
                 tags
         ));
         return ApiResponse.ok(result, "메모가 저장되었습니다.");
+    }
+
+    @Operation(summary = "사진에 손주 한마디 적립 [F1-04/F3-03]")
+    @PostMapping("/{photoId}/hints")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<AccruedHintResult> accruePhotoHint(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @PathVariable String albumId,
+            @PathVariable String photoId,
+            @Valid @RequestBody AccrueHintRequest request) {
+        photoService.requirePhotoMember(albumId, photoId, member.memberId().toString());
+        AccruedHintResult result = trainingService.accrueHint(new AccrueHintCommand(
+                request.elderId(), java.util.UUID.fromString(photoId), request.personName(),
+                request.source() == null ? AccrualSource.MEMO : request.source(),
+                member.memberId().toString(), request.authorName(), request.text()));
+        return ApiResponse.ok(result, "사진에 손주 한마디를 적립했습니다.");
     }
 
     @Operation(

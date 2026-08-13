@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(24);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(32);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -41,6 +41,7 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "difficulty_profiles", "consecutive_no_response")).isFalse();
             assertThat(tableExists(connection, "difficulty_level_changes")).isTrue();
             assertThat(columnExists(connection, "cognitive_training_sessions", "last_chance_status")).isTrue();
+            assertThat(columnExists(connection, "cognitive_training_sessions", "last_chance_recipient_member_id")).isTrue();
             assertThat(columnExists(connection, "cognitive_reports", "viewed_at")).isTrue();
             assertThat(tableExists(connection, "cognitive_report_accuracy_trend")).isTrue();
             assertThat(tableExists(connection, "cognitive_alert_recipient_settings")).isTrue();
@@ -61,6 +62,7 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "cognitive_daily_metrics", "voice_detected_count")).isTrue();
             // #41: 사전 적립형 손주 한마디
             assertThat(tableExists(connection, "accrued_hints")).isTrue();
+            assertThat(columnExists(connection, "accrued_hints", "last_served_at")).isTrue();
             // #42: M2 랭킹 폐기
             assertThat(tableExists(connection, "family_rankings")).isFalse();
             assertThat(tableExists(connection, "ranking_entries")).isFalse();
@@ -92,6 +94,17 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "device_tokens", "elder_id")).isTrue();
             // #86: 회원 식별자 타입을 다른 테이블과 맞춘다
             assertThat(columnType(connection, "device_tokens", "member_id")).isEqualTo("UUID");
+            assertThat(tableExists(connection, "institution_assignments")).isTrue();
+            assertThat(tableExists(connection, "email_verifications")).isTrue();
+            assertThat(columnExists(connection, "members", "email_verified_at")).isTrue();
+            // 사별 기기 명령은 실패해도 아웃박스에 남아 재시도한다.
+            assertThat(tableExists(connection, "device_commands")).isTrue();
+            assertThat(columnExists(connection, "device_commands", "next_attempt_at")).isTrue();
+            // 회상 세션은 음성 원문 대신 VAD 길이만 보관한다.
+            assertThat(columnExists(connection, "training_question_attempts", "submitted_answer")).isFalse();
+            assertThat(columnExists(connection, "training_question_attempts", "vad_duration_ms")).isTrue();
+            assertThat(columnExists(connection, "cognitive_change_alerts", "false_positive_at")).isTrue();
+            assertThat(tableExists(connection, "institution_portal_audit_logs")).isTrue();
         }
     }
 

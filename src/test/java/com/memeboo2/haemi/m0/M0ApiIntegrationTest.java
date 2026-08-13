@@ -58,8 +58,8 @@ class M0ApiIntegrationTest {
 
     @Test
     void familyGroupInvitationAndOwnershipTransferRequireCorrectActors() throws Exception {
-        UUID ownerId = UUID.randomUUID();
-        UUID invitedId = UUID.randomUUID();
+        UUID ownerId = createVerifiedMember("owner");
+        UUID invitedId = createVerifiedMember("invited");
         String ownerToken = token(ownerId);
         String invitedToken = token(invitedId);
         String groupId = createGroup(ownerToken);
@@ -67,7 +67,7 @@ class M0ApiIntegrationTest {
         MvcResult invitation = mockMvc.perform(post("/api/v1/groups/{groupId}/invitations", groupId)
                         .header("Authorization", "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"phoneNumber\":\"010-1234-5678\",\"relation\":\"SON\"}"))
+                        .content("{\"email\":\"%s\",\"relation\":\"SON\"}".formatted(members.findById(invitedId).orElseThrow().getEmail())))
                 .andExpect(status().isCreated())
                 .andReturn();
         String invitationToken = json(invitation).path("data").path("token").asText();
@@ -201,9 +201,11 @@ class M0ApiIntegrationTest {
     @Test
     void ownerWithdrawalAutomaticallyTransfersToOldestFamilyMember() throws Exception {
         UUID ownerId = UUID.randomUUID();
-        UUID successorId = UUID.randomUUID();
+        UUID successorId = createVerifiedMember("successor");
         String ownerEmail = "withdraw-owner-%s@example.com".formatted(ownerId);
-        members.save(Member.create(ownerEmail, "encoded-password", "대표보호자", MemberRole.FAMILY));
+        Member owner = Member.create(ownerEmail, "encoded-password", "대표보호자", MemberRole.FAMILY);
+        owner.verifyEmail();
+        members.save(owner);
         // The persisted aggregate supplies its own ID, so issue the JWT for that identity.
         UUID persistedOwnerId = members.findByEmail(ownerEmail).orElseThrow().getId();
         String ownerToken = token(persistedOwnerId);
@@ -213,7 +215,7 @@ class M0ApiIntegrationTest {
         MvcResult invitation = mockMvc.perform(post("/api/v1/groups/{groupId}/invitations", groupId)
                         .header("Authorization", "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"phoneNumber\":\"010-9876-5432\",\"relation\":\"SON\"}"))
+                        .content("{\"email\":\"%s\",\"relation\":\"SON\"}".formatted(members.findById(successorId).orElseThrow().getEmail())))
                 .andExpect(status().isCreated())
                 .andReturn();
         mockMvc.perform(post("/api/v1/invitations/{token}/accept", json(invitation).path("data").path("token").asText())
@@ -238,6 +240,13 @@ class M0ApiIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return json(result).path("data").path("groupId").asText();
+    }
+
+    private UUID createVerifiedMember(String prefix) {
+        Member member = Member.create(prefix + "-pending@example.com", "encoded", "구성원", MemberRole.FAMILY);
+        member.verifyEmail();
+        Member saved = members.save(member);
+        return saved.getId();
     }
 
     private String createElder(String token, String groupId) throws Exception {

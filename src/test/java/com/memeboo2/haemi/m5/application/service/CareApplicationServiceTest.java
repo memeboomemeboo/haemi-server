@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,7 +72,9 @@ class CareApplicationServiceTest {
         service.processDueReminders(due.plusMinutes(11));
 
         verify(notificationPort).sendToElder(
-                ELDER_ID, "약 드실 시간이에요", "가족의 목소리 알람이 도착했어요.");
+                eq(ELDER_ID), eq("약 드실 시간이에요"), eq("가족의 목소리 알람이 도착했어요."),
+                argThat(data -> "VOICE_ALARM".equals(data.get("type"))
+                        && "voice-key".equals(data.get("voiceKey"))));
         verify(notificationPort, times(1)).sendToGroup(
                 album.getMemberIds(), "알람 무응답",
                 "어르신이 알람을 10분 동안 확인하지 않았습니다.");

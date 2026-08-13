@@ -41,8 +41,17 @@ public class AccessModeController {
                                                @PathVariable UUID recommendationId,
                                                @Valid @RequestBody ApplyAccessModeRequest request) {
         return ApiResponse.ok(accessModeService.applyRecommendation(
-                member.memberId(), elderId, recommendationId, request.entryPath(), request.operatorId()),
+                member.memberId(), elderId, recommendationId, request.entryPath(), member.memberId()),
                 "접근 모드를 적용했어요.");
+    }
+
+    @Operation(summary = "접근 모드 확정 또는 변경 [F0-03]")
+    @PutMapping
+    public ApiResponse<AccessModeResult> applyV3(@AuthenticationPrincipal AuthenticatedMember member,
+                                                  @PathVariable UUID elderId,
+                                                  @RequestParam UUID recommendationId,
+                                                  @Valid @RequestBody ApplyAccessModeRequest request) {
+        return apply(member, elderId, recommendationId, request);
     }
 
     @Operation(summary = "접근 모드 추천 기각 [F0-03]")

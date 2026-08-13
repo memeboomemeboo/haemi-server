@@ -10,12 +10,15 @@ import com.memeboo2.haemi.auth.domain.model.*;
 import com.memeboo2.haemi.auth.domain.port.PasswordEncoderPort;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
 import com.memeboo2.haemi.auth.domain.port.TotpPort;
+import com.memeboo2.haemi.auth.domain.port.VerificationEmailPort;
+import com.memeboo2.haemi.auth.domain.repository.EmailVerificationRepository;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.auth.infrastructure.security.InstitutionAdminProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -28,6 +31,9 @@ public class AuthApplicationService {
     private final TokenPort tokenPort;
     private final TotpPort totpPort;
     private final InstitutionAdminProperties institutionAdminProperties;
+    private final EmailVerificationRepository emailVerifications;
+    private final VerificationEmailPort verificationEmail;
+    private final EmailVerificationResendRateLimiter resendRateLimiter;
 
     // ─────────── 회원가입 ───────────
 
@@ -39,10 +45,43 @@ public class AuthApplicationService {
         }
 
         String encoded = passwordEncoder.encode(cmd.password());
-        Member member = Member.create(normalizedEmail, encoded, cmd.name(), cmd.role());
+        Member member = Member.createUnverified(normalizedEmail, encoded, cmd.name(), cmd.role());
         member = memberRepository.save(member);
+        issueEmailVerification(member);
 
         return MemberResult.from(member);
+    }
+
+    public void confirmEmail(String token) {
+        EmailVerification verification = emailVerifications.findByToken(token)
+                .orElseThrow(EmailVerificationInvalidException::new);
+        verification.consume();
+        Member member = memberRepository.findById(verification.getMemberId())
+                .orElseThrow(() -> new MemberNotFoundException(verification.getMemberId().toString()));
+        member.verifyEmail();
+        memberRepository.save(member);
+        emailVerifications.save(verification);
+    }
+
+    public void resendEmailVerification(String email) {
+        String normalizedEmail = email.trim().toLowerCase();
+        if (!resendRateLimiter.allow(normalizedEmail, LocalDateTime.now())) {
+            return;
+        }
+        Member member = memberRepository.findByEmail(normalizedEmail)
+                .orElse(null);
+        if (member != null && !member.isEmailVerified()
+                && emailVerifications.findLatestByMemberId(member.getId())
+                .map(verification -> verification.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(1)))
+                .orElse(true)) {
+            issueEmailVerification(member);
+        }
+    }
+
+    private void issueEmailVerification(Member member) {
+        emailVerifications.deleteByMemberId(member.getId());
+        EmailVerification verification = emailVerifications.save(EmailVerification.issue(member.getId()));
+        verificationEmail.send(member.getEmail(), verification.getToken());
     }
 
     /**
@@ -111,6 +150,9 @@ public class AuthApplicationService {
         if (!member.isActive()) {
             if (member.getStatus() == MemberStatus.WITHDRAWN) {
                 throw new InvalidCredentialsException();
+            }
+            if (member.getStatus() == MemberStatus.PENDING_VERIFICATION) {
+                throw new EmailNotVerifiedException();
             }
             throw new AccountSuspendedException();
         }

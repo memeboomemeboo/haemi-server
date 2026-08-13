@@ -47,7 +47,7 @@ public class FamilyGroupController {
             @PathVariable UUID groupId,
             @Valid @RequestBody CreateInvitationRequest request) {
         return ApiResponse.ok(familyGroups.invite(member.memberId(), groupId,
-                new CreateInvitationCommand(request.phoneNumber(), request.relation())));
+                new CreateInvitationCommand(request.email(), request.relation())));
     }
 
     @Operation(summary = "초대 수락", description = "초대 링크를 가진 로그인 사용자를 가족 그룹 구성원으로 등록합니다.")

@@ -5,6 +5,7 @@ import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m0.application.command.*;
 import com.memeboo2.haemi.m0.application.dto.*;
 import com.memeboo2.haemi.m0.domain.model.*;
+import com.memeboo2.haemi.m0.domain.port.InstitutionElderAccessQuery;
 import com.memeboo2.haemi.m0.domain.repository.*;
 import com.memeboo2.haemi.m0.infrastructure.security.ElderHealthCrypto;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class ElderApplicationService {
     private final SensitiveTopicRepository sensitiveTopics;
     private final MemberRepository members;
     private final ElderHealthCrypto healthCrypto;
+    private final InstitutionElderAccessQuery institutionAccess;
 
     public ElderResult create(UUID actorId, UUID groupId, CreateElderCommand command) {
         FamilyGroup group = loadGroup(groupId);
@@ -41,9 +43,10 @@ public class ElderApplicationService {
 
     public ElderResult update(UUID actorId, UUID elderId, UpdateElderCommand command) {
         Elder elder = loadElder(elderId);
-        loadGroup(elder.getGroupId()).requireActiveMember(actorId);
+        requireProfileManager(actorId, elder);
         elder.updateProfile(command.name(), command.birthYear(), command.gender(), command.residenceType(), command.orgId());
         if (command.diagnosisLevel() != null) {
+            loadGroup(elder.getGroupId()).requireOwner(actorId);
             String encryptedDiagnosis = healthCrypto.encrypt(command.diagnosisLevel().name());
             elderHealth.findByElderId(elderId)
                     .ifPresentOrElse(
@@ -58,7 +61,7 @@ public class ElderApplicationService {
 
     public List<LifeStoryResult> replaceLifeStories(UUID actorId, UUID elderId, List<LifeStoryItem> items) {
         Elder elder = loadElder(elderId);
-        loadGroup(elder.getGroupId()).requireActiveMember(actorId);
+        requireProfileManager(actorId, elder);
         List<LifeStory> newStories = items == null ? List.of() : items.stream()
                 .map(item -> LifeStory.create(elderId, item.category(), item.value(), item.weight(), item.source()))
                 .toList();
@@ -68,7 +71,7 @@ public class ElderApplicationService {
 
     public SensitiveTopicResult addSensitiveTopic(UUID actorId, UUID elderId, String keyword, String reason) {
         Elder elder = loadElder(elderId);
-        loadGroup(elder.getGroupId()).requireActiveMember(actorId);
+        requireProfileManager(actorId, elder);
         SensitiveTopic topic = SensitiveTopic.create(elderId, keyword, reason, actorId);
         return SensitiveTopicResult.from(sensitiveTopics.save(topic));
     }
@@ -76,7 +79,7 @@ public class ElderApplicationService {
     @Transactional(readOnly = true)
     public ElderCompletenessResult completeness(UUID actorId, UUID elderId) {
         Elder elder = loadElder(elderId);
-        loadGroup(elder.getGroupId()).requireActiveMember(actorId);
+        requireProfileManager(actorId, elder);
         return ElderCompletenessResult.from(elder.calculateCompleteness(lifeStories.findAllByElderId(elderId)));
     }
 
@@ -109,7 +112,10 @@ public class ElderApplicationService {
     @Transactional(readOnly = true)
     public ElderResult get(UUID actorId, UUID elderId) {
         Elder elder = loadElder(elderId);
-        loadGroup(elder.getGroupId()).requireActiveMember(actorId);
+        FamilyGroup group = loadGroup(elder.getGroupId());
+        if (!group.isActiveMember(actorId)) {
+            throw new M0AccessDeniedException("가족 그룹 구성원만 어르신 프로필을 조회할 수 있어요.");
+        }
         return toResult(elder);
     }
 
@@ -124,6 +130,13 @@ public class ElderApplicationService {
 
     private FamilyGroup loadGroup(UUID groupId) {
         return groups.findById(groupId).orElseThrow(() -> new M0NotFoundException("가족 그룹"));
+    }
+
+    private void requireProfileManager(UUID actorId, Elder elder) {
+        if (loadGroup(elder.getGroupId()).isActiveMember(actorId)) {
+            return;
+        }
+        throw new M0AccessDeniedException("가족 그룹 구성원만 프로필을 관리할 수 있어요.");
     }
 
 }

@@ -46,12 +46,27 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이메일 중복")
     })
     @PostMapping("/signup")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<MemberResult> signUp(@RequestBody @Valid SignUpRequest request) {
         MemberResult result = authService.signUp(new SignUpCommand(
                 request.email(), request.password(), request.name(), request.role()
         ));
-        return ApiResponse.ok(result, "회원가입이 완료되었습니다.");
+        return ApiResponse.ok(result, "확인 이메일을 발송했습니다. 링크를 열어 가입을 완료해주세요.");
+    }
+
+    @Operation(summary = "이메일 확인", description = "24시간 안에 한 번만 사용할 수 있는 이메일 확인 링크를 처리합니다.")
+    @GetMapping("/email-verifications/confirm")
+    public ApiResponse<Void> confirmEmail(@RequestParam String token) {
+        authService.confirmEmail(token);
+        return ApiResponse.ok(null, "이메일 확인이 완료되었습니다. 로그인해주세요.");
+    }
+
+    @Operation(summary = "이메일 확인 링크 재발송")
+    @PostMapping("/email-verifications/resend")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApiResponse<Void> resendEmail(@RequestBody @Valid EmailVerificationResendRequest request) {
+        authService.resendEmailVerification(request.email());
+        return ApiResponse.ok(null, "확인 이메일을 발송했습니다.");
     }
 
     // ─────────── 로그인 ───────────

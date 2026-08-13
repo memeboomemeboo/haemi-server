@@ -9,6 +9,7 @@ import com.memeboo2.haemi.m1.domain.repository.AlbumRepository;
 import com.memeboo2.haemi.auth.domain.model.MemberRole;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.m0.domain.model.ElderStatus;
+import com.memeboo2.haemi.m0.domain.model.M0NotFoundException;
 import com.memeboo2.haemi.m0.domain.port.ElderAccessPort;
 import com.memeboo2.haemi.m4.application.command.GenerateCognitiveReportCommand;
 import com.memeboo2.haemi.m4.application.command.RecordReminiscenceMetricCommand;
@@ -214,6 +215,20 @@ public class DashboardApplicationService {
     }
 
     @Transactional
+    public CognitiveAlertResult markAlertFalsePositive(String alertId) {
+        CognitiveChangeAlert alert = alertRepository.findById(parseAlertId(alertId))
+                .orElseThrow(() -> new M0NotFoundException("활동 변화 안내"));
+        alert.markFalsePositive(LocalDateTime.now());
+        return CognitiveAlertResult.from(alertRepository.save(alert));
+    }
+
+    @Transactional(readOnly = true)
+    public CognitiveChangeAlert getAlert(String alertId) {
+        return alertRepository.findById(parseAlertId(alertId))
+                .orElseThrow(() -> new M0NotFoundException("활동 변화 안내"));
+    }
+
+    @Transactional
     public List<CognitiveAlertResult> detectEarlyAlerts(String elderId) {
         ElderAccessPort.ElderAccessSnapshot elder = loadElder(elderId);
         if (!elder.isElderFacingDeliveryAllowed()) {
@@ -241,6 +256,8 @@ public class DashboardApplicationService {
         List<CognitiveDailyMetric> currentWeek = history.subList(7, 14);
         List<CognitiveDailyMetric> lastThreeDays = currentWeek.subList(4, 7);
         CognitiveDailyMetric representative = currentWeek.getFirst();
+        boolean lowerSensitivity = alertRepository.existsFalsePositiveByElderIdSince(
+                elderId, LocalDateTime.now().minusDays(28));
 
         if (currentWeek.subList(2, 7).stream().noneMatch(CognitiveDailyMetric::participated)) {
             return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.NO_REMINISCENCE_5_DAYS,
@@ -250,7 +267,7 @@ public class DashboardApplicationService {
 
         double previousVoiceRate = voiceRate(previousWeek);
         if (previousVoiceRate > 0 && lastThreeDays.stream()
-                .allMatch(metric -> dailyVoiceRate(metric) <= previousVoiceRate * 0.6)) {
+                .allMatch(metric -> dailyVoiceRate(metric) <= previousVoiceRate * (lowerSensitivity ? 0.4 : 0.6))) {
             return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.VOICE_ACTIVITY_DROP,
                     "최근 며칠 사이 목소리가 담긴 회상 기록이 줄었어요. 컨디션과 환경을 함께 살펴봐 주세요.",
                     deliveryRecipients)));
@@ -259,14 +276,16 @@ public class DashboardApplicationService {
         double previousDwell = previousWeek.stream().mapToDouble(CognitiveDailyMetric::getAverageDwellMs)
                 .filter(value -> value > 0).average().orElse(0.0);
         if (previousDwell > 0 && lastThreeDays.stream()
-                .allMatch(metric -> metric.getAverageDwellMs() > 0 && metric.getAverageDwellMs() <= previousDwell * 0.5)) {
+                .allMatch(metric -> metric.getAverageDwellMs() > 0
+                        && metric.getAverageDwellMs() <= previousDwell * (lowerSensitivity ? 0.3 : 0.5))) {
             return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.DWELL_TIME_DROP,
                     "요즘 사진을 함께 보는 시간이 줄었어요. 좋아하시는 사진으로 이야기를 시작해보셔도 좋아요.",
                     deliveryRecipients)));
         }
 
         if (lastThreeDays.stream().allMatch(metric -> metric.getHintPlaybackCount() > 0
-                && metric.getHintNoResponseCount() / (double) metric.getHintPlaybackCount() >= 0.8)) {
+                && metric.getHintNoResponseCount() / (double) metric.getHintPlaybackCount()
+                >= (lowerSensitivity ? 0.9 : 0.8))) {
             return List.of(CognitiveAlertResult.from(createAlert(representative, AlertType.HINT_NO_RESPONSE_HIGH,
                     "한마디를 들으신 뒤에도 조용한 시간이 길었어요. 다음 회상에는 더 익숙한 사진을 골라보셔도 좋아요.",
                     deliveryRecipients)));
@@ -429,6 +448,14 @@ public class DashboardApplicationService {
                     .orElseThrow(() -> new CognitiveReportNotFoundException(reportId));
         } catch (IllegalArgumentException invalidId) {
             throw new CognitiveReportNotFoundException(reportId);
+        }
+    }
+
+    private UUID parseAlertId(String alertId) {
+        try {
+            return UUID.fromString(alertId);
+        } catch (IllegalArgumentException invalidId) {
+            throw new M0NotFoundException("활동 변화 안내");
         }
     }
 

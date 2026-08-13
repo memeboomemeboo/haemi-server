@@ -1,5 +1,6 @@
 package com.memeboo2.haemi.m3.presentation;
 
+import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m3.application.command.*;
 import com.memeboo2.haemi.m3.application.dto.AnswerResult;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "M3-Training", description = "F3-01 일일 인지 훈련 / F3-02 난이도 적응 / F3-03 손주 찬스")
@@ -51,14 +53,14 @@ public class TrainingController {
 
     @Operation(
             summary = "발화 응답 제출 [F3-01/F3-02]",
-            description = "어르신의 발화(음성 응답)와 반응 시간을 기록합니다. 세션 완료 시 난이도 프로필을 자동 조정합니다."
+            description = "단말 VAD의 발화 감지 여부와 길이만 기록합니다. 음성 원문과 전사문은 서버로 전송하거나 저장하지 않습니다."
     )
     @PostMapping("/{sessionId}/answers")
     public ApiResponse<AnswerResult> answer(
             @PathVariable String sessionId,
             @Valid @RequestBody AnswerTrainingQuestionRequest request) {
         return ApiResponse.ok(trainingService.answerQuestion(new AnswerTrainingQuestionCommand(
-                sessionId, request.questionId(), request.submittedAnswer(), request.responseSeconds())));
+                sessionId, request.questionId(), request.voiceDetected(), request.vadDurationMs())));
     }
 
     @Operation(
@@ -78,8 +80,8 @@ public class TrainingController {
             summary = "손주 한마디 즉시 제공 [F3-03]",
             description = """
                     사전 적립된 손주 한마디를 대기 없이 즉시 제공합니다.
-                    L1(사진 특정) → L2(어르신 일반) → L3(시스템 기본) 순으로 폴백하며, 항상 하나는 제공됩니다.
-                    세션당 최대 2회까지 사용할 수 있습니다.
+                    L1(사진 특정) 힌트가 없으면 L3(시스템 기본) 문구를 즉시 제공합니다.
+                    온라인 가족에게 묻는 L2는 별도 실시간 요청 API로 처리하며, 재생 횟수 제한은 없습니다.
                     """
     )
     @PostMapping("/{sessionId}/hints/served")
@@ -89,34 +91,23 @@ public class TrainingController {
         return ApiResponse.ok(result, "손주 한마디를 들려드립니다.");
     }
 
-    @Operation(
-            summary = "손주 찬스 요청 [F3-03] (deprecated)",
-            description = "실시간 소진형 요청. 사전 적립형(POST /{sessionId}/hints/served)으로 대체 예정입니다."
-    )
-    @Deprecated
-    @PostMapping("/{sessionId}/chances")
-    public ApiResponse<ChanceResult> requestChance(
-            @PathVariable String sessionId,
-            @Valid @RequestBody RequestGrandchildChanceRequest request) {
+    @Operation(summary = "온라인 가족에게 실시간 힌트 요청 [F3-03]",
+            description = "사진별 사전 적립 힌트가 없을 때 최근 하트비트가 있는 가족 한 명에게만 요청합니다. 60초 내 응답이 없으면 시스템 안내로 전환하세요.")
+    @PostMapping("/{sessionId}/hints/realtime-request")
+    public ApiResponse<ChanceResult> requestRealtimeHint(@PathVariable String sessionId) {
         return ApiResponse.ok(trainingService.requestGrandchildChance(
-                new RequestGrandchildChanceCommand(sessionId, request.elderId())));
+                new RequestGrandchildChanceCommand(sessionId, null)));
     }
 
-    @Operation(summary = "가족 힌트 전달 [F3-03]")
-    @PostMapping("/{sessionId}/hints")
-    public ApiResponse<TrainingSessionResult> provideHint(
+    @Operation(summary = "실시간 힌트 응답 [F3-03]")
+    @PostMapping("/{sessionId}/hints/realtime-response")
+    public ApiResponse<TrainingSessionResult> provideRealtimeHint(
             @PathVariable String sessionId,
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Valid @RequestBody ProvideHintRequest request) {
         TrainingSessionResult result = trainingService.provideHint(new ProvideHintCommand(
-                sessionId, request.responderMemberId(), request.responderName(), request.hintText()));
-        return ApiResponse.ok(result, "힌트를 전달했습니다.");
+                sessionId, member.memberId().toString(), request.responderName(), request.hintText()));
+        return ApiResponse.ok(result, "가족의 한마디를 전달했어요.");
     }
 
-    @Operation(summary = "30분 미응답 문제 건너뛰기 [F3-03]")
-    @PostMapping("/{sessionId}/pass")
-    public ApiResponse<TrainingSessionResult> passQuestion(@PathVariable String sessionId) {
-        TrainingSessionResult result = trainingService.passQuestion(
-                new PassTrainingQuestionCommand(sessionId));
-        return ApiResponse.ok(result, "문제를 건너뛰었습니다.");
-    }
 }

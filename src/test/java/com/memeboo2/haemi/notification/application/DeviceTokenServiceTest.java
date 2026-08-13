@@ -115,4 +115,17 @@ class DeviceTokenServiceTest {
 
         verify(deviceTokens, never()).deleteByToken(any());
     }
+
+    @Test
+    @DisplayName("본인 앱 하트비트는 최근 사용 시각을 갱신한다")
+    void heartbeatRefreshesOwnTokenActivity() {
+        DeviceToken existing = DeviceToken.register("tok-1", MEMBER, DevicePlatform.ANDROID,
+                LocalDateTime.now().minusMinutes(5));
+        when(deviceTokens.findByToken("tok-1")).thenReturn(Optional.of(existing));
+
+        service.heartbeat(MEMBER, "tok-1");
+
+        assertThat(existing.getLastUsedAt()).isAfter(LocalDateTime.now().minusSeconds(2));
+        verify(deviceTokens).save(existing);
+    }
 }

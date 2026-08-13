@@ -20,6 +20,8 @@ import com.memeboo2.haemi.m3.application.query.GetTodayTrainingSessionQuery;
 import com.memeboo2.haemi.m3.domain.event.DifficultyLevelChangedEvent;
 import com.memeboo2.haemi.m3.domain.model.training.*;
 import com.memeboo2.haemi.m3.domain.port.CognitiveQuestionGeneratorPort;
+import com.memeboo2.haemi.m3.domain.port.OnlineFamilyMemberQuery;
+import com.memeboo2.haemi.m3.domain.port.HintPlaybackSafetyQuery;
 import com.memeboo2.haemi.m3.domain.port.TrainingSpeechSynthesisPort;
 import com.memeboo2.haemi.m3.domain.repository.DifficultyPolicyRepository;
 import com.memeboo2.haemi.m3.domain.repository.DifficultyProfileRepository;
@@ -50,6 +52,8 @@ public class TrainingApplicationService {
     private final ApplicationEventPublisher eventPublisher;
     private final ElderStatusQuery elderStatusQuery;
     private final ElderMembershipQuery elderMembershipQuery;
+    private final OnlineFamilyMemberQuery onlineFamilyMembers;
+    private final HintPlaybackSafetyQuery hintPlaybackSafety;
 
     private static final int MIN_PHOTO_COUNT = 5;
 
@@ -107,8 +111,9 @@ public class TrainingApplicationService {
     @Transactional
     public AnswerResult answerQuestion(AnswerTrainingQuestionCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         QuestionAttempt attempt = session.answer(
-                command.questionId(), command.submittedAnswer(), command.responseSeconds());
+                command.questionId(), command.voiceDetected(), command.vadDurationMs());
 
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             adjustDifficulty(session);
@@ -132,27 +137,46 @@ public class TrainingApplicationService {
         return AccruedHintResult.from(accruedHintRepository.save(hint));
     }
 
-    // F3-03: 적립 힌트 즉시 제공 (L1 사진특정 → L2 어르신일반 → L3 시스템기본)
+    // F3-03: 적립 힌트 즉시 제공 (L1 사진특정 → L3 시스템기본)
     @Transactional
     public HintServeResult serveGrandchildHint(ServeGrandchildHintCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         var photoId = session.currentQuestion()
                 .map(TrainingQuestion::getPhotoId)
                 .orElse(null);
+        LocalDateTime now = LocalDateTime.now();
         var l1 = photoId == null
                 ? java.util.Optional.<AccruedHint>empty()
-                : accruedHintRepository.findLatestActiveByPhoto(session.getElderId(), photoId);
-        var l2 = accruedHintRepository.findLatestActiveGeneral(session.getElderId());
-        ResolvedHint resolved = HintBankResolver.resolve(l1, l2);
-        int remaining = session.serveAccruedHint(resolved.text(), resolved.responderName());
+                : accruedHintRepository.findLatestReusableByPhoto(session.getElderId(), photoId, now.minusDays(14));
+        var safeL1 = filterUnsafeHint(l1);
+        ResolvedHint resolved = HintBankResolver.resolve(safeL1);
+        session.serveAccruedHint(resolved.text(), resolved.responderName());
+        safeL1.ifPresent(hint -> {
+            hint.markServed(now);
+            accruedHintRepository.save(hint);
+        });
         sessionRepository.save(session);
-        return new HintServeResult(toResult(session), resolved.tier(), resolved.text(), remaining);
+        return new HintServeResult(toResult(session), resolved.tier(), resolved.text());
     }
 
-    // F3-03: 실시간 소진형 손주 찬스는 폐기됨(P4/v3.0). 사전 적립형(serveGrandchildHint)만 사용한다.
+    // F3-03 L2: 온라인 상태인 가족 한 명에게만 실시간 힌트를 요청하고 60초 동안 응답을 기다린다.
     @Transactional
     public ChanceResult requestGrandchildChance(RequestGrandchildChanceCommand command) {
-        throw new GrandchildChanceDiscontinuedException();
+        CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
+        LocalDateTime now = LocalDateTime.now();
+        if (session.isGrandchildChancePending() && !session.refreshGrandchildChanceStatus(now)) {
+            return new ChanceResult(session.getId().toString(), "가족의 한마디를 기다리고 있어요.");
+        }
+        return onlineFamilyMembers.findOneOnlineMemberId(session.getElderId(), now.minusMinutes(2))
+                .map(memberId -> {
+                    session.requestGrandchildChance(java.util.Set.of(memberId.toString()));
+                    sessionRepository.save(session);
+                    return new ChanceResult(session.getId().toString(), "온라인 가족에게 한마디를 요청했어요.");
+                })
+                .orElseGet(() -> new ChanceResult(session.getId().toString(),
+                        "온라인 가족이 없어 시스템 안내를 들려드려요."));
     }
 
     // F3-03: 가족 힌트 전달
@@ -164,7 +188,7 @@ public class TrainingApplicationService {
         if (!album.isMember(command.responderMemberId())) {
             throw new GrandchildChanceResponderNotMemberException();
         }
-        session.applyHint(command.responderName(), command.hintText());
+        session.applyHint(command.responderMemberId(), command.responderName(), command.hintText());
         sessionRepository.save(session);
         return toResult(session);
     }
@@ -173,6 +197,7 @@ public class TrainingApplicationService {
     @Transactional
     public TrainingSessionResult recordNoResponse(RecordNoResponseCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         session.recordNoResponse(command.questionId());
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             adjustDifficulty(session);
@@ -184,6 +209,7 @@ public class TrainingApplicationService {
     @Transactional
     public TrainingSessionResult passQuestion(PassTrainingQuestionCommand command) {
         CognitiveTrainingSession session = loadSessionOrThrow(command.sessionId());
+        requireSessionDispatchable(session);
         session.passCurrentQuestion();
         if (session.getStatus() == TrainingSessionStatus.COMPLETED) {
             adjustDifficulty(session);
@@ -203,9 +229,31 @@ public class TrainingApplicationService {
         }
     }
 
+    private java.util.Optional<AccruedHint> filterUnsafeHint(java.util.Optional<AccruedHint> candidate) {
+        if (candidate.isEmpty() || hintPlaybackSafety.isPlayable(
+                candidate.get().getElderId(), candidate.get().getPhotoId(),
+                candidate.get().getAuthorMemberId(), candidate.get().getPersonName())) {
+            return candidate;
+        }
+        AccruedHint unsafe = candidate.get();
+        unsafe.suppress();
+        accruedHintRepository.save(unsafe);
+        log.warn("숨김 또는 사별 인물과 관련된 힌트 재생을 차단했습니다: hintId={}", unsafe.getId());
+        return java.util.Optional.empty();
+    }
+
     private CognitiveTrainingSession loadSessionOrThrow(String sessionId) {
         return sessionRepository.findById(TrainingSessionId.of(sessionId))
                 .orElseThrow(() -> new TrainingSessionNotFoundException(sessionId));
+    }
+
+    private void requireSessionDispatchable(CognitiveTrainingSession session) {
+        if (elderStatusQuery.isDispatchable(session.getElderId())) {
+            return;
+        }
+        session.abandonForElderStatus();
+        sessionRepository.save(session);
+        throw new SessionStartBlockedByElderStatusException(session.getElderId());
     }
 
     private Album loadEligibleAlbum(StartTrainingSessionCommand command) {

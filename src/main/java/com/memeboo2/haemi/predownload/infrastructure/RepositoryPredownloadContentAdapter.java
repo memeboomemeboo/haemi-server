@@ -44,13 +44,10 @@ public class RepositoryPredownloadContentAdapter implements PredownloadContentPo
         trainingSessionRepository.findByElderIdAndSessionDate(elderId, date)
                 .ifPresent(session -> collectCardsAndPhotos(session, cardKeys, photoIds));
 
-        // 세션 사진별 힌트(L1) + 일반 최신 힌트(L2)를 선다운로드 대상에 포함
+        // 세션 사진별 사전 적립 힌트(L1)를 선다운로드 대상에 포함한다.
         photoIds.forEach(photoId ->
                 accruedHintRepository.findLatestActiveByPhoto(elderId, photoId)
                         .ifPresent(hint -> hintKeys.add(hint.getId().toString())));
-        accruedHintRepository.findLatestActiveGeneral(elderId)
-                .ifPresent(hint -> hintKeys.add(hint.getId().toString()));
-
         List<String> photoKeys = photoIds.stream().map(UUID::toString).toList();
         return PredownloadBundle.of(elderId, date, cardKeys, photoKeys, new ArrayList<>(hintKeys));
     }
