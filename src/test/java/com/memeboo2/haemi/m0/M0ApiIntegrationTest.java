@@ -164,6 +164,47 @@ class M0ApiIntegrationTest {
     }
 
     @Test
+    void homeContextResolvesElderAndGroupFromTheTokenSubject() throws Exception {
+        UUID familyMemberId = UUID.randomUUID();
+        String familyToken = token(familyMemberId);
+        String groupId = createGroup(familyToken);
+        String elderId = createElder(familyToken, groupId);
+        Member elderMember = members.save(Member.create(
+                "elder-home-%s@example.com".formatted(UUID.randomUUID()), "encoded-password", "어르신", MemberRole.ELDER));
+
+        mockMvc.perform(put("/api/v1/elders/{elderId}/member", elderId)
+                        .header("Authorization", "Bearer " + familyToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"%s\"}".formatted(elderMember.getId())))
+                .andExpect(status().isOk());
+
+        // 홈 요청에는 elderId·groupId를 보내지 않는다. 서버가 토큰 memberId로 직접 해석한다.
+        mockMvc.perform(get("/api/v1/home")
+                        .header("Authorization", "Bearer " + familyToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberId").value(familyMemberId.toString()))
+                .andExpect(jsonPath("$.data.role").value("FAMILY"))
+                .andExpect(jsonPath("$.data.groupId").value(groupId))
+                .andExpect(jsonPath("$.data.elderId").value(elderId));
+
+        mockMvc.perform(get("/api/v1/home")
+                        .header("Authorization", "Bearer " + token(elderMember.getId(), MemberRole.ELDER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberId").value(elderMember.getId().toString()))
+                .andExpect(jsonPath("$.data.role").value("ELDER"))
+                .andExpect(jsonPath("$.data.groupId").value(groupId))
+                .andExpect(jsonPath("$.data.elderId").value(elderId));
+    }
+
+    @Test
+    void homeContextReturnsNotFoundUntilTheTokenSubjectIsConnectedToAGroup() throws Exception {
+        mockMvc.perform(get("/api/v1/home")
+                        .header("Authorization", "Bearer " + token(UUID.randomUUID())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
     void hiddenPersonIsImmediatelyExcludedFromPhotoContentContext() throws Exception {
         UUID ownerId = UUID.randomUUID();
         String ownerToken = token(ownerId);
@@ -295,7 +336,11 @@ class M0ApiIntegrationTest {
     }
 
     private String token(UUID memberId) {
-        return tokenPort.generateAccessToken(memberId, "m0-%s@example.com".formatted(memberId), MemberRole.FAMILY);
+        return token(memberId, MemberRole.FAMILY);
+    }
+
+    private String token(UUID memberId, MemberRole role) {
+        return tokenPort.generateAccessToken(memberId, "m0-%s@example.com".formatted(memberId), role);
     }
 
     private JsonNode json(MvcResult result) throws Exception {

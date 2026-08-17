@@ -1,6 +1,7 @@
 package com.memeboo2.haemi.m0.infrastructure.persistence;
 
 import com.memeboo2.haemi.m0.domain.model.FamilyGroup;
+import com.memeboo2.haemi.m0.domain.model.FamilyGroupMember;
 import com.memeboo2.haemi.m0.domain.model.GroupMemberStatus;
 import com.memeboo2.haemi.m0.domain.repository.FamilyGroupRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,12 @@ public class FamilyGroupRepositoryAdapter implements FamilyGroupRepository {
     @Override
     public Optional<FamilyGroup> findByOwnerMemberId(UUID ownerMemberId) {
         return groups.findByOwnerMemberId(ownerMemberId);
+    }
+
+    @Override
+    public Optional<FamilyGroup> findActiveByMemberId(UUID memberId) {
+        return members.findByMemberIdAndStatus(memberId, GroupMemberStatus.ACTIVE)
+                .map(FamilyGroupMember::getGroup);
     }
 
     @Override
