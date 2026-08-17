@@ -7,5 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.UUID;
 
 public interface JpaFamilyGroupMemberRepository extends JpaRepository<FamilyGroupMember, UUID> {
+    java.util.Optional<FamilyGroupMember> findByMemberIdAndStatus(UUID memberId, GroupMemberStatus status);
+
     boolean existsByMemberIdAndStatus(UUID memberId, GroupMemberStatus status);
 }

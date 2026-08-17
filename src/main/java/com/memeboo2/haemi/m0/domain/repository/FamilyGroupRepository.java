@@ -10,5 +10,6 @@ public interface FamilyGroupRepository {
     Optional<FamilyGroup> findById(UUID groupId);
     Optional<FamilyGroup> findByIdForUpdate(UUID groupId);
     Optional<FamilyGroup> findByOwnerMemberId(UUID ownerMemberId);
+    Optional<FamilyGroup> findActiveByMemberId(UUID memberId);
     boolean existsActiveMembershipByMemberId(UUID memberId);
 }
