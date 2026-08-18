@@ -31,6 +31,7 @@ class ElderStatusApplicationServiceTest {
     @Mock ElderRepository elders;
     @Mock FamilyGroupRepository groups;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock ElderJoinApplicationService elderJoin;
 
     ElderStatusApplicationService service;
 
@@ -39,7 +40,7 @@ class ElderStatusApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ElderStatusApplicationService(elders, groups, eventPublisher);
+        service = new ElderStatusApplicationService(elders, groups, eventPublisher, elderJoin);
         ReflectionTestUtils.setField(service, "silentDays", 7);
         ReflectionTestUtils.setField(service, "recoveryWindowHours", 48);
 
