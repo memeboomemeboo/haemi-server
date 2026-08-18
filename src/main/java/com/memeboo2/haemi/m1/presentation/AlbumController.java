@@ -10,6 +10,7 @@ import com.memeboo2.haemi.m1.application.dto.TimelineResult;
 import com.memeboo2.haemi.m1.application.query.GetAlbumQuery;
 import com.memeboo2.haemi.m1.application.query.GetTimelineQuery;
 import com.memeboo2.haemi.m1.application.service.AlbumApplicationService;
+import com.memeboo2.haemi.m1.domain.model.album.AlbumTimePeriod;
 import com.memeboo2.haemi.m1.presentation.dto.request.CreateAlbumRequest;
 import com.memeboo2.haemi.m1.presentation.dto.request.InviteMemberRequest;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
@@ -25,6 +26,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Tag(name = "M1-Album", description = "F1-03 가족 공동 기억 앨범 / F1-06 연관 이미지 타임라인")
 @RestController
@@ -122,6 +126,20 @@ public class AlbumController {
         albumService.acceptInvite(new AcceptInviteCommand(albumId, member.memberId().toString()));
         return ApiResponse.ok(null, "초대를 수락했습니다.");
     }
+
+    @Operation(
+            summary = "사진 시기 옵션 조회",
+            description = "사진 등록 시 선택 가능한 시기 값 목록을 반환합니다. 클라이언트는 이 API 값을 따릅니다."
+    )
+    @GetMapping("/time-periods")
+    public ApiResponse<List<TimePeriodResponse>> getTimePeriods() {
+        List<TimePeriodResponse> list = Arrays.stream(AlbumTimePeriod.values())
+                .map(p -> new TimePeriodResponse(p.name(), p.getLabel()))
+                .toList();
+        return ApiResponse.ok(list);
+    }
+
+    public record TimePeriodResponse(String key, String label) {}
 
     @Operation(
             summary = "타임라인 조회 [F1-06]",

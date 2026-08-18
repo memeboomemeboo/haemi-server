@@ -49,8 +49,8 @@ public class PersonController {
                                             @PathVariable UUID personId,
                                             @Valid @RequestBody UpdatePersonRequest request) {
         return ApiResponse.ok(persons.update(member.memberId(), personId,
-                new UpdatePersonCommand(request.lifeStatus(), request.deceasedAt(), request.visibility(),
-                        request.nickname(), request.profilePhotoId())));
+                new UpdatePersonCommand(request.relation(), request.lifeStatus(), request.deceasedAt(),
+                        request.visibility(), request.nickname(), request.profilePhotoId())));
     }
 
     @Operation(summary = "인물 숨김/비활성화", description = "사진 태그는 보존하고 이후 어르신 노출만 차단합니다.")

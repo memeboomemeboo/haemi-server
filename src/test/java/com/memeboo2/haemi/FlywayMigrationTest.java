@@ -20,7 +20,7 @@ class FlywayMigrationTest {
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(33);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(34);
         assertThat(flyway.migrate().migrationsExecuted).isZero();
 
         try (var connection = DriverManager.getConnection(JDBC_URL, "sa", "")) {
@@ -111,6 +111,9 @@ class FlywayMigrationTest {
             assertThat(columnExists(connection, "elders", "phone_hash")).isTrue();
             assertThat(tableExists(connection, "elder_sessions")).isTrue();
             assertThat(columnExists(connection, "elder_sessions", "rolling_expires_at")).isTrue();
+            // V34: 어르신 설정 & 가족 추억 댓글
+            assertThat(tableExists(connection, "elder_display_settings")).isTrue();
+            assertThat(tableExists(connection, "memory_post_comments")).isTrue();
         }
     }
 

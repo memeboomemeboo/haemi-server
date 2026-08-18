@@ -2,10 +2,13 @@ package com.memeboo2.haemi.m2.presentation;
 
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m2.application.command.*;
+import com.memeboo2.haemi.m2.application.dto.MemoryPostCommentResult;
 import com.memeboo2.haemi.m2.application.dto.MemoryPostResult;
 import com.memeboo2.haemi.m2.application.query.GeneratePoemDraftQuery;
 import com.memeboo2.haemi.m2.application.service.MemoryPostApplicationService;
+import com.memeboo2.haemi.m2.application.service.MemoryPostCommentService;
 import com.memeboo2.haemi.m2.domain.model.post.ReplyType;
+import com.memeboo2.haemi.m2.presentation.dto.request.CreateCommentRequest;
 import com.memeboo2.haemi.m2.presentation.dto.request.CreateMemoryPostRequest;
 import com.memeboo2.haemi.m2.presentation.dto.request.ReplyToPostRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +26,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+
+
 @Tag(name = "M2-Post", description = "F2-01 추억글 작성 / F2-02 어르신 알림 / F2-03 어르신 답변")
 @RestController
 @RequestMapping("/api/v1/albums/{albumId}/posts")
@@ -30,6 +35,7 @@ import java.util.List;
 public class MemoryPostController {
 
     private final MemoryPostApplicationService postService;
+    private final MemoryPostCommentService commentService;
 
     @Operation(
             summary = "추억글 작성 [F2-01]",
@@ -185,5 +191,35 @@ public class MemoryPostController {
             @PathVariable String postId,
             @RequestParam String memberId) {
         postService.deletePost(new DeletePostCommand(postId, memberId));
+    }
+
+    @Operation(summary = "댓글 작성 [F2-01]", description = "가족이 추억글에 댓글을 작성합니다. 최대 200자.")
+    @PostMapping("/{postId}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<MemoryPostCommentResult> addComment(
+            @PathVariable String albumId,
+            @PathVariable String postId,
+            @Valid @RequestBody CreateCommentRequest request) {
+        return ApiResponse.ok(commentService.addComment(postId, request.memberId(),
+                request.memberName(), request.relation(), request.content()), "댓글이 작성되었습니다.");
+    }
+
+    @Operation(summary = "댓글 목록 조회 [F2-01]", description = "추억글의 댓글 목록을 작성일 오름차순으로 반환합니다.")
+    @GetMapping("/{postId}/comments")
+    public ApiResponse<List<MemoryPostCommentResult>> listComments(
+            @PathVariable String albumId,
+            @PathVariable String postId) {
+        return ApiResponse.ok(commentService.listComments(postId));
+    }
+
+    @Operation(summary = "댓글 삭제 [F2-01]", description = "본인이 작성한 댓글만 삭제할 수 있습니다.")
+    @DeleteMapping("/{postId}/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteComment(
+            @PathVariable String albumId,
+            @PathVariable String postId,
+            @PathVariable String commentId,
+            @RequestParam String memberId) {
+        commentService.deleteComment(commentId, memberId);
     }
 }

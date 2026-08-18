@@ -72,11 +72,13 @@ public class DashboardController {
             @AuthenticationPrincipal AuthenticatedMember member,
             @RequestParam String elderId,
             @RequestParam(required = false) String albumId,
-            @RequestParam(defaultValue = "WEEKLY") ReportPeriod period,
+            @RequestParam(required = false) ReportPeriod period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "IN_APP") ReportDeliveryMethod deliveryMethod) {
         requireDashboardAccess(member, elderId);
         return ApiResponse.ok(dashboardService.generateReport(
-                new GenerateCognitiveReportCommand(elderId, albumId, period, deliveryMethod)));
+                new GenerateCognitiveReportCommand(elderId, albumId, period, from, to, deliveryMethod)));
     }
 
     @Operation(summary = "회상 리포트 열람 기록 [F4-01]")
