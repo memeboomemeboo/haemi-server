@@ -5,6 +5,7 @@ import com.memeboo2.haemi.m0.application.command.*;
 import com.memeboo2.haemi.m0.application.dto.*;
 import com.memeboo2.haemi.m0.application.service.ElderApplicationService;
 import com.memeboo2.haemi.m0.presentation.dto.request.*;
+import com.memeboo2.haemi.m0.presentation.dto.request.SaveElderDisplaySettingRequest;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -99,5 +100,24 @@ public class ElderController {
     public ApiResponse<ElderResult> get(@AuthenticationPrincipal AuthenticatedMember member,
                                         @PathVariable UUID elderId) {
         return ApiResponse.ok(elders.get(member.memberId(), elderId));
+    }
+
+    @Operation(summary = "어르신 설정 저장", description = "폰트 크기·음성 기능·알림 설정을 저장합니다. 미입력 필드는 기존 값을 유지합니다.")
+    @PutMapping("/{elderId}/settings")
+    public ApiResponse<ElderDisplaySettingResult> saveSettings(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @PathVariable UUID elderId,
+            @RequestBody SaveElderDisplaySettingRequest request) {
+        return ApiResponse.ok(elders.saveDisplaySetting(member.memberId(), elderId,
+                request.fontSizeLevel(), request.voiceFeatureEnabled(), request.notificationEnabled()),
+                "설정이 저장되었습니다.");
+    }
+
+    @Operation(summary = "어르신 설정 조회")
+    @GetMapping("/{elderId}/settings")
+    public ApiResponse<ElderDisplaySettingResult> getSettings(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @PathVariable UUID elderId) {
+        return ApiResponse.ok(elders.getDisplaySetting(member.memberId(), elderId));
     }
 }

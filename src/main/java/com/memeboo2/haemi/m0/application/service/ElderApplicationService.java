@@ -7,6 +7,7 @@ import com.memeboo2.haemi.m0.application.dto.*;
 import com.memeboo2.haemi.m0.domain.model.*;
 import com.memeboo2.haemi.m0.domain.port.InstitutionElderAccessQuery;
 import com.memeboo2.haemi.m0.domain.repository.*;
+import com.memeboo2.haemi.m0.domain.repository.ElderDisplaySettingRepository;
 import com.memeboo2.haemi.m0.infrastructure.security.ElderHealthCrypto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class ElderApplicationService {
     private final MemberRepository members;
     private final ElderHealthCrypto healthCrypto;
     private final InstitutionElderAccessQuery institutionAccess;
+    private final ElderDisplaySettingRepository displaySettings;
 
     public ElderResult create(UUID actorId, UUID groupId, CreateElderCommand command) {
         FamilyGroup group = loadGroup(groupId);
@@ -130,6 +132,27 @@ public class ElderApplicationService {
 
     private FamilyGroup loadGroup(UUID groupId) {
         return groups.findById(groupId).orElseThrow(() -> new M0NotFoundException("가족 그룹"));
+    }
+
+    public ElderDisplaySettingResult saveDisplaySetting(UUID actorId, UUID elderId,
+                                                        Integer fontSizeLevel,
+                                                        Boolean voiceFeatureEnabled,
+                                                        Boolean notificationEnabled) {
+        Elder elder = loadElder(elderId);
+        requireProfileManager(actorId, elder);
+        ElderDisplaySetting setting = displaySettings.findByElderId(elderId)
+                .orElseGet(() -> ElderDisplaySetting.createDefault(elderId));
+        setting.update(fontSizeLevel, voiceFeatureEnabled, notificationEnabled);
+        return ElderDisplaySettingResult.from(displaySettings.save(setting));
+    }
+
+    @Transactional(readOnly = true)
+    public ElderDisplaySettingResult getDisplaySetting(UUID actorId, UUID elderId) {
+        Elder elder = loadElder(elderId);
+        requireProfileManager(actorId, elder);
+        ElderDisplaySetting setting = displaySettings.findByElderId(elderId)
+                .orElseGet(() -> ElderDisplaySetting.createDefault(elderId));
+        return ElderDisplaySettingResult.from(setting);
     }
 
     private void requireProfileManager(UUID actorId, Elder elder) {

@@ -38,13 +38,19 @@ public class AlbumApplicationService {
     private final ElderRepository elderRepository;
     private final FamilyGroupRepository familyGroupRepository;
 
-    // F1-03: 앨범 생성
+    // F1-03: 앨범 생성 (그룹 기존 구성원 전원 자동 초대)
     @Transactional
     public AlbumResult createAlbum(CreateAlbumCommand command) {
-        validateAlbumTarget(command);
+        FamilyGroup group = validateAlbumTarget(command);
         Album album = Album.create(command.elderProfileId(), command.groupId(), command.ownerMemberId());
+        List<String> otherMembers = group.getActiveMembers().stream()
+                .map(m -> m.getMemberId().toString())
+                .filter(id -> !id.equals(command.ownerMemberId()))
+                .toList();
+        otherMembers.forEach(album::inviteMember);
         albumRepository.save(album);
-        log.info("앨범 생성: albumId={}, groupId={}", album.getAlbumId(), command.groupId());
+        log.info("앨범 생성: albumId={}, groupId={}, 자동초대={}명",
+                album.getAlbumId(), command.groupId(), otherMembers.size());
         return AlbumResult.from(album);
     }
 
@@ -142,7 +148,7 @@ public class AlbumApplicationService {
                 .orElseThrow(() -> new AlbumNotFoundException(albumId));
     }
 
-    private void validateAlbumTarget(CreateAlbumCommand command) {
+    private FamilyGroup validateAlbumTarget(CreateAlbumCommand command) {
         UUID elderId = parseUuid(command.elderProfileId());
         UUID groupId = parseUuid(command.groupId());
         UUID ownerMemberId = parseUuid(command.ownerMemberId());
@@ -158,6 +164,7 @@ public class AlbumApplicationService {
         if (albumRepository.existsByGroupId(groupId.toString())) {
             throw new AlbumAlreadyExistsException();
         }
+        return group;
     }
 
     private UUID parseUuid(String value) {

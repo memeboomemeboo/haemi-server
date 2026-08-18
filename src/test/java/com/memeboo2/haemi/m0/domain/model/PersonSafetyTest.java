@@ -17,7 +17,7 @@ class PersonSafetyTest {
 
         assertThat(person.contentTense()).isEqualTo(PersonContentTense.PAST_ONLY);
 
-        person.update(null, null, PersonVisibility.HIDDEN, null, null);
+        person.update(null, null, null, PersonVisibility.HIDDEN, null, null);
 
         assertThat(person.contentTense()).isEqualTo(PersonContentTense.EXCLUDED);
     }
