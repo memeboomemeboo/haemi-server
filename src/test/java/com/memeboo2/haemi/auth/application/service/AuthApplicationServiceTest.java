@@ -14,6 +14,7 @@ import com.memeboo2.haemi.auth.infrastructure.security.InstitutionAdminPropertie
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import com.memeboo2.haemi.auth.domain.repository.EmailVerificationRepository;
 import com.memeboo2.haemi.auth.domain.port.VerificationEmailPort;
+import com.memeboo2.haemi.auth.domain.port.MemberGroupQueryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ class AuthApplicationServiceTest {
     @Mock TotpPort totpPort;
     @Mock EmailVerificationRepository emailVerifications;
     @Mock VerificationEmailPort verificationEmail;
+    @Mock MemberGroupQueryPort memberGroups;
 
     private AuthApplicationService service;
 
@@ -46,7 +48,7 @@ class AuthApplicationServiceTest {
     void setUp() {
         service = new AuthApplicationService(memberRepository, passwordEncoder, tokenPort, totpPort,
                 new InstitutionAdminProperties(List.of("admin@haemi.kr")), emailVerifications, verificationEmail,
-                new EmailVerificationResendRateLimiter());
+                new EmailVerificationResendRateLimiter(), memberGroups);
     }
 
     @Test
@@ -190,6 +192,31 @@ class AuthApplicationServiceTest {
         assertThat(member.getRefreshTokenHash()).isNull();
         verify(tokenPort).blacklistAccessToken("access");
         verify(memberRepository).save(member);
+    }
+
+    @Test
+    @DisplayName("내 프로필 조회 시 소속 가족 그룹 ID를 함께 내려준다")
+    void getProfile_includesGroupId() {
+        Member member = member(MemberRole.FAMILY);
+        UUID groupId = UUID.randomUUID();
+        when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+        when(memberGroups.findGroupIdByMemberId(member.getId())).thenReturn(Optional.of(groupId));
+
+        MemberResult result = service.getProfile(member.getId());
+
+        assertThat(result.groupId()).isEqualTo(groupId);
+    }
+
+    @Test
+    @DisplayName("소속 가족 그룹이 없으면 그룹 ID는 null이다")
+    void getProfile_groupIdIsNullWithoutGroup() {
+        Member member = member(MemberRole.INSTITUTION_ADMIN);
+        when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+        when(memberGroups.findGroupIdByMemberId(member.getId())).thenReturn(Optional.empty());
+
+        MemberResult result = service.getProfile(member.getId());
+
+        assertThat(result.groupId()).isNull();
     }
 
     private Member member(MemberRole role) {
