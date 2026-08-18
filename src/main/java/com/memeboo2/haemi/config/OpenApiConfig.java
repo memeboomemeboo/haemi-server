@@ -8,7 +8,6 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
-import io.swagger.v3.oas.models.tags.Tag;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -35,11 +34,14 @@ public class OpenApiConfig {
                                 ## 모듈 구성
                                 | 모듈 | 설명 |
                                 |------|------|
+                                | **M0 계정·어르신 기반** | 계정·가족 그룹, 어르신 프로필, 접근 모드, 인물 마스터, 상태 관리 |
                                 | **M1 기억 회상 갤러리** | 사진·음성 업로드 → AI 개인화 회상 콘텐츠 자동 생성 |
                                 | M2 가족 추억글 시스템 | 가족 추억 글·사진 등록 ↔ 어르신 비동기 답변 |
                                 | M3 AI 인지 훈련 | 난이도 적응형 퀴즈·퍼즐 |
-                                | M4 인지 변화 추적 | 활동 데이터 시각화 리포트 |
+                                | M4 인지 변화 추적 | 활동 데이터 시각화 리포트 · 기관 담당자 포털 |
                                 | M5 공통 알림 | 손주 목소리 알람 등 부가 기능 |
+
+                                태그별 상세 설명은 각 태그 헤더에 표시됩니다.
                                 """)
                         .version("v2.0")
                         .contact(new Contact()
@@ -47,20 +49,6 @@ public class OpenApiConfig {
                                 .email("aa01034795025@gmail.com"))
                         .license(new License().name("Private")))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Token"))
-                .tags(List.of(
-                        new Tag().name("Auth").description("회원가입 · 로그인 · 토큰 관리 · 2FA · 프로필"),
-                        new Tag().name("M1-Album").description("F1-03 가족 공동 기억 앨범 / F1-06 연관 이미지 타임라인"),
-                        new Tag().name("M1-Photo").description("F1-01 사진 개별 저장 / F1-02 일괄 동기화 / F1-04 메모 & 회상 태깅"),
-                        new Tag().name("M1-Reminiscence").description("F1-05 AI 회상 콘텐츠 자동 생성"),
-                        new Tag().name("M2-Post").description("F2-01 가족 추억글 작성·수정·삭제 / F2-02 어르신 답변 / F2-03 AI 시 초안"),
-                        new Tag().name("M2-Feed").description("F2-04 추억글 피드 조회 (최신·인기·기간 정렬)"),
-                        new Tag().name("M2-GroupGoal").description("F1-03-A 그룹 협력 목표 (개인 순위 없는 공동 목표·하이라이트 카드)"),
-                        new Tag().name("M3-Training").description("F3-01 회상 세션 / F3-02 발화 기반 개인화 / F3-03 손주 한마디"),
-                        new Tag().name("M3-Hint").description("F3-03 손주 한마디 사전 적립"),
-                        new Tag().name("M4-Dashboard").description("F4-01 인지 리포트 / F4-02 조기 알림 / F4-03 기관 관리자 포털"),
-                        new Tag().name("M5-Care").description("F5-01 손주 목소리 알람 (F5-02 산책 유도는 보류)"),
-                        new Tag().name("Notification").description("FCM 푸시 알림 기기 토큰 등록·해지")
-                ))
                 .components(new Components()
                         .addSecuritySchemes("Bearer Token", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)

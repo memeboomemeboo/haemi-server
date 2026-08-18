@@ -5,6 +5,7 @@ import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import com.memeboo2.haemi.m4.application.dto.InstitutionElderSummary;
 import com.memeboo2.haemi.m4.application.dto.ReminiscenceMetricResult;
 import com.memeboo2.haemi.m4.application.service.InstitutionPortalApplicationService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -33,12 +34,14 @@ public class InstitutionPortalController {
     private final InstitutionPortalApplicationService portal;
     private final InstitutionPortalRateLimiter rateLimiter;
 
+    @Operation(summary = "담당 어르신 목록 조회", description = "로그인한 기관 담당자에게 배정된 어르신과 최근 회상 활동 요약을 조회합니다.")
     @GetMapping("/elders")
     public ApiResponse<List<InstitutionElderSummary>> assignedElders(@AuthenticationPrincipal AuthenticatedMember member) {
         rateLimiter.check(member.memberId());
         return ApiResponse.ok(portal.listAssigned(member.memberId()));
     }
 
+    @Operation(summary = "미참여 어르신 조회", description = "지정한 날짜에 회상 활동이 없었던 담당 어르신을 조회합니다.")
     @GetMapping("/no-participation")
     public ApiResponse<List<InstitutionElderSummary>> noParticipation(
             @AuthenticationPrincipal AuthenticatedMember member,
@@ -47,6 +50,7 @@ public class InstitutionPortalController {
         return ApiResponse.ok(portal.listNoParticipation(member.memberId(), date));
     }
 
+    @Operation(summary = "회상 활동 기록 조회", description = "담당 어르신 1명의 기간별 회상 활동 지표를 조회합니다.")
     @GetMapping("/records")
     public ApiResponse<List<ReminiscenceMetricResult>> record(
             @AuthenticationPrincipal AuthenticatedMember member,
@@ -57,6 +61,7 @@ public class InstitutionPortalController {
         return ApiResponse.ok(portal.getRecord(member.memberId(), elderId, from, to));
     }
 
+    @Operation(summary = "회상 활동 기록 CSV 내보내기", description = "기간별 회상 활동 지표를 UTF-8 CSV 파일(haemi-reminiscence.csv)로 내려받습니다.")
     @GetMapping(value = "/records/export.csv", produces = "text/csv")
     public ResponseEntity<byte[]> exportCsv(
             @AuthenticationPrincipal AuthenticatedMember member,
