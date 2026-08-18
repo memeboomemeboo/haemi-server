@@ -5,6 +5,7 @@ import com.memeboo2.haemi.m0.application.command.CreateInvitationCommand;
 import com.memeboo2.haemi.m0.application.dto.FamilyGroupResult;
 import com.memeboo2.haemi.m0.application.dto.InvitationResult;
 import com.memeboo2.haemi.m0.application.dto.OwnershipTransferResult;
+import com.memeboo2.haemi.m0.domain.event.FamilyMemberJoinedEvent;
 import com.memeboo2.haemi.m0.domain.model.*;
 import com.memeboo2.haemi.m0.domain.repository.FamilyGroupRepository;
 import com.memeboo2.haemi.m0.domain.repository.ElderRepository;
@@ -12,6 +13,7 @@ import com.memeboo2.haemi.m0.domain.repository.InvitationRepository;
 import com.memeboo2.haemi.m0.domain.repository.OwnershipTransferRepository;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,7 @@ public class FamilyGroupApplicationService {
     private final OwnershipTransferRepository ownershipTransfers;
     private final ElderRepository elders;
     private final MemberRepository members;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FamilyGroupResult create(UUID ownerId, CreateFamilyGroupCommand command) {
         if (groups.existsActiveMembershipByMemberId(ownerId)) {
@@ -91,7 +94,9 @@ public class FamilyGroupApplicationService {
         invitation.accept();
         group.acceptInvitation(actorId, invitation.getRelation());
         invitations.save(invitation);
-        return FamilyGroupResult.from(groups.save(group));
+        FamilyGroupResult result = FamilyGroupResult.from(groups.save(group));
+        eventPublisher.publishEvent(new FamilyMemberJoinedEvent(invitation.getGroupId(), actorId));
+        return result;
     }
 
     public FamilyGroupResult changeMemberRole(UUID actorId, UUID groupId, UUID memberId, GroupMemberRole role) {
