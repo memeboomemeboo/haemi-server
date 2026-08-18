@@ -8,5 +8,6 @@ import java.util.UUID;
 public interface InvitationRepository {
     Invitation save(Invitation invitation);
     Optional<Invitation> findByToken(String token);
+    Optional<Invitation> findPendingElderInvitationByCode(String code);
     long countPendingByGroupId(UUID groupId);
 }

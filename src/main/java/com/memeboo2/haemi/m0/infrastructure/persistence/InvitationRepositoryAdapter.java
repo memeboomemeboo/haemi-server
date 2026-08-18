@@ -1,6 +1,7 @@
 package com.memeboo2.haemi.m0.infrastructure.persistence;
 
 import com.memeboo2.haemi.m0.domain.model.Invitation;
+import com.memeboo2.haemi.m0.domain.model.InvitationKind;
 import com.memeboo2.haemi.m0.domain.model.InvitationStatus;
 import com.memeboo2.haemi.m0.domain.repository.InvitationRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,11 @@ public class InvitationRepositoryAdapter implements InvitationRepository {
     @Override
     public Optional<Invitation> findByToken(String token) {
         return invitations.findByToken(token);
+    }
+
+    @Override
+    public Optional<Invitation> findPendingElderInvitationByCode(String code) {
+        return invitations.findByCodeAndKindAndStatus(code, InvitationKind.ELDER, InvitationStatus.PENDING);
     }
 
     @Override

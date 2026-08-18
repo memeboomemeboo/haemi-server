@@ -9,5 +9,6 @@ import java.util.UUID;
 public interface JpaElderRepository extends JpaRepository<Elder, UUID> {
     Optional<Elder> findByGroupId(UUID groupId);
     Optional<Elder> findByMemberId(UUID memberId);
+    Optional<Elder> findByPhoneHash(String phoneHash);
     boolean existsByGroupId(UUID groupId);
 }
