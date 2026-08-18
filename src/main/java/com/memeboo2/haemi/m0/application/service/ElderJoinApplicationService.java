@@ -71,8 +71,8 @@ public class ElderJoinApplicationService {
             throw new M0ValidationException(INVALID_CODE_MESSAGE);
         }
 
-        Elder elder = elders.findByGroupId(invitation.getGroupId())
-                .orElseThrow(() -> new M0NotFoundException("어르신 프로필"));
+        var existingElder = elders.findByGroupId(invitation.getGroupId());
+        Elder elder = existingElder.orElseGet(() -> createElderFromCommand(invitation.getGroupId(), command));
 
         // 사별·추모 상태에서는 어르신 화면 자체를 열지 않는다 (EX-F005-01과 같은 관문).
         // 입원·휴면은 발송만 멈추는 상태이므로 합류·세션은 막지 않는다.
@@ -80,7 +80,8 @@ public class ElderJoinApplicationService {
             throw new M0ConflictException("지금은 들어갈 수 없어요. 가족에게 확인을 부탁드려요.");
         }
 
-        if (!elder.matchesName(command.name())) {
+        // 프로필이 이미 있던 경우에만 성함 교차 검증한다. 자동 생성한 경우에는 본인이 입력한 값이므로 건너뛴다.
+        if (existingElder.isPresent() && !elder.matchesName(command.name())) {
             attemptRecorder.hold(invitation.getId(), LocalDateTime.now());
             throw new M0ConflictException("정보가 맞는지 확인 중이에요.");
         }
@@ -210,6 +211,18 @@ public class ElderJoinApplicationService {
 
     private String syntheticEmail(UUID elderId) {
         return "elder-" + elderId + "@elder.haemi.invalid";
+    }
+
+    /**
+     * 그룹에 어르신 프로필이 없을 때 가입 정보로 즉시 생성한다.
+     * birthYear·gender·residenceType 세 항목이 없으면 가입 자체를 거부한다.
+     */
+    private Elder createElderFromCommand(UUID groupId, AcceptElderInvitationCommand command) {
+        if (command.birthYear() == null || command.gender() == null || command.residenceType() == null) {
+            throw new M0ValidationException("어르신 프로필 등록을 위해 출생연도·성별·거주 형태를 입력해주세요.");
+        }
+        return elders.save(Elder.create(groupId, null, command.name(),
+                command.birthYear(), command.gender(), command.residenceType()));
     }
 
     private String normalizeCode(String code) {

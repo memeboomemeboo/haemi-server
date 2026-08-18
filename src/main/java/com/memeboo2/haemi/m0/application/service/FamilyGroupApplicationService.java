@@ -60,11 +60,9 @@ public class FamilyGroupApplicationService {
     /**
      * 어르신 초대 코드 발급 (F0-01-E). 어르신은 그룹당 1인 프로필이라 member 정원(10명)에
      * 포함되지 않으므로 초대 슬롯을 예약하지 않는다.
+     * 어르신 프로필이 없어도 코드를 발급할 수 있다. 프로필은 accept-elder 단계에서 자동 생성된다.
      */
     private Invitation inviteElder(UUID groupId, UUID actorId) {
-        if (!elders.existsByGroupId(groupId)) {
-            throw new M0ValidationException("어르신 프로필을 먼저 등록해주세요.");
-        }
         // 코드 공간이 좁으므로 미수락 코드와 겹치지 않을 때까지 다시 뽑는다.
         for (int attempt = 0; attempt < 10; attempt++) {
             Invitation candidate = Invitation.createForElder(groupId, actorId);
