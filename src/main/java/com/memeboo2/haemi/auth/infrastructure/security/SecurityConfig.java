@@ -38,6 +38,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh",
                                 "/api/v1/auth/email-verifications/**").permitAll()
 
+                        // 어르신 참여 로그인은 토큰을 받기 전 단계다 (F0-01-E).
+                        // 코드 대입은 초대 1건당 시도 횟수로 제한한다(Invitation.MAX_CODE_ATTEMPTS).
+                        .requestMatchers(org.springframework.http.HttpMethod.POST,
+                                "/api/v1/invitations/*/accept-elder",
+                                "/api/v1/elder-sessions/refresh").permitAll()
+
                         // 2FA를 켜지 않은 기관 관리자는 로그인이 막혀 토큰을 받을 수 없다.
                         // 이 경로만 자격증명으로 직접 열어 최초 등록을 마치게 한다. (#96)
                         .requestMatchers("/api/v1/auth/totp/enrollment",

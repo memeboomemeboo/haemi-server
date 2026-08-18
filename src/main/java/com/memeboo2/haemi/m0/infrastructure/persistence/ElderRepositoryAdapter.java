@@ -35,6 +35,11 @@ public class ElderRepositoryAdapter implements ElderRepository {
     }
 
     @Override
+    public Optional<Elder> findByPhoneHash(String phoneHash) {
+        return elders.findByPhoneHash(phoneHash);
+    }
+
+    @Override
     public boolean existsByGroupId(UUID groupId) {
         return elders.existsByGroupId(groupId);
     }

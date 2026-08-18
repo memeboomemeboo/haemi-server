@@ -4,6 +4,7 @@ import com.memeboo2.haemi.m0.application.dto.ElderStatusResult;
 import com.memeboo2.haemi.m0.domain.event.ElderBereavedEvent;
 import com.memeboo2.haemi.m0.domain.event.ElderBereavementRecoveredEvent;
 import com.memeboo2.haemi.m0.domain.model.Elder;
+import com.memeboo2.haemi.m0.domain.model.ElderSessionRevokeReason;
 import com.memeboo2.haemi.m0.domain.model.ElderStatus;
 import com.memeboo2.haemi.m0.domain.model.FamilyGroup;
 import com.memeboo2.haemi.m0.domain.model.M0NotFoundException;
@@ -29,6 +30,7 @@ public class ElderStatusApplicationService {
     private final ElderRepository elders;
     private final FamilyGroupRepository groups;
     private final ApplicationEventPublisher eventPublisher;
+    private final ElderJoinApplicationService elderJoin;
 
     @Value("${haemi.elder.bereavement.silent-days:7}")
     private int silentDays;
@@ -73,6 +75,8 @@ public class ElderStatusApplicationService {
     public ElderStatusResult enshrineMemorial(UUID actorId, UUID elderId) {
         Elder elder = authorized(actorId, elderId);
         elder.enshrineMemorial(LocalDateTime.now());
+        // 기억 보관함은 가족 열람 전용이다. 어르신 기기 세션은 여기서 완전히 닫는다.
+        elderJoin.revokeAll(elderId, ElderSessionRevokeReason.ELDER_STATUS_CHANGED);
         return ElderStatusResult.from(elders.save(elder));
     }
 
