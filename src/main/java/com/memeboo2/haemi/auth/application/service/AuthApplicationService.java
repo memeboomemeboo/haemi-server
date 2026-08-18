@@ -7,6 +7,7 @@ import com.memeboo2.haemi.auth.application.command.BeginTotpEnrollmentCommand;
 import com.memeboo2.haemi.auth.application.command.CompleteTotpEnrollmentCommand;
 import com.memeboo2.haemi.auth.application.dto.TotpSetupResult;
 import com.memeboo2.haemi.auth.domain.model.*;
+import com.memeboo2.haemi.auth.domain.port.MemberGroupQueryPort;
 import com.memeboo2.haemi.auth.domain.port.PasswordEncoderPort;
 import com.memeboo2.haemi.auth.domain.port.TokenPort;
 import com.memeboo2.haemi.auth.domain.port.TotpPort;
@@ -34,6 +35,7 @@ public class AuthApplicationService {
     private final EmailVerificationRepository emailVerifications;
     private final VerificationEmailPort verificationEmail;
     private final EmailVerificationResendRateLimiter resendRateLimiter;
+    private final MemberGroupQueryPort memberGroups;
 
     // ─────────── 회원가입 ───────────
 
@@ -266,7 +268,7 @@ public class AuthApplicationService {
     public MemberResult getProfile(UUID memberId) {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new MemberNotFoundException(memberId.toString()));
-        return MemberResult.from(member);
+        return MemberResult.from(member, memberGroups.findGroupIdByMemberId(memberId).orElse(null));
     }
 
     // ─────────── 2FA 설정 ───────────
