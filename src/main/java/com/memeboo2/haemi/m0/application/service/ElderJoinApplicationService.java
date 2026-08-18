@@ -23,6 +23,7 @@ import com.memeboo2.haemi.m0.domain.repository.InvitationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
@@ -48,6 +49,8 @@ public class ElderJoinApplicationService {
     private static final String INVALID_CODE_MESSAGE = "코드를 다시 확인해주세요.";
 
     private final InvitationRepository invitations;
+    private final ElderInvitationAttemptRecorder attemptRecorder;
+    private final ElderSessionRevoker sessionRevoker;
     private final ElderRepository elders;
     private final FamilyGroupRepository groups;
     private final ElderSessionRepository sessions;
@@ -63,8 +66,10 @@ public class ElderJoinApplicationService {
     public ElderSessionResult join(AcceptElderInvitationCommand command) {
         Invitation invitation = invitations.findPendingElderInvitationByCode(normalizeCode(command.code()))
                 .orElseThrow(() -> new M0ValidationException(INVALID_CODE_MESSAGE));
-        invitation.recordJoinAttempt();
-        invitations.save(invitation);
+        // 실패해도 남아야 하는 기록이므로 별도 트랜잭션에서 커밋한다.
+        if (!attemptRecorder.recordAttempt(invitation.getId())) {
+            throw new M0ValidationException(INVALID_CODE_MESSAGE);
+        }
 
         Elder elder = elders.findByGroupId(invitation.getGroupId())
                 .orElseThrow(() -> new M0NotFoundException("어르신 프로필"));
@@ -76,8 +81,7 @@ public class ElderJoinApplicationService {
         }
 
         if (!elder.matchesName(command.name())) {
-            invitation.hold(LocalDateTime.now());
-            invitations.save(invitation);
+            attemptRecorder.hold(invitation.getId(), LocalDateTime.now());
             throw new M0ConflictException("정보가 맞는지 확인 중이에요.");
         }
 
@@ -104,8 +108,11 @@ public class ElderJoinApplicationService {
         ElderSession session = sessions.save(ElderSession.issue(elder.getId(), elder.getGroupId(),
                 command.deviceId(), tokenPort.hashToken(refreshToken), LocalDateTime.now(), rollingDays));
 
-        invitation.accept();
-        invitations.save(invitation);
+        // 시도 기록은 별도 트랜잭션에서 이미 커밋됐으므로, 최신 행을 다시 읽어 수락 처리한다.
+        Invitation accepted = invitations.findById(invitation.getId())
+                .orElseThrow(() -> new M0ValidationException(INVALID_CODE_MESSAGE));
+        accepted.accept();
+        invitations.save(accepted);
 
         return ElderSessionResult.of(session, elder.getName(),
                 accessTokenFor(elderAccount), refreshToken);
@@ -121,8 +128,8 @@ public class ElderJoinApplicationService {
         Elder elder = elders.findById(session.getElderId())
                 .orElseThrow(() -> new M0NotFoundException("어르신 프로필"));
         if (!elder.getStatus().isLiving()) {
-            session.revoke(ElderSessionRevokeReason.ELDER_STATUS_CHANGED, LocalDateTime.now());
-            sessions.save(session);
+            // 이 요청은 예외로 끝나므로 폐기는 별도 트랜잭션에서 커밋해야 남는다.
+            sessionRevoker.revokeAll(elder.getId(), ElderSessionRevokeReason.ELDER_STATUS_CHANGED);
             throw new M0ValidationException("다시 들어와 주세요.");
         }
         Member elderAccount = members.findById(elder.getMemberId())
@@ -144,6 +151,14 @@ public class ElderJoinApplicationService {
         return revokeAll(elderId, ElderSessionRevokeReason.OWNER_REVOKED);
     }
 
+    /**
+     * AFTER_COMMIT 이벤트 리스너 전용 진입점. 이미 커밋된 트랜잭션에 그대로 참여하면 세션 폐기가
+     * flush·commit되지 않고 버려지므로, 반드시 새 트랜잭션에서 실행한다.
+     */
+    public int revokeAllInNewTransaction(UUID elderId, ElderSessionRevokeReason reason) {
+        return sessionRevoker.revokeAll(elderId, reason);
+    }
+
     /** 상태 변경(F0-05)으로 어르신 화면을 즉시 닫는다. 기기 원격 잠금(EX-F005-06)의 서버 측 관문이다. */
     public int revokeAll(UUID elderId, ElderSessionRevokeReason reason) {
         LocalDateTime now = LocalDateTime.now();
@@ -159,6 +174,7 @@ public class ElderJoinApplicationService {
      * 사별 오등록 복구(48시간 내)에서만 세션을 되살린다. 복구인데도 어르신이 재로그인해야 하면
      * 조작 부담이 그대로 어르신에게 돌아간다(F0-01-E 검증 지표: 재로그인 요구 0건).
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int restoreAfterBereavementRecovery(UUID elderId, LocalDateTime revokedSince) {
         LocalDateTime now = LocalDateTime.now();
         var revoked = sessions.findRevokedSince(elderId, revokedSince).stream()

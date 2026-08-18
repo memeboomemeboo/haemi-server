@@ -22,6 +22,11 @@ public class InvitationRepositoryAdapter implements InvitationRepository {
     }
 
     @Override
+    public Optional<Invitation> findById(UUID invitationId) {
+        return invitations.findById(invitationId);
+    }
+
+    @Override
     public Optional<Invitation> findByToken(String token) {
         return invitations.findByToken(token);
     }

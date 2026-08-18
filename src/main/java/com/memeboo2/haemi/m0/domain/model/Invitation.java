@@ -134,18 +134,24 @@ public class Invitation {
     }
 
     /**
-     * 어르신 합류 시도 1건을 기록한다. 시도 한도를 넘으면 코드를 폐기해 무차별 대입을 끊는다.
-     * 만료·폐기된 코드는 여기서 걸러지고, 호출자는 "코드를 다시 확인해주세요"로만 응답한다.
+     * 어르신 합류 시도 1건을 기록하고, 이 시도를 계속 진행해도 되는지 알려준다.
+     * 시도 한도를 넘으면 코드를 폐기해 무차별 대입을 끊는다.
+     *
+     * <p>여기서 예외를 던지면 시도 횟수 증가 자체가 호출자의 롤백에 휩쓸려 사라지므로,
+     * 판정 결과만 돌려주고 실패 응답은 호출자가 별도 트랜잭션 밖에서 만든다.
+     *
+     * @return 시도 한도 안이면 true, 만료·폐기됐거나 한도를 소진했으면 false
      */
-    public void recordJoinAttempt() {
+    public boolean recordJoinAttempt() {
         if (!isPending()) {
-            throw new M0ValidationException("초대가 만료되었어요. 다시 요청해주세요.");
+            return false;
         }
         attemptCount++;
         if (attemptCount > MAX_CODE_ATTEMPTS) {
             revoke();
-            throw new M0ValidationException("코드를 다시 확인해주세요.");
+            return false;
         }
+        return true;
     }
 
     /** 입력 성함이 프로필과 다를 때 합류를 보류한다. 차단이 아니라 owner 확인 대기 상태다. */

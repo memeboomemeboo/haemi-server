@@ -29,7 +29,7 @@ public class ElderBereavementListener {
     public void onBereaved(ElderBereavedEvent event) {
         // 기기 잠금 명령이 도달하기 전이라도 서버가 먼저 세션을 끊어 어르신 화면을 닫는다(EX-F005-06).
         try {
-            elderJoin.revokeAll(event.elderId(), ElderSessionRevokeReason.ELDER_STATUS_CHANGED);
+            elderJoin.revokeAllInNewTransaction(event.elderId(), ElderSessionRevokeReason.ELDER_STATUS_CHANGED);
         } catch (Exception e) {
             log.error("사별 후 어르신 세션 폐기 실패: elderId={}", event.elderId(), e);
         }
