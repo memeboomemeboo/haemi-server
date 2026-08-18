@@ -42,7 +42,8 @@ public class ElderJoinController {
     public ApiResponse<ElderSessionResult> acceptElder(@PathVariable String code,
                                                        @Valid @RequestBody AcceptElderInvitationRequest request) {
         return ApiResponse.ok(elderJoin.join(new AcceptElderInvitationCommand(
-                code, request.name(), request.phoneNumber(), request.deviceId())), "이제 들어가실 수 있어요.");
+                code, request.name(), request.phoneNumber(), request.deviceId(),
+                request.birthYear(), request.gender(), request.residenceType())), "이제 들어가실 수 있어요.");
     }
 
     @Operation(
