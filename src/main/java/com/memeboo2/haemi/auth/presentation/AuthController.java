@@ -140,7 +140,16 @@ public class AuthController {
 
     // ─────────── 내 프로필 조회 ───────────
 
-    @Operation(summary = "내 프로필 조회")
+    @Operation(
+            summary = "내 프로필 조회",
+            description = """
+                    토큰 주체의 프로필을 조회합니다.
+
+                    `groupId`는 소속된 가족 그룹 ID입니다.
+                    가족은 활성 멤버십, 어르신은 연결된 프로필 기준으로 내려가며,
+                    소속 그룹이 없으면(예: 기관 관리자, 그룹 미가입 가족) `null`입니다.
+                    """
+    )
     @GetMapping("/me")
     public ApiResponse<MemberResult> getProfile(
             @AuthenticationPrincipal AuthenticatedMember member) {

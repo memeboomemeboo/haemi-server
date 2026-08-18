@@ -13,13 +13,18 @@ public record MemberResult(
         String name,
         MemberRole role,
         MemberStatus status,
+        UUID groupId,
         boolean totpEnabled,
         LocalDateTime createdAt
 ) {
     public static MemberResult from(Member member) {
+        return from(member, null);
+    }
+
+    public static MemberResult from(Member member, UUID groupId) {
         return new MemberResult(
                 member.getId(), member.getEmail(), member.getName(),
-                member.getRole(), member.getStatus(),
+                member.getRole(), member.getStatus(), groupId,
                 member.isTotpEnabled(), member.getCreatedAt()
         );
     }
