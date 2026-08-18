@@ -190,10 +190,44 @@ class ElderJoinApiIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void elderJoinsWithoutPreCreatedProfileThenProfileIsAutoCreated() throws Exception {
+        String ownerToken = token(UUID.randomUUID());
+        String groupId = createGroup(ownerToken);
+        String code = issueElderCode(ownerToken, groupId);
+
+        mockMvc.perform(post("/api/v1/invitations/{code}/accept-elder", code)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(joinBodyWithProfile("김해미", "010-9999-1111", code, "device-x",
+                                1945, "FEMALE", "HOME_ALONE")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.elderName").value("김해미"));
+    }
+
+    @Test
+    void elderJoinWithoutPreCreatedProfileAndMissingProfileFieldsReturnsError() throws Exception {
+        String ownerToken = token(UUID.randomUUID());
+        String groupId = createGroup(ownerToken);
+        String code = issueElderCode(ownerToken, groupId);
+
+        mockMvc.perform(post("/api/v1/invitations/{code}/accept-elder", code)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(joinBody("김해미", "010-9999-2222", code, "device-y")))
+                .andExpect(status().isBadRequest());
+    }
+
     private String joinBody(String name, String phone, String code, String deviceId) {
         return """
                 {"name":"%s","phoneNumber":"%s","code":"%s","deviceId":"%s"}
                 """.formatted(name, phone, code, deviceId);
+    }
+
+    private String joinBodyWithProfile(String name, String phone, String code, String deviceId,
+                                       int birthYear, String gender, String residenceType) {
+        return """
+                {"name":"%s","phoneNumber":"%s","code":"%s","deviceId":"%s",
+                 "birthYear":%d,"gender":"%s","residenceType":"%s"}
+                """.formatted(name, phone, code, deviceId, birthYear, gender, residenceType);
     }
 
     private String issueElderCode(String ownerToken, String groupId) throws Exception {
