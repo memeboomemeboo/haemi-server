@@ -7,6 +7,7 @@ import com.memeboo2.haemi.m0.application.dto.InvitationResult;
 import com.memeboo2.haemi.m0.application.dto.OwnershipTransferResult;
 import com.memeboo2.haemi.m0.domain.model.*;
 import com.memeboo2.haemi.m0.domain.repository.FamilyGroupRepository;
+import com.memeboo2.haemi.m0.domain.repository.ElderRepository;
 import com.memeboo2.haemi.m0.domain.repository.InvitationRepository;
 import com.memeboo2.haemi.m0.domain.repository.OwnershipTransferRepository;
 import com.memeboo2.haemi.auth.domain.repository.MemberRepository;
@@ -27,6 +28,7 @@ public class FamilyGroupApplicationService {
     private final FamilyGroupRepository groups;
     private final InvitationRepository invitations;
     private final OwnershipTransferRepository ownershipTransfers;
+    private final ElderRepository elders;
     private final MemberRepository members;
 
     public FamilyGroupResult create(UUID ownerId, CreateFamilyGroupCommand command) {
@@ -44,6 +46,9 @@ public class FamilyGroupApplicationService {
     public InvitationResult invite(UUID actorId, UUID groupId, CreateInvitationCommand command) {
         FamilyGroup group = loadGroup(groupId);
         group.requireOwner(actorId);
+        if (command.kind() == InvitationKind.ELDER) {
+            return InvitationResult.from(invitations.save(inviteElder(groupId, actorId)));
+        }
         if (command.email() == null || command.email().isBlank() || command.relation() == null) {
             throw new M0ValidationException("초대 대상 이메일과 관계는 필수예요.");
         }
@@ -52,9 +57,31 @@ public class FamilyGroupApplicationService {
         return InvitationResult.from(invitations.save(invitation));
     }
 
+    /**
+     * 어르신 초대 코드 발급 (F0-01-E). 어르신은 그룹당 1인 프로필이라 member 정원(10명)에
+     * 포함되지 않으므로 초대 슬롯을 예약하지 않는다.
+     */
+    private Invitation inviteElder(UUID groupId, UUID actorId) {
+        if (!elders.existsByGroupId(groupId)) {
+            throw new M0ValidationException("어르신 프로필을 먼저 등록해주세요.");
+        }
+        // 코드 공간이 좁으므로 미수락 코드와 겹치지 않을 때까지 다시 뽑는다.
+        for (int attempt = 0; attempt < 10; attempt++) {
+            Invitation candidate = Invitation.createForElder(groupId, actorId);
+            if (invitations.findPendingElderInvitationByCode(candidate.getCode()).isEmpty()) {
+                return candidate;
+            }
+        }
+        throw new M0ConflictException("초대 코드를 만들지 못했어요. 잠시 후 다시 시도해주세요.");
+    }
+
     public FamilyGroupResult acceptInvitation(UUID actorId, String token) {
         Invitation invitation = invitations.findByToken(token)
                 .orElseThrow(() -> new M0NotFoundException("초대 링크"));
+        if (invitation.isElderInvitation()) {
+            // 어르신 초대는 accept-elder 경로로만 처리한다(F0-01-E).
+            throw new M0NotFoundException("초대 링크");
+        }
         if (groups.existsActiveMembershipByMemberId(actorId)) {
             throw new M0ConflictException("이미 참여 중인 가족 그룹이 있어요.");
         }

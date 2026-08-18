@@ -10,5 +10,6 @@ public interface ElderRepository {
     Optional<Elder> findById(UUID elderId);
     Optional<Elder> findByGroupId(UUID groupId);
     Optional<Elder> findByMemberId(UUID memberId);
+    Optional<Elder> findByPhoneHash(String phoneHash);
     boolean existsByGroupId(UUID groupId);
 }

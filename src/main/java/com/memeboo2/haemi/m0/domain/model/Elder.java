@@ -37,6 +37,13 @@ public class Elder {
     @Column(name = "org_id", length = 100)
     private String orgId;
 
+    /**
+     * 어르신 참여 로그인(F0-01-E)에서 입력받은 전화번호의 해시.
+     * OTP 없이 식별·중복 등록 감지에만 쓰므로 원본은 보관하지 않는다.
+     */
+    @Column(name = "phone_hash", length = 64)
+    private String phoneHash;
+
     @Column(nullable = false, length = 10)
     private String name;
 
@@ -121,6 +128,20 @@ public class Elder {
         }
         this.accessMode = accessMode;
         touch();
+    }
+
+    /** 참여 로그인에서 확인한 전화번호 해시를 기록한다. */
+    public void registerPhoneHash(String phoneHash) {
+        if (phoneHash == null || phoneHash.isBlank()) {
+            throw new M0ValidationException("전화번호를 입력해주세요.");
+        }
+        this.phoneHash = phoneHash;
+        touch();
+    }
+
+    /** 초대 코드가 이 어르신 본인에게 쓰였는지 교차 검증한다 (EX-F001E-02). */
+    public boolean matchesName(String candidate) {
+        return candidate != null && name.equals(candidate.trim());
     }
 
     /** Mode A 어르신 계정 연결. 계정 자체의 역할 검증은 애플리케이션 계층에서 수행한다. */
