@@ -43,13 +43,14 @@ public class AlbumApplicationService {
     public AlbumResult createAlbum(CreateAlbumCommand command) {
         FamilyGroup group = validateAlbumTarget(command);
         Album album = Album.create(command.elderProfileId(), command.groupId(), command.ownerMemberId());
-        group.getActiveMembers().stream()
+        List<String> otherMembers = group.getActiveMembers().stream()
                 .map(m -> m.getMemberId().toString())
                 .filter(id -> !id.equals(command.ownerMemberId()))
-                .forEach(album::inviteMember);
+                .toList();
+        otherMembers.forEach(album::inviteMember);
         albumRepository.save(album);
         log.info("앨범 생성: albumId={}, groupId={}, 자동초대={}명",
-                album.getAlbumId(), command.groupId(), group.getActiveMembers().size() - 1);
+                album.getAlbumId(), command.groupId(), otherMembers.size());
         return AlbumResult.from(album);
     }
 
