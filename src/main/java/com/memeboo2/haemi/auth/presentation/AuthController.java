@@ -10,6 +10,7 @@ import com.memeboo2.haemi.auth.presentation.dto.request.*;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -45,6 +46,7 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 유효성 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이메일 중복")
     })
+    @SecurityRequirements
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<MemberResult> signUp(@RequestBody @Valid SignUpRequest request) {
@@ -55,6 +57,7 @@ public class AuthController {
     }
 
     @Operation(summary = "이메일 확인", description = "24시간 안에 한 번만 사용할 수 있는 이메일 확인 링크를 처리합니다.")
+    @SecurityRequirements
     @GetMapping("/email-verifications/confirm")
     public ApiResponse<Void> confirmEmail(@RequestParam String token) {
         authService.confirmEmail(token);
@@ -62,6 +65,7 @@ public class AuthController {
     }
 
     @Operation(summary = "이메일 확인 링크 재발송")
+    @SecurityRequirements
     @PostMapping("/email-verifications/resend")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<Void> resendEmail(@RequestBody @Valid EmailVerificationResendRequest request) {
@@ -88,6 +92,7 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "계정 정지"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "428", description = "2FA 코드 필요")
     })
+    @SecurityRequirements
     @PostMapping("/login")
     public ApiResponse<TokenResult> login(@RequestBody @Valid LoginRequest request) {
         TokenResult result = authService.login(new LoginCommand(
@@ -106,6 +111,7 @@ public class AuthController {
                     탈취 감지 시 모든 세션이 무효화됩니다.
                     """
     )
+    @SecurityRequirements
     @PostMapping("/refresh")
     public ApiResponse<TokenResult> refresh(@RequestBody @Valid RefreshTokenRequest request) {
         TokenResult result = authService.refresh(new RefreshTokenCommand(request.refreshToken()));
@@ -175,6 +181,7 @@ public class AuthController {
                     이미 2FA를 켠 계정과 일반 사용자는 인증된 `/totp/setup`을 사용하세요.
                     """
     )
+    @SecurityRequirements
     @PostMapping("/totp/enrollment")
     public ApiResponse<TotpSetupResult> beginTotpEnrollment(
             @RequestBody @Valid BeginTotpEnrollmentRequest request) {
@@ -186,6 +193,7 @@ public class AuthController {
             summary = "기관 관리자 2FA 최초 등록 확정 [#96]",
             description = "활성화만 하고 토큰은 발급하지 않습니다. 이후 일반 로그인에 인증 코드를 함께 보내세요."
     )
+    @SecurityRequirements
     @PostMapping("/totp/enrollment/verify")
     public ApiResponse<Void> completeTotpEnrollment(
             @RequestBody @Valid CompleteTotpEnrollmentRequest request) {

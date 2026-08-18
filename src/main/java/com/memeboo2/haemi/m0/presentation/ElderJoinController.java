@@ -9,6 +9,7 @@ import com.memeboo2.haemi.m0.presentation.dto.request.AcceptElderInvitationReque
 import com.memeboo2.haemi.m0.presentation.dto.request.RefreshElderSessionRequest;
 import com.memeboo2.haemi.m1.presentation.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class ElderJoinController {
                     입력 성함이 프로필과 다르면 합류를 보류하고 대표 보호자 확인을 요청합니다.
                     """
     )
+    @SecurityRequirements
     @PostMapping("/invitations/{code}/accept-elder")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ElderSessionResult> acceptElder(@PathVariable String code,
@@ -47,6 +49,7 @@ public class ElderJoinController {
             summary = "어르신 세션 갱신 [F0-01-E]",
             description = "앱 실행 시 호출합니다. 사용할 때마다 만료가 연장되어 어르신에게 재로그인을 요구하지 않습니다."
     )
+    @SecurityRequirements
     @PostMapping("/elder-sessions/refresh")
     public ApiResponse<ElderSessionResult> refresh(@Valid @RequestBody RefreshElderSessionRequest request) {
         return ApiResponse.ok(elderJoin.refresh(
