@@ -85,7 +85,7 @@ class DashboardApplicationServiceTest {
         when(albumRepository.findById(AlbumId.of(albumId))).thenReturn(Optional.of(album));
 
         var result = service.generateReport(new GenerateCognitiveReportCommand(
-                elderId.toString(), albumId.toString(), ReportPeriod.WEEKLY, ReportDeliveryMethod.IN_APP));
+                elderId.toString(), albumId.toString(), ReportPeriod.WEEKLY, null, null, ReportDeliveryMethod.IN_APP));
 
         assertThat(result.mode()).isEqualTo(ReportMode.STANDARD);
         assertThat(result.daysTogether()).isEqualTo(7);
@@ -110,7 +110,7 @@ class DashboardApplicationServiceTest {
                 Album.create(elderId.toString(), "group-1", "family-1")));
 
         var result = service.generateReport(new GenerateCognitiveReportCommand(
-                elderId.toString(), albumId.toString(), ReportPeriod.WEEKLY, ReportDeliveryMethod.IN_APP));
+                elderId.toString(), albumId.toString(), ReportPeriod.WEEKLY, null, null, ReportDeliveryMethod.IN_APP));
 
         assertThat(result.mode()).isEqualTo(ReportMode.MEMORY_FOCUSED);
         assertThat(result.activityMessage()).isNull();
@@ -124,7 +124,7 @@ class DashboardApplicationServiceTest {
         when(elderAccess.getRequired(elderId)).thenReturn(snapshot(ElderStatus.DECEASED));
 
         assertThatThrownBy(() -> service.generateReport(new GenerateCognitiveReportCommand(
-                elderId.toString(), null, ReportPeriod.WEEKLY, ReportDeliveryMethod.IN_APP)))
+                elderId.toString(), null, ReportPeriod.WEEKLY, null, null, ReportDeliveryMethod.IN_APP)))
                 .isInstanceOf(ReportDeliveryBlockedException.class);
 
         verifyNoInteractions(metricRepository, pdfReportPort, reportRepository, notificationPort);

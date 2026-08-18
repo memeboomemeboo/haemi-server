@@ -39,7 +39,7 @@ public class PersonApplicationService implements PersonExposurePort {
     public PersonResult update(UUID actorId, UUID personId, UpdatePersonCommand command) {
         Person person = loadPerson(personId);
         loadGroup(person.getGroupId()).requireOwner(actorId);
-        person.update(command.lifeStatus(), command.deceasedAt(), command.visibility(), command.nickname(),
+        person.update(command.relation(), command.lifeStatus(), command.deceasedAt(), command.visibility(), command.nickname(),
                 command.profilePhotoId());
         return PersonResult.from(persons.save(person));
     }

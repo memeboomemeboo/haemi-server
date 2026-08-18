@@ -127,10 +127,21 @@ public class DashboardApplicationService {
         if (elder.status() == ElderStatus.DECEASED) {
             throw new ReportDeliveryBlockedException();
         }
-        LocalDate end = resolvePeriodEnd(command.period());
-        LocalDate start = command.period() == ReportPeriod.WEEKLY
-                ? end.minusDays(6)
-                : end.with(TemporalAdjusters.firstDayOfMonth());
+        LocalDate end;
+        LocalDate start;
+        if (command.customFrom() != null && command.customTo() != null) {
+            start = command.customFrom();
+            end = command.customTo();
+            if (start.isAfter(end)) {
+                throw new DomainValidationException("시작일이 종료일보다 늦을 수 없어요.");
+            }
+        } else {
+            ReportPeriod period = command.period() != null ? command.period() : ReportPeriod.WEEKLY;
+            end = resolvePeriodEnd(period);
+            start = period == ReportPeriod.WEEKLY
+                    ? end.minusDays(6)
+                    : end.with(TemporalAdjusters.firstDayOfMonth());
+        }
 
         List<CognitiveDailyMetric> metrics = metricRepository.findByElderIdAndDateBetween(
                 command.elderId(), start, end);
@@ -161,8 +172,9 @@ public class DashboardApplicationService {
         if (activityMessage != null) {
             activityLanguage.requireSafe(activityMessage);
         }
+        ReportPeriod resolvedPeriod = command.period() != null ? command.period() : ReportPeriod.WEEKLY;
         UUID albumId = resolveAlbumId(command, metrics);
-        CognitiveReport report = CognitiveReport.createReminiscence(command.elderId(), albumId, command.period(),
+        CognitiveReport report = CognitiveReport.createReminiscence(command.elderId(), albumId, resolvedPeriod,
                 start, end, mode, daysTogether, topics, topPhotos, voiceResponses, familyContributions,
                 activityMessage, summary, command.deliveryMethod());
         String pdfKey = pdfReportPort.generatePdf(report);

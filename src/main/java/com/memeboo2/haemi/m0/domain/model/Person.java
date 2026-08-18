@@ -88,18 +88,20 @@ public class Person extends AbstractAggregateRoot<Person> {
         return person;
     }
 
-    public void update(PersonLifeStatus lifeStatus, LocalDate deceasedAt, PersonVisibility visibility,
-                       String nickname, UUID profilePhotoId) {
+    public void update(FamilyRelation relation, PersonLifeStatus lifeStatus, LocalDate deceasedAt,
+                       PersonVisibility visibility, String nickname, UUID profilePhotoId) {
+        FamilyRelation effectiveRelation = relation == null ? this.relation : relation;
         PersonLifeStatus effectiveLifeStatus = lifeStatus == null ? this.lifeStatus : lifeStatus;
         LocalDate effectiveDeceasedAt = lifeStatus == null ? this.deceasedAt : deceasedAt;
         PersonVisibility effectiveVisibility = visibility == null ? this.visibility : visibility;
         String effectiveNickname = nickname == null ? this.nickname : nickname;
-        validate(this.name, this.relation, effectiveLifeStatus, effectiveDeceasedAt, effectiveVisibility,
+        validate(this.name, effectiveRelation, effectiveLifeStatus, effectiveDeceasedAt, effectiveVisibility,
                 effectiveNickname);
 
         boolean affectsContent = this.lifeStatus != effectiveLifeStatus
                 || this.visibility != effectiveVisibility
                 || this.active != true;
+        this.relation = effectiveRelation;
         this.lifeStatus = effectiveLifeStatus;
         this.deceasedAt = effectiveDeceasedAt;
         this.visibility = effectiveVisibility;

@@ -30,7 +30,7 @@ public class CognitiveReportScheduler {
         for (String elderId : elderIds) {
             try {
                 dashboardService.generateReport(new GenerateCognitiveReportCommand(
-                        elderId, null, ReportPeriod.WEEKLY, ReportDeliveryMethod.IN_APP));
+                        elderId, null, ReportPeriod.WEEKLY, null, null, ReportDeliveryMethod.IN_APP));
                 log.info("주간 리포트 생성 완료: elderId={}", elderId);
             } catch (DataInsufficientException e) {
                 log.info("데이터 부족으로 리포트 생략: elderId={}", elderId);
@@ -50,7 +50,7 @@ public class CognitiveReportScheduler {
         for (String elderId : elderIds) {
             try {
                 dashboardService.generateReport(new GenerateCognitiveReportCommand(
-                        elderId, null, ReportPeriod.MONTHLY, ReportDeliveryMethod.IN_APP));
+                        elderId, null, ReportPeriod.MONTHLY, null, null, ReportDeliveryMethod.IN_APP));
                 log.info("월간 리포트 생성 완료: elderId={}", elderId);
             } catch (DataInsufficientException e) {
                 log.info("데이터 부족으로 리포트 생략: elderId={}", elderId);
