@@ -4,6 +4,7 @@ import com.memeboo2.haemi.auth.infrastructure.security.AuthenticatedMember;
 import com.memeboo2.haemi.m0.application.command.CreateFamilyGroupCommand;
 import com.memeboo2.haemi.m0.application.command.CreateInvitationCommand;
 import com.memeboo2.haemi.m0.application.dto.FamilyGroupResult;
+import com.memeboo2.haemi.m0.domain.model.InvitationKind;
 import com.memeboo2.haemi.m0.application.dto.InvitationResult;
 import com.memeboo2.haemi.m0.application.dto.OwnershipTransferResult;
 import com.memeboo2.haemi.m0.application.service.FamilyGroupApplicationService;
@@ -39,7 +40,12 @@ public class FamilyGroupController {
                 new CreateFamilyGroupCommand(request.relation(), request.notificationPreference())));
     }
 
-    @Operation(summary = "가족 구성원 초대", description = "대표 보호자만 72시간 유효한 초대 링크를 발급할 수 있습니다.")
+    @Operation(summary = "가족 구성원 및 어르신 초대",
+            description = """
+                    대표 보호자만 72시간 유효한 초대를 발급할 수 있습니다.
+                    kind=FAMILY(기본)는 이메일·관계가 필수이며 링크 토큰을 발급합니다.
+                    kind=ELDER는 어르신 화면에서 입력할 6자리 코드를 발급하며, 어르신은 구성원 정원(10명)에 포함되지 않습니다.
+                    """)
     @PostMapping("/groups/{groupId}/invitations")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<InvitationResult> invite(
@@ -47,7 +53,9 @@ public class FamilyGroupController {
             @PathVariable UUID groupId,
             @Valid @RequestBody CreateInvitationRequest request) {
         return ApiResponse.ok(familyGroups.invite(member.memberId(), groupId,
-                new CreateInvitationCommand(request.email(), request.relation())));
+                new CreateInvitationCommand(
+                        request.kind() == null ? InvitationKind.FAMILY : request.kind(),
+                        request.email(), request.relation())));
     }
 
     @Operation(summary = "초대 수락", description = "초대 링크를 가진 로그인 사용자를 가족 그룹 구성원으로 등록합니다.")
